@@ -27,7 +27,26 @@
       --radius: 16px;
     }
 
-    * { box-sizing: border-box; }
+    /* ── Moderne Scrollbars ── */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    * {
+      box-sizing: border-box;
+      scrollbar-width: thin;
+      scrollbar-color: #cbd5e1 transparent;
+    }
 
     html, body {
       margin: 0;
@@ -78,12 +97,14 @@
       margin-bottom: 2rem; 
       padding: 0 0.5rem; 
       overflow: hidden; 
+      flex-shrink: 0;
     }
     .sidebar-logo img { 
-      max-width: 120px; 
+      width: 130px; /* Feste Breite verhindert das Verschwinden */
+      max-width: 100%;
       height: auto; 
       display: block; 
-      transition: opacity 0.2s ease, max-width 0.2s ease;
+      transition: opacity 0.2s ease, width 0.2s ease;
       transform-origin: left center;
     }
 
@@ -99,6 +120,7 @@
       letter-spacing: 0.5px;
       padding: 0 0.75rem;
       margin-bottom: 0.5rem;
+      white-space: nowrap;
     }
 
     .nav-item {
@@ -128,6 +150,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-shrink: 0;
     }
 
     .user-avatar {
@@ -147,7 +170,8 @@
     .sidebar-toggle {
       display: flex;
       align-items: center;
-      gap: 12px;
+      justify-content: center;
+      gap: 8px;
       margin-top: 1.5rem;
       padding: 0.75rem;
       background: transparent;
@@ -159,6 +183,7 @@
       cursor: pointer;
       transition: all 0.2s ease;
       width: 100%;
+      flex-shrink: 0;
     }
     
     .sidebar-toggle:hover { background: var(--line); color: var(--ink); }
@@ -173,7 +198,7 @@
 
     .intranet-layout.sidebar-collapsed .sidebar-logo img { 
       opacity: 0;
-      max-width: 0px;
+      width: 0px;
     }
 
     .intranet-layout.sidebar-collapsed .nav-label,

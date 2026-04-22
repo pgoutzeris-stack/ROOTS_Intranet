@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ROOTS Intranet</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.cdnfonts.com/css/circular-std');
+
+    :root {
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #e2e8f0;
+      --brand: #206efb;
+      --brand-light: #eff6ff;
+      --brand-dark: #165fd9;
+      --accent: #0f766e;
+      --accent-light: #ecfeff;
+      --status-bg: #f8fafc;
+      --status-border: #94a3b8;
+      --status-text: #334155;
+      --warning-bg: #fffbf0;
+      --warning-text: #b45309;
+      --bg: #ffffff;
+      --shell: #eef2f7;
+      --shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(32, 110, 251, 0.12), transparent 28%),
+        linear-gradient(180deg, #f7f9fc 0%, #edf2f7 100%);
+    }
+
+    body { padding: 24px; }
+
+    a, button, input { font: inherit; }
+
+    .intranet-layout {
+      font-family: 'Circular Std', system-ui, sans-serif;
+      color: var(--ink);
+      margin: 0 auto;
+      background: var(--bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      min-height: calc(100vh - 48px);
+      max-width: 1800px;
+      display: flex;
+      overflow: hidden;
+      animation: fade 0.5s ease-out forwards;
+    }
+
+    .intranet-layout h2 { font-size: 2rem; font-weight: 700; color: var(--ink); margin: 0 0 0.5rem 0; }
+    .intranet-layout h3 { font-size: 1.35rem; font-weight: 700; color: var(--ink); margin: 0 0 0.75rem 0; }
+    .intranet-layout p { font-size: 1rem; font-weight: 400; color: var(--ink); line-height: 1.6; margin: 0; }
+    .intranet-layout p.muted { color: var(--muted); }
+
+    /* Sidebar */
+    .intranet-sidebar {
+      width: 290px;
+      background: #f8f9fb;
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      padding: 2rem 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .sidebar-logo { margin-bottom: 2rem; padding: 0 0.5rem; }
+    .sidebar-logo img { max-width: 120px; height: auto; }
+
+    .sidebar-intro {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+    }
+
+    .sidebar-intro span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.8;
+      margin-bottom: 0.6rem;
+    }
+
+    .sidebar-intro p { color: rgba(255, 255, 255, 0.84); font-size: 0.95rem; }
+
+    .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 2rem; }
+
+    .nav-group { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .nav-label {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+      padding: 0 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .nav-item {
+      text-decoration: none;
+      color: var(--ink);
+      font-size: 1rem;
+      font-weight: 500;
+      padding: 0.75rem;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .nav-item i { color: var(--muted); width: 20px; text-align: center; transition: all 0.2s ease; }
+    .nav-item:hover { background: var(--line); transform: translateX(2px); }
+    .nav-item.active { background: var(--brand-light); color: var(--brand); }
+    .nav-item.active i { color: var(--brand); }
+    .nav-item.nav-item-accent.active { background: var(--accent-light); color: var(--accent); }
+    .nav-item.nav-item-accent.active i { color: var(--accent); }
+    .nav-item.is-disabled { opacity: 0.74; }
+
+    .sidebar-user {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid #f0f0f0;
+      background-size: cover;
+      background-position: top center;
+      flex-shrink: 0;
+    }
+
+    .user-info { display: flex; flex-direction: column; }
+    .user-name { font-weight: 700; font-size: 0.95rem; }
+    .user-role { font-size: 0.85rem; color: var(--muted); }
+
+    /* Main */
+    .intranet-main { flex: 1; padding: 3rem 4rem; overflow-y: auto; background: var(--bg); }
+
+    .intranet-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 2rem;
+      gap: 2rem;
+    }
+
+    .header-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--brand-dark);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 0.85rem;
+    }
+
+    .header-actions { display: flex; gap: 1rem; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+
+    .btn-primary, .btn-ghost, .btn-inline {
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .btn-primary {
+      background: var(--brand);
+      color: #fff;
+      border-radius: 999px;
+      padding: 0.75rem 1.6rem;
+      font-size: 1rem;
+      font-weight: 500;
+      box-shadow: var(--shadow);
+    }
+
+    .btn-primary:hover { background: var(--brand-dark); transform: translateY(-2px); }
+
+    .btn-ghost {
+      background: #fff;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 0.7rem 1.6rem;
+      font-size: 1rem;
+      font-weight: 500;
+    }
+
+    .btn-ghost:hover { border-color: var(--brand); color: var(--brand); transform: translateY(-2px); }
+
+    .btn-inline { color: var(--brand-dark); font-size: 0.95rem; font-weight: 700; }
+    .btn-inline:hover { color: var(--brand); transform: translateX(2px); }
+
+    /* Views */
+    .app-view { display: none; animation: fade 0.35s ease-out forwards; }
+    .app-view.is-active { display: block; }
+
+    /* Dashboard */
+    .dashboard-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1.5rem; }
+
+    .content-block, .tool-launch-card, .tool-shell, .placeholder-shell {
+      border-radius: 18px;
+      padding: 1.5rem;
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+    }
+
+    .content-block { grid-column: span 12; }
+    .content-block--half { grid-column: span 6; }
+
+    .stage-label {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .status-quo-block { background: var(--status-bg); border-left: 4px solid var(--status-border); }
+    .status-quo-block .stage-label { color: var(--status-text); }
+    .next-steps-block { background: var(--brand-light); border-left: 4px solid var(--brand); }
+    .next-steps-block .stage-label { color: var(--brand-dark); }
+    .risk-block { background: var(--warning-bg); border-left: 4px solid #f59e0b; }
+    .risk-block .stage-label { color: var(--warning-text); }
+    .risk-block p { color: #78350f; }
+
+    .tools-grid {
+      grid-column: span 12;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1.5rem;
+    }
+
+    .tool-launch-card {
+      background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-height: 280px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tool-launch-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -60px -80px auto;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: rgba(32, 110, 251, 0.08);
+    }
+
+    .tool-launch-card--accent::after { background: rgba(15, 118, 110, 0.09); }
+
+    .card-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      background: rgba(15, 23, 42, 0.05);
+      color: var(--ink);
+      padding: 0.5rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .tool-launch-card h3, .tool-shell h3, .placeholder-shell h3 { font-size: 1.45rem; margin-bottom: 0.35rem; }
+
+    .tool-card-copy { display: flex; flex-direction: column; gap: 0.65rem; max-width: 34rem; }
+
+    .card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1rem;
+      align-items: center;
+      margin-top: auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Tool Views */
+    .tool-shell {
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      padding: 1.25rem;
+    }
+
+    .tool-shell-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 1.5rem;
+      align-items: flex-start;
+      margin-bottom: 1.25rem;
+    }
+
+    .tool-meta { display: flex; flex-direction: column; gap: 0.7rem; max-width: 48rem; }
+
+    .tool-badges { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+
+    .tool-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      padding: 0.45rem 0.7rem;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: var(--ink);
+    }
+
+    .tool-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.9rem 1rem;
+      background: #0f172a;
+      color: #fff;
+      border-radius: 14px 14px 0 0;
+      font-size: 0.94rem;
+    }
+
+    .tool-toolbar-left { display: flex; align-items: center; gap: 0.85rem; min-width: 0; }
+
+    .tool-dot-group { display: flex; gap: 0.35rem; flex-shrink: 0; }
+
+    .tool-dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); }
+
+    .tool-address { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: rgba(255, 255, 255, 0.9); }
+
+    .tool-toolbar .btn-inline { color: #fff; }
+    .tool-toolbar .btn-inline:hover { color: #cfe0ff; }
+
+    .tool-frame-wrap {
+      border: 1px solid var(--line);
+      border-top: none;
+      border-radius: 0 0 14px 14px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .tool-frame { display: block; width: 100%; min-height: 920px; border: 0; background: #fff; }
+
+    .tool-fallback { margin-top: 1rem; color: var(--muted); font-size: 0.95rem; }
+    .tool-fallback a { color: var(--brand-dark); font-weight: 700; text-decoration: none; }
+    .tool-fallback a:hover { color: var(--brand); }
+
+    /* Placeholder Shell */
+    .placeholder-shell {
+      background: linear-gradient(145deg, #fff 0%, #f8fafc 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .placeholder-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .placeholder-tile {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1rem;
+      background: #fff;
+    }
+
+    .placeholder-tile strong { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; }
+    .placeholder-tile span { color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+
+    /* iFrame Placeholder */
+    .iframe-placeholder {
+      border: 2px dashed var(--line);
+      border-radius: 0 0 14px 14px;
+      min-height: 480px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      background: #f8fafc;
+      color: var(--muted);
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .iframe-placeholder i { font-size: 2.5rem; opacity: 0.3; }
+    .iframe-placeholder strong { font-size: 1.1rem; color: var(--ink); }
+    .iframe-placeholder span { font-size: 0.92rem; max-width: 28rem; line-height: 1.6; }
+
+    .hidden { display: none !important; }
+
+    @keyframes fade {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Responsive */
+    @media (max-width: 1280px) {
+      .intranet-main { padding: 2.25rem; }
+      .content-block--half, .tools-grid { grid-column: span 12; }
+    }
+
+    @media (max-width: 980px) {
+      body { padding: 0; }
+      .intranet-layout { flex-direction: column; min-height: 100vh; border-radius: 0; }
+      .intranet-sidebar { width: 100%; padding: 1.5rem; border-right: none; border-bottom: 1px solid var(--line); }
+      .intranet-main { padding: 2rem 1.5rem; }
+      .intranet-header, .tool-shell-header, .tool-toolbar { flex-direction: column; align-items: flex-start; }
+      .header-actions { width: 100%; justify-content: flex-start; }
+      .header-actions a, .header-actions button, .card-actions a, .card-actions button { width: 100%; justify-content: center; }
+      .tools-grid, .placeholder-list { grid-template-columns: 1fr; }
+      .tool-frame { min-height: 780px; }
+    }
+
+    @media (max-width: 640px) {
+      .intranet-layout h2 { font-size: 1.7rem; }
+      .tool-frame { min-height: 660px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper intranet-layout">
+    <aside class="intranet-sidebar">
+      <div class="sidebar-logo">
+        <img src="https://roots-consultants.de/wp-content/uploads/2025/04/Roots-Brand-Strategy-Consultants-Logo.svg" alt="ROOTS Logo">
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-group">
+          <span class="nav-label">Übersicht</span>
+          <a href="#dashboard" class="nav-item active" data-view="dashboard">
+            <i class="fa-solid fa-house"></i> Dashboard
+          </a>
+          <a href="#bulletin" class="nav-item is-disabled" data-view="upcoming"
+            data-feature-title="Schwarzes Brett"
+            data-feature-description="Dieser Bereich ist im Intranet bereits vorgesehen und kann im gleichen Stil als nächstes Modul ausgebaut werden.">
+            <i class="fa-solid fa-newspaper"></i> Schwarzes Brett
+          </a>
+        </div>
+
+        <div class="nav-group">
+          <span class="nav-label">Planung &amp; Team</span>
+          <a href="#calendar" class="nav-item is-disabled" data-view="upcoming"
+            data-feature-title="Team Kalender"
+            data-feature-description="Hier kann später ein eigener Kalender oder eine eingebettete Team-Planungsansicht integriert werden.">
+            <i class="fa-solid fa-calendar-days"></i> Team Kalender
+          </a>
+          <a href="#capacity" class="nav-item is-disabled" data-view="upcoming"
+            data-feature-title="Kapazitätsplanung"
+            data-feature-description="Die Kapazitätsplanung ist als eigenes Modul vorbereitet und lässt sich später analog zu den Live-Tools einbetten.">
+            <i class="fa-solid fa-chart-gantt"></i> Kapazitätsplanung
+          </a>
+          <a href="#vacation" class="nav-item is-disabled" data-view="upcoming"
+            data-feature-title="Urlaubsplanung"
+            data-feature-description="Die Urlaubsplanung ist als nächster Team-Bereich vorgesehen und kann an derselben Stelle ergänzt werden.">
+            <i class="fa-solid fa-umbrella-beach"></i> Urlaubsplanung
+          </a>
+        </div>
+
+        <div class="nav-group">
+          <span class="nav-label">Wissen &amp; Prozesse</span>
+          <a href="#sop" class="nav-item nav-item-accent" data-view="sop">
+            <i class="fa-solid fa-layer-group"></i> SOP Dashboard
+          </a>
+          <a href="#knowledge" class="nav-item is-disabled" data-view="upcoming"
+            data-feature-title="Wissenshub"
+            data-feature-description="Der Wissenshub ist bereits im Navigationssystem berücksichtigt und kann später als weiteres Intranet-Modul aktiviert werden.">
+            <i class="fa-solid fa-book-open"></i> Wissenshub
+          </a>
+        </div>
+
+        <div class="nav-group">
+          <span class="nav-label">Tools</span>
+          <a href="#recruiting" class="nav-item" data-view="recruiting">
+            <i class="fa-solid fa-user-tie"></i> Recruiting Tool
+          </a>
+          <a href="#image" class="nav-item" data-view="image">
+            <i class="fa-solid fa-image"></i> Bildgenerierung (KI)
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-user">
+        <div class="user-avatar" style="background-image: url('https://roots-consultants.de/wp-content/uploads/2025/11/Design-ohne-Titel-24-1-e1763482494374.png');"></div>
+        <div class="user-info">
+          <span class="user-name">Max Mustermann</span>
+          <span class="user-role">Strategy Consultant</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="intranet-main">
+      <div class="intranet-header">
+        <div class="header-text">
+          <span class="header-eyebrow" id="view-eyebrow"><i class="fa-solid fa-table-cells-large"></i> ROOTS Hub</span>
+          <h2 id="view-title">Guten Tag!</h2>
+          <p class="muted" id="view-description">Willkommen im ROOTS Hub. Hier ist deine aktuelle Tagesübersicht und der direkte Einstieg in die integrierten Tools.</p>
+        </div>
+        <div class="header-actions">
+          <a href="#dashboard" class="btn-ghost" id="secondary-action"><i class="fa-solid fa-house"></i> Dashboard</a>
+          <a href="#recruiting" class="btn-primary" id="primary-action">
+            <i class="fa-solid fa-user-tie"></i> Recruiting Tool
+          </a>
+        </div>
+      </div>
+
+      <!-- Dashboard -->
+      <section class="app-view is-active" data-view-panel="dashboard">
+        <div class="dashboard-grid">
+          <div class="content-block status-quo-block content-block--half">
+            <div class="stage-label"><i class="fa-solid fa-chart-gantt"></i> Kapazitätsplanung (Aktuelle Woche)</div>
+            <h3>85% Auslastung im Team</h3>
+            <p>Die aktuellen Sprints binden einen Großteil der Ressourcen. Für Eilaufträge sind noch Kapazitäten bei Anna und Thomas frei. Bitte Projektzeiten bis Freitag 14:00 Uhr eintragen.</p>
+          </div>
+
+          <div class="content-block next-steps-block content-block--half">
+            <div class="stage-label"><i class="fa-solid fa-layer-group"></i> SOP Rollout</div>
+            <h3>Erstes SOP Dashboard ist live</h3>
+            <p>Das erste von mehreren SOP-Modulen ist direkt im Intranet eingebunden. Weitere Dashboards können später unter derselben Struktur ergänzt werden.</p>
+          </div>
+
+          <div class="content-block risk-block">
+            <div class="stage-label"><i class="fa-solid fa-calendar-days"></i> Kalender &amp; Abwesenheiten</div>
+            <h3>Kommende Woche: 2 Abwesenheiten</h3>
+            <p>Lisa ist ab Montag im Urlaub (Vertretung: Julian). Das All-Hands-Meeting verschiebt sich auf Mittwoch, 10:00 Uhr. Denkt daran, offene Urlaubsanträge für Q3 rechtzeitig einzureichen.</p>
+          </div>
+
+          <div class="tools-grid">
+            <!-- Recruiting Tool -->
+            <article class="tool-launch-card">
+              <span class="card-chip"><i class="fa-solid fa-user-tie"></i> Recruiting</span>
+              <div class="tool-card-copy">
+                <h3>Recruiting Tool</h3>
+                <p>Strukturierte Bewerbungsgespräche mit Bewertung, Timer und Sprachaufnahme. Das Tool wird über einen iFrame direkt im Intranet eingebettet sobald die URL verfügbar ist.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#recruiting" class="btn-primary" data-open-view="recruiting">
+                  <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Im Intranet öffnen
+                </a>
+              </div>
+            </article>
+
+            <!-- SOP Dashboard -->
+            <article class="tool-launch-card tool-launch-card--accent">
+              <span class="card-chip"><i class="fa-solid fa-layer-group"></i> Wissen &amp; Prozesse</span>
+              <div class="tool-card-copy">
+                <h3>SOP Dashboard</h3>
+                <p>Direkt eingebundenes SOP-Modul. Das Dashboard ist als erster Baustein für weitere SOP-Bereiche im Intranet vorbereitet.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#sop" class="btn-primary" data-open-view="sop">
+                  <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Im Intranet öffnen
+                </a>
+              </div>
+            </article>
+
+            <!-- Bildgenerierung -->
+            <article class="tool-launch-card">
+              <span class="card-chip"><i class="fa-solid fa-wand-magic-sparkles"></i> Produktiv-Tool</span>
+              <div class="tool-card-copy">
+                <h3>Bildgenerierung (KI)</h3>
+                <p>Das Bildgenerierungs-Tool wird als eingebettete Anwendung direkt im Intranet verfügbar sein sobald die URL eingetragen ist.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#image" class="btn-primary" data-open-view="image">
+                  <i class="fa-solid fa-image"></i> Im Intranet öffnen
+                </a>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recruiting Tool -->
+      <section class="app-view" data-view-panel="recruiting">
+        <div class="tool-shell">
+          <div class="tool-shell-header">
+            <div class="tool-meta">
+              <div class="tool-badges">
+                <span class="tool-badge"><i class="fa-solid fa-user-tie"></i> Recruiting</span>
+                <span class="tool-badge"><i class="fa-solid fa-clock-rotate-left"></i> iFrame Platzhalter</span>
+              </div>
+              <h3>Recruiting Tool</h3>
+              <p>Strukturierte Bewerbungsgespräche mit Bewertung, Timer und Sprachaufnahme. Sobald das Tool auf GitHub Pages deployed ist, wird die URL hier eingetragen und das Tool direkt eingebettet.</p>
+            </div>
+          </div>
+
+          <div class="tool-toolbar">
+            <div class="tool-toolbar-left">
+              <div class="tool-dot-group">
+                <span class="tool-dot"></span>
+                <span class="tool-dot"></span>
+                <span class="tool-dot"></span>
+              </div>
+              <!-- TODO: URL eintragen sobald verfügbar -->
+              <span class="tool-address">URL wird eingetragen sobald das Tool deployed ist</span>
+            </div>
+          </div>
+
+          <div class="iframe-placeholder">
+            <i class="fa-solid fa-user-tie"></i>
+            <strong>Recruiting Tool — iFrame Platzhalter</strong>
+            <span>Dieses Tool wird über einen iFrame eingebettet sobald es auf GitHub Pages deployed und die URL bekannt ist. Trage die URL in den <code>data-src</code>-Attribut des iFrames ein.</span>
+          </div>
+
+          <!-- iFrame wird hier eingebettet sobald die URL verfügbar ist -->
+          <!-- <div class="tool-frame-wrap">
+            <iframe
+              class="tool-frame"
+              title="ROOTS Recruiting Tool"
+              data-src="TOOL_URL_HIER_EINTRAGEN"
+              loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade"></iframe>
+          </div> -->
+        </div>
+      </section>
+
+      <!-- SOP Dashboard -->
+      <section class="app-view" data-view-panel="sop">
+        <div class="tool-shell">
+          <div class="tool-shell-header">
+            <div class="tool-meta">
+              <div class="tool-badges">
+                <span class="tool-badge"><i class="fa-solid fa-layer-group"></i> Wissen &amp; Prozesse</span>
+                <span class="tool-badge"><i class="fa-solid fa-clock-rotate-left"></i> iFrame Platzhalter</span>
+              </div>
+              <h3>SOP Dashboard</h3>
+              <p>Das SOP Dashboard wird als iFrame direkt in das Intranet eingebettet. Trage die finale URL ein sobald das Tool verfügbar ist.</p>
+            </div>
+          </div>
+
+          <div class="tool-toolbar">
+            <div class="tool-toolbar-left">
+              <div class="tool-dot-group">
+                <span class="tool-dot"></span>
+                <span class="tool-dot"></span>
+                <span class="tool-dot"></span>
+              </div>
+              <!-- TODO: URL eintragen -->
+              <span class="tool-address">URL wird eingetragen sobald das Tool deployed ist</span>
+            </div>
+          </div>
+
+          <div class="iframe-placeholder">
+            <i class="fa-solid fa-layer-group"></i>
+            <strong>SOP Dashboard — iFrame Platzhalter</strong>
+            <span>Dieses Tool wird über einen iFrame eingebettet sobald die finale URL bekannt ist. Trage die URL in den <code>data-src</code>-Attribut des iFrames ein.</span>
+          </div>
+
+          <!-- iFrame wird hier eingebettet sobald die URL verfügbar ist -->
+          <!-- <div class="tool-frame-wrap">
+            <iframe
+              class="tool-frame"
+              title="ROOTS SOP Dashboard"
+              data-src="TOOL_URL_HIER_EINTRAGEN"
+              loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade"></iframe>
+          </div> -->
+        </div>
+      </section>
+
+      <!-- Bildgenerierung -->
+      <section class="app-view" data-view-panel="image">
+        <div class="tool-shell">
+          <div class="tool-shell-header">
+            <div class="tool-meta">
+              <div class="tool-badges">
+                <span class="tool-badge"><i class="fa-solid fa-image"></i> Produktiv-Tool</span>
+                <span class="tool-badge"><i class="fa-solid fa-clock-rotate-left"></i> iFrame Platzhalter</span>
+              </div>
+              <h3>Bildgenerierung (KI)</h3>
+              <p>Das Bildgenerierungs-Tool wird als iFrame direkt in das Intranet eingebettet sobald die URL eingetragen ist.</p>
+            </div>
+          </div>
+
+          <div class="tool-toolbar">
+            <div class="tool-toolbar-left">
+              <div class="tool-dot-group">
+                <span class="tool-dot"></span>
+                <span class="tool-dot"></span>
+                <span class="tool-dot"></span>
+              </div>
+              <!-- TODO: URL eintragen -->
+              <span class="tool-address">URL wird eingetragen sobald das Tool deployed ist</span>
+            </div>
+          </div>
+
+          <div class="iframe-placeholder">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <strong>Bildgenerierung (KI) — iFrame Platzhalter</strong>
+            <span>Dieses Tool wird über einen iFrame eingebettet sobald die finale URL bekannt ist. Trage die URL in den <code>data-src</code>-Attribut des iFrames ein.</span>
+          </div>
+
+          <!-- iFrame wird hier eingebettet sobald die URL verfügbar ist -->
+          <!-- <div class="tool-frame-wrap">
+            <iframe
+              class="tool-frame"
+              title="ROOTS Bildgenerierung"
+              data-src="TOOL_URL_HIER_EINTRAGEN"
+              loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade"></iframe>
+          </div> -->
+        </div>
+      </section>
+
+      <!-- Upcoming / Platzhalter -->
+      <section class="app-view" data-view-panel="upcoming">
+        <div class="placeholder-shell">
+          <span class="card-chip"><i class="fa-solid fa-clock-rotate-left"></i> In Vorbereitung</span>
+          <div>
+            <h3 id="upcoming-feature-title">Weiteres Modul</h3>
+            <p id="upcoming-feature-description">Dieser Bereich ist in der Intranet-Struktur bereits vorgesehen und kann später auf dieselbe Art wie die Live-Tools integriert werden.</p>
+          </div>
+          <div class="placeholder-list">
+            <div class="placeholder-tile">
+              <strong>Navigation steht bereits</strong>
+              <span>Der Bereich ist schon in der linken Navigation verankert und lässt sich später ohne großen Umbau aktivieren.</span>
+            </div>
+            <div class="placeholder-tile">
+              <strong>Gleicher Integrationspfad</strong>
+              <span>Neue interne Tools können hier als weitere Intranet-Ansichten oder eingebettete iFrame-Seiten angeschlossen werden.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const navItems = Array.from(document.querySelectorAll('.nav-item[data-view]'));
+      const panels = Array.from(document.querySelectorAll('.app-view'));
+      const viewEyebrow = document.getElementById('view-eyebrow');
+      const viewTitle = document.getElementById('view-title');
+      const viewDescription = document.getElementById('view-description');
+      const primaryAction = document.getElementById('primary-action');
+      const secondaryAction = document.getElementById('secondary-action');
+      const upcomingTitle = document.getElementById('upcoming-feature-title');
+      const upcomingDescription = document.getElementById('upcoming-feature-description');
+      const mainContent = document.querySelector('.intranet-main');
+
+      function getGreeting() {
+        const h = new Date().getHours();
+        if (h < 12) return 'Guten Morgen!';
+        if (h >= 18) return 'Guten Abend!';
+        return 'Guten Tag!';
+      }
+
+      const views = {
+        dashboard: {
+          eyebrow: '<i class="fa-solid fa-table-cells-large"></i> ROOTS Hub',
+          title: getGreeting,
+          description: 'Willkommen im ROOTS Hub. Hier ist deine aktuelle Tagesübersicht und der direkte Einstieg in die integrierten Tools.',
+          primary: { label: '<i class="fa-solid fa-user-tie"></i> Recruiting Tool', type: 'view', target: 'recruiting' },
+          secondary: { label: '<i class="fa-solid fa-layer-group"></i> SOP Dashboard', type: 'view', target: 'sop' }
+        },
+        recruiting: {
+          eyebrow: '<i class="fa-solid fa-user-tie"></i> Recruiting',
+          title: 'Recruiting Tool',
+          description: 'Strukturierte Bewerbungsgespräche mit Bewertung, Timer und Sprachaufnahme.',
+          primary: null,
+          secondary: { label: '<i class="fa-solid fa-house"></i> Dashboard', type: 'view', target: 'dashboard' }
+        },
+        sop: {
+          eyebrow: '<i class="fa-solid fa-layer-group"></i> Wissen & Prozesse',
+          title: 'SOP Dashboard',
+          description: 'Das erste SOP-Dashboard ist als iFrame-Platzhalter vorbereitet.',
+          primary: null,
+          secondary: { label: '<i class="fa-solid fa-house"></i> Dashboard', type: 'view', target: 'dashboard' }
+        },
+        image: {
+          eyebrow: '<i class="fa-solid fa-wand-magic-sparkles"></i> Produktiv-Tool',
+          title: 'Bildgenerierung (KI)',
+          description: 'Das Bildgenerierungs-Tool ist als iFrame-Platzhalter vorbereitet.',
+          primary: null,
+          secondary: { label: '<i class="fa-solid fa-house"></i> Dashboard', type: 'view', target: 'dashboard' }
+        },
+        upcoming: {
+          eyebrow: '<i class="fa-solid fa-screwdriver-wrench"></i> In Vorbereitung',
+          title: 'Modul in Vorbereitung',
+          description: 'Dieser Bereich ist bereits als Teil der Intranet-Struktur angelegt.',
+          primary: null,
+          secondary: { label: '<i class="fa-solid fa-house"></i> Dashboard', type: 'view', target: 'dashboard' }
+        }
+      };
+
+      function configureAction(element, action) {
+        if (!action) { element.classList.add('hidden'); return; }
+        element.classList.remove('hidden');
+        element.innerHTML = action.label;
+        if (action.type === 'view') {
+          element.href = '#' + action.target;
+          element.dataset.actionView = action.target;
+          element.target = '_self';
+          element.removeAttribute('rel');
+        } else {
+          element.href = action.href;
+          element.target = '_blank';
+          element.rel = 'noreferrer';
+          delete element.dataset.actionView;
+        }
+      }
+
+      function ensureFrameLoaded(viewName) {
+        const frame = document.querySelector('[data-view-panel="' + viewName + '"] iframe[data-src]');
+        if (frame && !frame.getAttribute('src')) {
+          frame.setAttribute('src', frame.dataset.src);
+        }
+      }
+
+      function setActiveNav(activeItem) {
+        navItems.forEach(function (item) {
+          item.classList.toggle('active', item === activeItem);
+        });
+      }
+
+      function setView(viewName, options) {
+        const settings = views[viewName] || views.dashboard;
+        const title = typeof settings.title === 'function' ? settings.title() : settings.title;
+
+        panels.forEach(function (panel) {
+          panel.classList.toggle('is-active', panel.dataset.viewPanel === viewName);
+        });
+
+        if (viewName === 'upcoming' && options) {
+          upcomingTitle.textContent = options.featureTitle || 'Modul in Vorbereitung';
+          upcomingDescription.textContent = options.featureDescription || views.upcoming.description;
+        }
+
+        viewEyebrow.innerHTML = settings.eyebrow;
+        viewTitle.textContent = title;
+        viewDescription.textContent = (viewName === 'upcoming' && options && options.featureDescription)
+          ? options.featureDescription
+          : settings.description;
+
+        configureAction(primaryAction, settings.primary);
+        configureAction(secondaryAction, settings.secondary);
+        ensureFrameLoaded(viewName);
+
+        if (mainContent) mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      navItems.forEach(function (item) {
+        item.addEventListener('click', function (event) {
+          event.preventDefault();
+          setActiveNav(item);
+          setView(item.dataset.view, {
+            featureTitle: item.dataset.featureTitle,
+            featureDescription: item.dataset.featureDescription
+          });
+        });
+      });
+
+      document.querySelectorAll('[data-open-view]').forEach(function (link) {
+        link.addEventListener('click', function (event) {
+          event.preventDefault();
+          const targetView = link.dataset.openView;
+          const matchingNav = navItems.find(function (i) { return i.dataset.view === targetView; });
+          if (matchingNav) setActiveNav(matchingNav);
+          setView(targetView);
+        });
+      });
+
+      [primaryAction, secondaryAction].forEach(function (actionLink) {
+        actionLink.addEventListener('click', function (event) {
+          const targetView = actionLink.dataset.actionView;
+          if (!targetView) return;
+          event.preventDefault();
+          const matchingNav = navItems.find(function (i) { return i.dataset.view === targetView; });
+          if (matchingNav) setActiveNav(matchingNav);
+          setView(targetView);
+        });
+      });
+
+      const dashboardNav = navItems.find(function (i) { return i.dataset.view === 'dashboard'; });
+      if (dashboardNav) setActiveNav(dashboardNav);
+      setView('dashboard');
+    });
+  </script>
+</body>
+</html>

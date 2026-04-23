@@ -495,9 +495,7 @@
 
         <div class="nav-group">
           <span class="nav-label">Planung &amp; Team</span>
-          <a href="#calendar" class="nav-item is-disabled" data-view="upcoming"
-            data-feature-title="Team Kalender"
-            data-feature-description="Hier kann später ein eigener Kalender oder eine eingebettete Team-Planungsansicht integriert werden.">
+          <a href="#teamkalender" class="nav-item" data-view="teamkalender">
             <i class="fa-solid fa-calendar-days"></i><span class="nav-label-text"> Team Kalender</span>
           </a>
           <a href="#capacity" class="nav-item is-disabled" data-view="upcoming"
@@ -624,6 +622,19 @@
                 </a>
               </div>
             </article>
+
+            <article class="tool-launch-card">
+              <span class="card-chip"><i class="fa-solid fa-calendar-days"></i> Planung &amp; Team</span>
+              <div class="tool-card-copy">
+                <h3>Team-Kalender</h3>
+                <p>Abwesenheiten, Urlaub und Dienstreisen – synchron mit der Team-Datenbank.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#teamkalender" class="btn-primary" data-open-view="teamkalender">
+                  <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Öffnen
+                </a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -652,6 +663,15 @@
           class="tool-iframe"
           title="Image Generation Tool"
           src="https://pgoutzeris-stack.github.io/Image-Generation-Tool/"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </section>
+
+      <section class="app-view" data-view-panel="teamkalender">
+        <iframe
+          class="tool-iframe"
+          title="ROOTS Team-Kalender · Abwesenheiten"
+          src="https://pgoutzeris-stack.github.io/Team-Kalender/"
           loading="lazy"
           referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
@@ -692,7 +712,7 @@
       const upTitle    = document.getElementById('upcoming-feature-title');
       const upDesc     = document.getElementById('upcoming-feature-description');
 
-      const TOOL_VIEWS = new Set(['recruiting', 'sop', 'image']);
+      const TOOL_VIEWS = new Set(['recruiting', 'sop', 'image', 'teamkalender']);
 
       function getGreeting() {
         const h = new Date().getHours();

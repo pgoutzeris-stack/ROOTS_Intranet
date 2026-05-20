@@ -164,6 +164,20 @@
     .nav-item.is-disabled { opacity: 0.74; }
     .nav-item--admin { display: none !important; }
     .nav-item--admin.is-admin-visible { display: flex !important; }
+    .nav-item.nav-item--hidden { display: none !important; }
+    .tool-launch-card.is-hidden { display: none !important; }
+
+    .admin-user-card { padding: 1rem 1.1rem; background: var(--status-bg); border: 1px solid var(--line); border-radius: 12px; }
+    .admin-user-head { display: flex; align-items: center; gap: .85rem; margin-bottom: .85rem; }
+    .admin-user-meta { flex: 1; min-width: 0; }
+    .admin-user-name { font-size: .88rem; font-weight: 600; color: var(--ink); }
+    .admin-user-email { font-size: .76rem; color: var(--muted); }
+    .admin-user-role select { height: 32px; padding: 0 28px 0 10px; border: 1px solid var(--line); border-radius: 999px; font-family: inherit; font-size: .8rem; font-weight: 600; color: var(--ink); background: var(--bg); cursor: pointer; }
+    .admin-tools-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .5rem; display: block; }
+    .admin-tool-grid { display: flex; flex-wrap: wrap; gap: .4rem .65rem; }
+    .admin-tool-opt { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--ink); cursor: pointer; padding: .35rem .55rem; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); user-select: none; }
+    .admin-tool-opt:has(input:checked) { border-color: #c7dbfa; background: var(--brand-light); color: var(--brand-dark); }
+    .admin-tool-opt input { accent-color: var(--brand); width: 14px; height: 14px; }
 
     .sidebar-user {
       margin-top: 2rem;
@@ -667,7 +681,7 @@
 
         <div class="nav-group">
           <span class="nav-label">Planung &amp; Team</span>
-          <a href="#teamkalender" class="nav-item" data-view="teamkalender">
+          <a href="#teamkalender" class="nav-item" data-view="teamkalender" data-tool-id="teamkalender">
             <i class="fa-solid fa-calendar-days"></i><span class="nav-label-text"> Team Kalender</span>
           </a>
           <a href="#capacity" class="nav-item is-disabled" data-view="upcoming"
@@ -684,7 +698,7 @@
 
         <div class="nav-group">
           <span class="nav-label">Wissen &amp; Prozesse</span>
-          <a href="#sop" class="nav-item" data-view="sop">
+          <a href="#sop" class="nav-item" data-view="sop" data-tool-id="sop">
             <i class="fa-solid fa-layer-group"></i><span class="nav-label-text"> SOP Dashboard</span>
           </a>
           <a href="#knowledge" class="nav-item is-disabled" data-view="upcoming"
@@ -696,13 +710,13 @@
 
         <div class="nav-group">
           <span class="nav-label">Tools</span>
-          <a href="#recruiting" class="nav-item" data-view="recruiting">
+          <a href="#recruiting" class="nav-item" data-view="recruiting" data-tool-id="recruiting">
             <i class="fa-solid fa-user-tie"></i><span class="nav-label-text"> Recruiting Tool</span>
           </a>
-          <a href="#image" class="nav-item" data-view="image">
+          <a href="#image" class="nav-item" data-view="image" data-tool-id="image">
             <i class="fa-solid fa-image"></i><span class="nav-label-text"> Bildgenerierung (KI)</span>
           </a>
-          <a href="#onboarding" class="nav-item" data-view="onboarding">
+          <a href="#onboarding" class="nav-item" data-view="onboarding" data-tool-id="onboarding">
             <i class="fa-solid fa-door-open"></i><span class="nav-label-text"> Onboarding</span>
           </a>
           <a href="#admin" class="nav-item nav-item--admin" id="roots-admin-nav-item" data-view="admin" hidden aria-hidden="true">
@@ -753,7 +767,7 @@
           </div>
 
           <div class="tools-grid">
-            <article class="tool-launch-card">
+            <article class="tool-launch-card" data-tool-id="recruiting">
               <span class="card-chip"><i class="fa-solid fa-user-tie"></i> Recruiting</span>
               <div class="tool-card-copy">
                 <h3>Recruiting Tool</h3>
@@ -766,7 +780,7 @@
               </div>
             </article>
 
-            <article class="tool-launch-card tool-launch-card--accent">
+            <article class="tool-launch-card tool-launch-card--accent" data-tool-id="sop">
               <span class="card-chip"><i class="fa-solid fa-layer-group"></i> Wissen &amp; Prozesse</span>
               <div class="tool-card-copy">
                 <h3>SOP Dashboard</h3>
@@ -779,7 +793,7 @@
               </div>
             </article>
 
-            <article class="tool-launch-card">
+            <article class="tool-launch-card" data-tool-id="image">
               <span class="card-chip"><i class="fa-solid fa-wand-magic-sparkles"></i> Produktiv-Tool</span>
               <div class="tool-card-copy">
                 <h3>Bildgenerierung (KI)</h3>
@@ -792,7 +806,7 @@
               </div>
             </article>
 
-            <article class="tool-launch-card">
+            <article class="tool-launch-card" data-tool-id="teamkalender">
               <span class="card-chip"><i class="fa-solid fa-calendar-days"></i> Planung &amp; Team</span>
               <div class="tool-card-copy">
                 <h3>Team-Kalender</h3>
@@ -836,11 +850,9 @@
               <p class="muted">Rollen und Zugriffsrechte aller ROOTS-Mitglieder</p>
             </div>
           </div>
-          <div style="background:var(--bg);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--line);padding:1.5rem;max-width:700px">
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;padding:.5rem 1rem;font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">
-              <span>Name</span><span>E-Mail / Position</span><span style="text-align:right">Rolle</span>
-            </div>
-            <div id="roots-admin-user-list-page" style="display:flex;flex-direction:column;gap:.4rem;min-height:80px">
+          <div style="background:var(--bg);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--line);padding:1.5rem;max-width:960px">
+            <p class="muted" style="font-size:.88rem;margin:0 0 1rem">Rolle und sichtbare Intranet-Tools pro Nutzer festlegen. Ohne gesetzte Tools sehen Nutzer standardmäßig alle Module.</p>
+            <div id="roots-admin-user-list-page" style="display:flex;flex-direction:column;gap:.65rem;min-height:80px">
               <div style="text-align:center;padding:2rem;color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin"></i> Lade Nutzer…</div>
             </div>
             <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line);display:flex;align-items:center;gap:.75rem">
@@ -958,6 +970,9 @@
         if (viewName === 'admin' && !(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) {
           viewName = 'dashboard';
         }
+        if (TOOL_VIEWS.has(viewName) && window.IntranetAccess && !window.IntranetAccess.canAccessTool(viewName)) {
+          viewName = 'dashboard';
+        }
         const isTool = TOOL_VIEWS.has(viewName);
 
         // Panels umschalten
@@ -994,6 +1009,10 @@
         item.addEventListener('click', e => {
           e.preventDefault();
           if (item.dataset.view === 'admin' && !(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) {
+            return;
+          }
+          const toolId = item.dataset.toolId;
+          if (toolId && window.IntranetAccess && !window.IntranetAccess.canAccessTool(toolId)) {
             return;
           }
           setActiveNav(item);
@@ -1058,42 +1077,20 @@
         }
       }
 
-      function escapeHtml(s) {
-        if (s == null) return '';
-        return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-      }
-
       window.loadIntranetDashboardNotifications = loadIntranetDashboardNotifications;
 
       async function loadAdminPage() {
         if (!(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) return;
         const list = document.getElementById('roots-admin-user-list-page');
-        const changes = {};
         list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin"></i> Lade Nutzer…</div>';
         const { data } = await window.RootsUser._sb.schema('users').from('profiles')
-          .select('id,email,full_name,position,avatar_url,app_role').order('full_name');
+          .select('id,email,full_name,position,avatar_url,app_role,app_settings').order('full_name');
         if (!data || !data.length) { list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Keine Nutzer.</div>'; return; }
-        list.innerHTML = data.map(u => {
-          const av = window.RootsUser._avatarSpan(u.avatar_url, u.full_name, 38);
-          return `<div style="display:flex;align-items:center;gap:.85rem;padding:.65rem 1rem;background:var(--status-bg,#f8fafc);border-radius:10px;border:1px solid var(--line)">${av}<div style="flex:1;min-width:0"><div style="font-size:.88rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.full_name||'—'}</div><div style="font-size:.76rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.email||''}${u.position?' · '+u.position:''}</div></div><select data-uid="${u.id}" onchange="window._adminChanges=window._adminChanges||{};window._adminChanges[this.dataset.uid]=this.value" style="height:32px;padding:0 28px 0 10px;border:1px solid var(--line);border-radius:999px;font-family:inherit;font-size:.8rem;font-weight:600;color:var(--ink);background:var(--bg);cursor:pointer;appearance:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22 viewBox=%220 0 24 24%22%3E%3Cpath fill=%22%23475569%22 d=%22m7 10 5 5 5-5z%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 8px center"><option value="admin" ${u.app_role==='admin'?'selected':''}>Admin</option><option value="member" ${u.app_role==='member'?'selected':''}>Mitglied</option><option value="reader" ${u.app_role==='reader'?'selected':''}>Leser</option></select></div>`;
-        }).join('');
-        window._adminChanges = {};
-        document.getElementById('roots-admin-save-page-btn').onclick = async () => {
-          const btn = document.getElementById('roots-admin-save-page-btn');
-          const msg = document.getElementById('roots-admin-page-msg');
-          const entries = Object.entries(window._adminChanges || {});
-          if (!entries.length) { msg.style.color='var(--muted)'; msg.textContent='Keine Änderungen.'; return; }
-          btn.disabled = true; btn.textContent = 'Speichern…'; msg.textContent = '';
-          let errs = 0;
-          for (const [uid, role] of entries) {
-            const { error } = await window.RootsUser._sb.schema('users').from('profiles').update({ app_role: role }).eq('id', uid);
-            if (error) errs++;
-          }
-          btn.disabled = false; btn.textContent = 'Änderungen speichern';
-          window._adminChanges = {};
-          if (errs) { msg.style.color='#dc2626'; msg.textContent=`${errs} Fehler.`; }
-          else { msg.style.color='#10b981'; msg.textContent=`✓ Gespeichert!`; }
-        };
+        window._adminUsers = data;
+        window._adminUserEdits = {};
+        list.innerHTML = data.map(u => window.IntranetAccess.renderAdminUserCard(u)).join('');
+        window.IntranetAccess.bindAdminUserCards(list);
+        document.getElementById('roots-admin-save-page-btn').onclick = () => window.IntranetAccess.saveAdminUserEdits('roots-admin-save-page-btn', 'roots-admin-page-msg', loadAdminPage);
       }
 
       // Dashboard-Karten "Öffnen"-Buttons
@@ -1101,6 +1098,7 @@
         link.addEventListener('click', e => {
           e.preventDefault();
           const target = link.dataset.openView;
+          if (window.IntranetAccess && !window.IntranetAccess.canAccessTool(target)) return;
           const nav = navItems.find(i => i.dataset.view === target);
           if (nav) setActiveNav(nav);
           setView(target);
@@ -1190,6 +1188,177 @@
 </div>
 
 <script>
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ===== Intranet tool access =====
+window.INTRANET_TOOLS = [
+  { id: 'recruiting', label: 'Recruiting Tool' },
+  { id: 'sop', label: 'SOP Dashboard' },
+  { id: 'image', label: 'Bildgenerierung (KI)' },
+  { id: 'teamkalender', label: 'Team Kalender' },
+  { id: 'onboarding', label: 'Onboarding' },
+];
+window.INTRANET_TOOL_IDS = window.INTRANET_TOOLS.map(t => t.id);
+
+window.IntranetAccess = {
+  getAllowedTools(profile) {
+    const raw = profile?.app_settings?.allowed_tools;
+    if (raw === undefined || raw === null) return null;
+    if (!Array.isArray(raw)) return null;
+    return raw.filter(id => window.INTRANET_TOOL_IDS.includes(id));
+  },
+
+  toolsForUi(profile) {
+    const stored = this.getAllowedTools(profile);
+    if (stored === null) return [...window.INTRANET_TOOL_IDS];
+    return stored;
+  },
+
+  toolsToSave(checkedIds) {
+    const ids = checkedIds.filter(id => window.INTRANET_TOOL_IDS.includes(id));
+    const all = window.INTRANET_TOOL_IDS.every(id => ids.includes(id));
+    return all ? null : ids;
+  },
+
+  canAccessTool(toolId, profile = window.RootsUser?._p) {
+    if (!toolId) return true;
+    if (String(profile?.app_role || '').trim() === 'admin') return true;
+    const allowed = this.getAllowedTools(profile);
+    if (allowed === null) return true;
+    return allowed.includes(toolId);
+  },
+
+  applyVisibility(profile = window.RootsUser?._p) {
+    document.querySelectorAll('.nav-item[data-tool-id]').forEach(item => {
+      const ok = this.canAccessTool(item.dataset.toolId, profile);
+      item.classList.toggle('nav-item--hidden', !ok);
+      item.setAttribute('aria-hidden', ok ? 'false' : 'true');
+    });
+    document.querySelectorAll('.tool-launch-card[data-tool-id]').forEach(card => {
+      const ok = this.canAccessTool(card.dataset.toolId, profile);
+      card.classList.toggle('is-hidden', !ok);
+    });
+    const activePanel = document.querySelector('.app-view.is-active[data-view-panel]');
+    if (activePanel && window.INTRANET_TOOL_IDS.includes(activePanel.dataset.viewPanel)) {
+      if (!this.canAccessTool(activePanel.dataset.viewPanel, profile)) {
+        const dashNav = document.querySelector('.nav-item[data-view="dashboard"]');
+        if (dashNav) dashNav.click();
+      }
+    }
+  },
+
+  initialEditsFromUser(u) {
+    return {
+      app_role: u.app_role || 'reader',
+      allowed_tools: this.toolsForUi(u),
+    };
+  },
+
+  renderAdminUserCard(u) {
+    const edits = (window._adminUserEdits && window._adminUserEdits[u.id]) || this.initialEditsFromUser(u);
+    if (!window._adminUserEdits) window._adminUserEdits = {};
+    if (!window._adminUserEdits[u.id]) window._adminUserEdits[u.id] = edits;
+    const av = window.RootsUser._avatarSpan(u.avatar_url, u.full_name, 38);
+    const toolChecks = window.INTRANET_TOOLS.map(t => {
+      const on = edits.allowed_tools.includes(t.id);
+      return `<label class="admin-tool-opt"><input type="checkbox" data-uid="${u.id}" data-tool="${t.id}" ${on ? 'checked' : ''}> ${t.label}</label>`;
+    }).join('');
+    return `<div class="admin-user-card" data-uid="${u.id}">
+      <div class="admin-user-head">
+        ${av}
+        <div class="admin-user-meta">
+          <div class="admin-user-name">${escapeHtml(u.full_name || '—')}</div>
+          <div class="admin-user-email">${escapeHtml(u.email || '')}${u.position ? ' · ' + escapeHtml(u.position) : ''}</div>
+        </div>
+        <div class="admin-user-role">
+          <select data-uid="${u.id}" data-field="role">
+            <option value="admin" ${edits.app_role === 'admin' ? 'selected' : ''}>Admin</option>
+            <option value="member" ${edits.app_role === 'member' ? 'selected' : ''}>Mitglied</option>
+            <option value="reader" ${edits.app_role === 'reader' ? 'selected' : ''}>Leser</option>
+          </select>
+        </div>
+      </div>
+      <span class="admin-tools-label">Sichtbare Tools</span>
+      <div class="admin-tool-grid">${toolChecks}</div>
+    </div>`;
+  },
+
+  bindAdminUserCards(root) {
+    if (!window._adminUserEdits) window._adminUserEdits = {};
+    root.querySelectorAll('select[data-field="role"]').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const uid = sel.dataset.uid;
+        if (!window._adminUserEdits[uid]) window._adminUserEdits[uid] = this.initialEditsFromUser(window._adminUsers?.find(x => x.id === uid) || {});
+        window._adminUserEdits[uid].app_role = sel.value;
+      });
+    });
+    root.querySelectorAll('input[data-tool]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const uid = cb.dataset.uid;
+        const u = window._adminUsers?.find(x => x.id === uid);
+        if (!window._adminUserEdits[uid]) window._adminUserEdits[uid] = this.initialEditsFromUser(u || {});
+        const checked = [...root.querySelectorAll(`input[data-tool][data-uid="${uid}"]:checked`)].map(el => el.dataset.tool);
+        window._adminUserEdits[uid].allowed_tools = checked;
+      });
+    });
+  },
+
+  editsDirty(uid, u) {
+    const edits = window._adminUserEdits?.[uid];
+    if (!edits) return false;
+    const init = this.initialEditsFromUser(u);
+    if (edits.app_role !== init.app_role) return true;
+    const a = [...edits.allowed_tools].sort().join(',');
+    const b = [...init.allowed_tools].sort().join(',');
+    return a !== b;
+  },
+
+  async saveAdminUserEdits(btnId, msgId, onDone) {
+    const btn = document.getElementById(btnId);
+    const msg = document.getElementById(msgId);
+    const users = window._adminUsers || [];
+    const dirty = users.filter(u => this.editsDirty(u.id, u));
+    if (!dirty.length) {
+      if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'Keine Änderungen.'; }
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = 'Speichern…'; }
+    if (msg) msg.textContent = '';
+    let errs = 0;
+    let saved = 0;
+    for (const u of dirty) {
+      const edits = window._adminUserEdits[u.id];
+      const storedTools = this.toolsToSave(edits.allowed_tools);
+      const app_settings = { ...(u.app_settings && typeof u.app_settings === 'object' ? u.app_settings : {}), allowed_tools: storedTools };
+      const { error } = await window.RootsUser._sb.schema('users').from('profiles')
+        .update({ app_role: edits.app_role, app_settings })
+        .eq('id', u.id);
+      if (error) errs++;
+      else {
+        saved++;
+        u.app_role = edits.app_role;
+        u.app_settings = app_settings;
+        if (u.id === window.RootsUser._uid) {
+          Object.assign(window.RootsUser._p, { app_role: edits.app_role, app_settings });
+          window.RootsUser._syncAdminNav();
+          this.applyVisibility(window.RootsUser._p);
+        }
+      }
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Änderungen speichern'; }
+    window._adminUserEdits = {};
+    users.forEach(u => { window._adminUserEdits[u.id] = this.initialEditsFromUser(u); });
+    if (msg) {
+      if (errs) { msg.style.color = '#dc2626'; msg.textContent = `${errs} Fehler beim Speichern.`; }
+      else { msg.style.color = '#10b981'; msg.textContent = `✓ ${saved} Nutzer gespeichert.`; }
+    }
+    if (onDone) onDone();
+  },
+};
+
 // ===== RootsUser - shared user profile module =====
 window.RootsUser = {
   _p: null, _sb: null, _uid: null,
@@ -1214,11 +1383,12 @@ window.RootsUser = {
     if (!session) return;
     this._uid = session.user.id;
     const { data } = await sb.schema('users').from('profiles')
-      .select('id,email,full_name,position,avatar_url,linkedin_url,app_role')
+      .select('id,email,full_name,position,avatar_url,linkedin_url,app_role,app_settings')
       .eq('id', this._uid).single();
     this._p = data || { id: this._uid, email: session.user.email, app_role: 'reader' };
     this._mount();
     this._syncAdminNav();
+    if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
     if (typeof window.loadIntranetDashboardNotifications === 'function') {
       window.loadIntranetDashboardNotifications();
       if (!window._intranetNotifPoll) {
@@ -1318,59 +1488,28 @@ window.RootsUser = {
   }
 };
 
-// ===== RootsAdmin - role management panel =====
+// ===== RootsAdmin - role & tool management (modal) =====
 window.RootsAdmin = {
-  _users: [], _changes: {},
-
   async open() {
-    if (!(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) {
-      return;
-    }
+    if (!(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) return;
     document.getElementById('roots-admin-modal').style.display = 'flex';
     document.getElementById('roots-admin-msg').textContent = '';
-    this._changes = {};
-    const { data } = await window.RootsUser._sb.schema('users').from('profiles')
-      .select('id,email,full_name,position,avatar_url,app_role').order('full_name');
-    this._users = data || [];
-    this._render();
-  },
-
-  _render() {
     const list = document.getElementById('roots-admin-user-list');
-    if (!this._users.length) { list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted,#475569)">Keine Nutzer gefunden.</div>'; return; }
-    list.innerHTML = this._users.map(u => {
-      const av = window.RootsUser._avatarSpan(u.avatar_url, u.full_name, 38);
-      return `<div style="display:flex;align-items:center;gap:.85rem;padding:.65rem 1rem;background:var(--status-bg,#f8fafc);border-radius:10px;border:1px solid var(--line,#e2e8f0)">
-        ${av}
-        <div style="flex:1;min-width:0">
-          <div style="font-size:.88rem;font-weight:600;color:var(--ink,#0f172a);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.full_name||'—'}</div>
-          <div style="font-size:.76rem;color:var(--muted,#475569);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.email||''}${u.position?' · '+u.position:''}</div>
-        </div>
-        <select data-uid="${u.id}" onchange="window.RootsAdmin._changes[this.dataset.uid]=this.value"
-          style="height:32px;padding:0 28px 0 10px;border:1px solid var(--line,#e2e8f0);border-radius:999px;font-family:inherit;font-size:.8rem;font-weight:600;color:var(--ink,#0f172a);background:var(--bg,#fff);cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22 viewBox=%220 0 24 24%22%3E%3Cpath fill=%22%23475569%22 d=%22m7 10 5 5 5-5z%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 8px center">
-          <option value="admin" ${u.app_role==='admin'?'selected':''}>Admin</option>
-          <option value="member" ${u.app_role==='member'?'selected':''}>Mitglied</option>
-          <option value="reader" ${u.app_role==='reader'?'selected':''}>Leser</option>
-        </select>
-      </div>`;
-    }).join('');
+    list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin"></i> Lade Nutzer…</div>';
+    const { data } = await window.RootsUser._sb.schema('users').from('profiles')
+      .select('id,email,full_name,position,avatar_url,app_role,app_settings').order('full_name');
+    window._adminUsers = data || [];
+    window._adminUserEdits = {};
+    if (!window._adminUsers.length) {
+      list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Keine Nutzer gefunden.</div>';
+      return;
+    }
+    list.innerHTML = window._adminUsers.map(u => window.IntranetAccess.renderAdminUserCard(u)).join('');
+    window.IntranetAccess.bindAdminUserCards(list);
   },
 
   async saveAll() {
-    const btn = document.getElementById('roots-admin-save-btn');
-    const msg = document.getElementById('roots-admin-msg');
-    const entries = Object.entries(this._changes);
-    if (!entries.length) { msg.style.color='var(--muted,#475569)'; msg.textContent='Keine Änderungen.'; return; }
-    btn.disabled = true; btn.textContent = 'Speichern…'; msg.textContent = '';
-    let errs = 0;
-    for (const [uid, role] of entries) {
-      const { error } = await window.RootsUser._sb.schema('users').from('profiles')
-        .update({ app_role: role }).eq('id', uid);
-      if (error) errs++;
-    }
-    btn.disabled = false; btn.textContent = 'Änderungen speichern';
-    if (errs) { msg.style.color='#dc2626'; msg.textContent=`${errs} Fehler.`; }
-    else { msg.style.color='#10b981'; msg.textContent=`✓ ${entries.length} Rolle(n) gespeichert.`; this._changes={}; }
+    await window.IntranetAccess.saveAdminUserEdits('roots-admin-save-btn', 'roots-admin-msg', () => this.open());
   }
 };
 </script>

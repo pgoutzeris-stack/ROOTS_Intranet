@@ -673,15 +673,13 @@
 
       <div class="intranet-header" id="intranet-header">
         <div class="header-text">
-          <span class="header-eyebrow" id="view-eyebrow"><i class="fa-solid fa-table-cells-large"></i> ROOTS Hub</span>
+          <span class="header-eyebrow" id="view-eyebrow">ROOTS Intranet</span>
           <h2 id="view-title">Guten Tag!</h2>
           <p class="muted" id="view-description">Willkommen im ROOTS Hub. Hier ist deine aktuelle Tagesübersicht und der direkte Einstieg in die integrierten Tools.</p>
         </div>
         <div class="header-actions">
           <a href="#dashboard" class="btn-ghost hidden" id="secondary-action"><i class="fa-solid fa-house"></i> Dashboard</a>
-          <a href="#recruiting" class="btn-primary" id="primary-action">
-            <i class="fa-solid fa-user-tie"></i> Recruiting Tool
-          </a>
+          <a href="#" class="btn-primary hidden" id="primary-action"></a>
 
           <button type="button" class="btn-ghost" id="roots-logout-btn" title="Abmelden">
             <i class="fa-solid fa-right-from-bracket"></i> Abmelden
@@ -875,17 +873,19 @@
 
       function getGreeting() {
         const h = new Date().getHours();
-        if (h < 12) return 'Guten Morgen!';
-        if (h >= 18) return 'Guten Abend!';
-        return 'Guten Tag!';
+        const name = window.RootsUser?._p?.full_name?.split(' ')[0] || '';
+        const suffix = name ? ', ' + name + '!' : '!';
+        if (h < 12) return 'Guten Morgen' + suffix;
+        if (h >= 18) return 'Guten Abend' + suffix;
+        return 'Guten Tag' + suffix;
       }
 
       const views = {
         dashboard: {
-          eyebrow: '<i class="fa-solid fa-table-cells-large"></i> ROOTS Hub',
+          eyebrow: 'ROOTS Intranet',
           title: getGreeting,
-          description: 'Willkommen im ROOTS Hub. Hier ist deine aktuelle Tagesübersicht und der direkte Einstieg in die integrierten Tools.',
-          primary: { label: '<i class="fa-solid fa-user-tie"></i> Recruiting Tool', target: 'recruiting' },
+          description: 'Willkommen im ROOTS Intranet. Hier ist deine aktuelle Tagesübersicht und der direkte Einstieg in die integrierten Tools.',
+          primary: null,
           secondary: null
         },
         upcoming: {
@@ -1119,6 +1119,14 @@ window.RootsUser = {
     if (avEl) { avEl.innerHTML = this._avatarSpan(p.avatar_url, p.full_name, 38); }
     if (nmEl) { nmEl.textContent = p.full_name || p.email || ''; }
     if (posEl) { posEl.textContent = p.position || ''; }
+    // Refresh dashboard greeting with real name
+    const titleEl = document.getElementById('view-title');
+    if (titleEl && document.querySelector('.app-view.is-active[data-view-panel="dashboard"]')) {
+      const h = new Date().getHours();
+      const first = p.full_name ? p.full_name.split(' ')[0] : '';
+      const suffix = first ? ', ' + first + '!' : '!';
+      titleEl.textContent = (h < 12 ? 'Guten Morgen' : h >= 18 ? 'Guten Abend' : 'Guten Tag') + suffix;
+    }
   },
 
   isAdmin() { return this._p?.app_role === 'admin'; },

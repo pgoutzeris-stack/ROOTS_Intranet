@@ -162,6 +162,8 @@
     .nav-item.active { background: var(--brand-light); color: var(--brand); }
     .nav-item.active i { color: var(--brand); }
     .nav-item.is-disabled { opacity: 0.74; }
+    .nav-item--admin { display: none !important; }
+    .nav-item--admin.is-admin-visible { display: flex !important; }
 
     .sidebar-user {
       margin-top: 2rem;
@@ -649,7 +651,7 @@
           <a href="#onboarding" class="nav-item" data-view="onboarding">
             <i class="fa-solid fa-door-open"></i><span class="nav-label-text"> Onboarding</span>
           </a>
-          <a href="#admin" class="nav-item" id="roots-admin-nav-item" data-view="admin" style="display:none">
+          <a href="#admin" class="nav-item nav-item--admin" id="roots-admin-nav-item" data-view="admin" hidden aria-hidden="true">
             <i class="fa-solid fa-users-gear"></i><span class="nav-label-text"> Nutzerverwaltung</span>
           </a>
         </div>
@@ -910,6 +912,9 @@
       }
 
       function setView(viewName, options) {
+        if (viewName === 'admin' && !(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) {
+          viewName = 'dashboard';
+        }
         const isTool = TOOL_VIEWS.has(viewName);
 
         // Panels umschalten
@@ -945,6 +950,9 @@
       navItems.forEach(item => {
         item.addEventListener('click', e => {
           e.preventDefault();
+          if (item.dataset.view === 'admin' && !(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) {
+            return;
+          }
           setActiveNav(item);
           setView(item.dataset.view, {
             featureTitle:       item.dataset.featureTitle,
@@ -960,6 +968,7 @@
       });
 
       async function loadAdminPage() {
+        if (!(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) return;
         const list = document.getElementById('roots-admin-user-list-page');
         const changes = {};
         list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin"></i> Lade Nutzer…</div>';
@@ -1015,7 +1024,13 @@
       // Initial
       const dashNav = navItems.find(i => i.dataset.view === 'dashboard');
       if (dashNav) setActiveNav(dashNav);
-      setView('dashboard');
+      const hashView = (location.hash || '').replace(/^#/, '');
+      if (hashView === 'admin' && window.RootsUser?.isAdmin?.()) {
+        const adminNav = navItems.find(i => i.dataset.view === 'admin');
+        if (adminNav) { setActiveNav(adminNav); setView('admin'); }
+      } else {
+        setView('dashboard');
+      }
 
       // Sidebar-Toggle
       const layout        = document.querySelector('.intranet-layout');
@@ -1105,9 +1120,24 @@ window.RootsUser = {
       .eq('id', this._uid).single();
     this._p = data || { id: this._uid, email: session.user.email, app_role: 'reader' };
     this._mount();
-    if (this.isAdmin()) {
-      const navItem = document.getElementById('roots-admin-nav-item');
-      if (navItem) navItem.style.display = 'flex';
+    this._syncAdminNav();
+  },
+
+  _syncAdminNav() {
+    const navItem = document.getElementById('roots-admin-nav-item');
+    const isAdmin = this.isAdmin();
+    if (navItem) {
+      navItem.classList.toggle('is-admin-visible', isAdmin);
+      navItem.hidden = !isAdmin;
+      navItem.setAttribute('aria-hidden', isAdmin ? 'false' : 'true');
+    }
+    if (!isAdmin) {
+      document.getElementById('roots-admin-modal')?.style && (document.getElementById('roots-admin-modal').style.display = 'none');
+      const adminPanel = document.querySelector('[data-view-panel="admin"]');
+      if (adminPanel?.classList.contains('is-active')) {
+        const dashNav = document.querySelector('.nav-item[data-view="dashboard"]');
+        if (dashNav) dashNav.click();
+      }
     }
   },
 
@@ -1129,7 +1159,7 @@ window.RootsUser = {
     }
   },
 
-  isAdmin() { return this._p?.app_role === 'admin'; },
+  isAdmin() { return String(this._p?.app_role || '').trim() === 'admin'; },
   isReader() { return this._p?.app_role === 'reader'; },
   getProfile() { return this._p; },
   _cs: null,
@@ -1185,6 +1215,9 @@ window.RootsAdmin = {
   _users: [], _changes: {},
 
   async open() {
+    if (!(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) {
+      return;
+    }
     document.getElementById('roots-admin-modal').style.display = 'flex';
     document.getElementById('roots-admin-msg').textContent = '';
     this._changes = {};

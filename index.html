@@ -28,6 +28,16 @@
       --bg: #ffffff;
       --shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
       --radius: 16px;
+      --radius-pill: 999px;
+      --radius-dash: 14px;
+      --surface: #f8fafc;
+      --app-bg: #f4f7fb;
+      --disabled-bg: #cbd5e1;
+      --disabled-text: #64748b;
+      --shadow-modal: 0 20px 50px rgba(0,0,0,.2);
+      --shadow-focus: 0 0 0 3px rgba(32,110,251,.15);
+      --shadow-lg: 0 12px 40px rgba(15,23,42,.14);
+      --shadow-dash: 0 4px 16px rgba(15,23,42,.08);
     }
 
     @media (prefers-color-scheme: dark) {
@@ -48,25 +58,11 @@
     }
 
     /* ── Moderne Scrollbars ── */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
-    }
-    * {
-      box-sizing: border-box;
-      scrollbar-width: thin;
-      scrollbar-color: #cbd5e1 transparent;
-    }
+    ::-webkit-scrollbar { width: 3px; height: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(32,110,251,.5); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--brand); }
+    * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: rgba(32,110,251,.5) transparent; }
 
     html, body {
       margin: 0;
@@ -158,7 +154,8 @@
     }
 
     .nav-item i { color: var(--muted); width: 20px; text-align: center; transition: all 0.2s ease; }
-    .nav-item:hover { background: var(--line); transform: translateX(2px); }
+    .nav-item:hover { background: var(--brand-light); transform: translateX(2px); }
+    .nav-item:hover i { color: var(--brand); }
     .nav-item.active { background: var(--brand-light); color: var(--brand); }
     .nav-item.active i { color: var(--brand); }
     .nav-item.is-disabled { opacity: 0.74; }
@@ -406,10 +403,10 @@
     .dashboard-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1.5rem; }
 
     .content-block, .tool-launch-card, .placeholder-shell {
-      border-radius: 18px;
+      border-radius: 14px;
       padding: 1.5rem;
       border: 1px solid rgba(226, 232, 240, 0.9);
-      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+      box-shadow: var(--shadow-dash);
     }
 
     .content-block { grid-column: span 12; }
@@ -426,13 +423,16 @@
       margin-bottom: 1rem;
     }
 
-    .status-quo-block { background: var(--status-bg); border-left: 4px solid var(--status-border); }
-    .status-quo-block .stage-label { color: var(--status-text); }
-    .next-steps-block { background: var(--brand-light); border-left: 4px solid var(--brand); }
-    .next-steps-block .stage-label { color: var(--brand-dark); }
-    .risk-block { background: var(--warning-bg); border-left: 4px solid #f59e0b; }
-    .risk-block .stage-label { color: var(--warning-text); }
-    .risk-block p { color: #78350f; }
+    .status-quo-block,
+    .next-steps-block,
+    .risk-block {
+      background: var(--brand-light);
+      border-left: 3px solid var(--brand);
+      border-radius: 0 8px 8px 0;
+    }
+    .status-quo-block .stage-label,
+    .next-steps-block .stage-label,
+    .risk-block .stage-label { color: var(--brand-dark); }
 
     .tools-grid {
       grid-column: span 12;
@@ -442,38 +442,45 @@
     }
 
     .tool-launch-card {
-      background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+      background: var(--bg);
       display: flex;
       flex-direction: column;
       gap: 1rem;
-      min-height: 260px;
+      min-height: 230px;
       position: relative;
       overflow: hidden;
+      border: 2px solid transparent;
+      transition: all .25s ease;
+      cursor: pointer;
     }
-
-    .tool-launch-card::after {
+    .tool-launch-card::before {
       content: "";
       position: absolute;
-      inset: auto -60px -80px auto;
-      width: 180px;
-      height: 180px;
-      border-radius: 50%;
-      background: rgba(32, 110, 251, 0.08);
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--brand);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform .3s ease;
     }
-
-    .tool-launch-card--accent::after { background: rgba(15, 118, 110, 0.09); }
+    .tool-launch-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--brand-light);
+    }
+    .tool-launch-card:hover::before { transform: scaleX(1); }
 
     .card-chip {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       width: fit-content;
-      background: rgba(15, 23, 42, 0.05);
-      color: var(--ink);
-      padding: 0.5rem 0.75rem;
+      background: var(--brand-light);
+      color: var(--brand);
+      padding: 0.3rem 0.85rem;
       border-radius: 999px;
-      font-size: 0.82rem;
-      font-weight: 700;
+      font-size: 0.78rem;
+      font-weight: 600;
     }
 
     .tool-card-copy { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -1198,11 +1205,16 @@
 <!-- ===== ROOTS USER MODULE ===== -->
 <!-- Settings Modal -->
 <div id="roots-user-settings-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:1rem;font-family:'Circular Std',system-ui,sans-serif">
-  <div style="background:var(--bg,#fff);border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.25);width:100%;max-width:460px;padding:2rem">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
-      <h2 style="font-size:1.1rem;font-weight:700;color:var(--ink,#0f172a);margin:0">Mein Profil</h2>
-      <button onclick="window.RootsUser.closeSettings()" style="background:none;border:none;cursor:pointer;color:var(--muted,#475569);font-size:1.1rem;padding:4px"><i class="fa-solid fa-xmark"></i></button>
+  <div style="background:var(--bg,#fff);border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,.2);width:100%;max-width:480px;padding:0;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:1rem;padding:1.5rem 1.75rem 1rem;border-bottom:1px solid var(--line,#e2e8f0)">
+      <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-light,#eff6ff);color:var(--brand,#206efb);display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex-shrink:0"><i class="fa-solid fa-user"></i></div>
+      <div style="flex:1;min-width:0">
+        <h2 style="font-size:1.05rem;font-weight:700;color:var(--ink,#0f172a);margin:0">Mein Profil</h2>
+        <p style="font-size:.8rem;color:var(--muted,#475569);margin:.15rem 0 0">Profil & Einstellungen verwalten</p>
+      </div>
+      <button onclick="window.RootsUser.closeSettings()" style="width:36px;height:36px;border-radius:50%;background:var(--surface,#f8fafc);border:1px solid var(--line,#e2e8f0);color:var(--muted,#475569);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s ease" onmouseover="this.style.borderColor='var(--brand,#206efb)';this.style.background='var(--brand-light,#eff6ff)';this.style.color='var(--brand,#206efb)'" onmouseout="this.style.borderColor='var(--line,#e2e8f0)';this.style.background='var(--surface,#f8fafc)';this.style.color='var(--muted,#475569)'"><i class="fa-solid fa-xmark"></i></button>
     </div>
+    <div style="padding:1.5rem 1.75rem">
     <div style="text-align:center;margin-bottom:1.25rem">
       <canvas id="rus-crop-canvas" width="120" height="120" style="border-radius:50%;border:3px solid var(--brand,#206efb);cursor:grab;display:block;margin:0 auto .75rem;box-shadow:0 2px 12px rgba(32,110,251,.15)" title="Ziehen zum Verschieben · Scrollen zum Zoomen"></canvas>
       <div id="rus-drop-zone" style="border:2px dashed var(--line,#e2e8f0);border-radius:12px;padding:.65rem 1rem;cursor:pointer;transition:border-color .2s;margin-bottom:.5rem;font-size:.8rem;color:var(--muted,#475569);text-align:center" onclick="document.getElementById('rus-file-input').click()" ondragover="event.preventDefault();this.style.borderColor='#206efb'" ondragleave="this.style.borderColor=''" ondrop="event.preventDefault();this.style.borderColor='';window.RootsUser._cropLoad(event.dataTransfer.files[0])"><i class="fa-solid fa-folder-open" style="margin-right:6px"></i>Bild auswählen oder hier ablegen</div>
@@ -1210,16 +1222,17 @@
       <div id="rus-zoom-row" style="display:none;align-items:center;gap:8px;padding:0 .25rem;margin-top:.5rem"><i class="fa-solid fa-magnifying-glass-minus" style="color:var(--muted,#475569);font-size:.8rem"></i><input type="range" id="rus-zoom" min="0.5" max="4" step="0.01" value="1" style="flex:1;accent-color:#206efb"><i class="fa-solid fa-magnifying-glass-plus" style="color:var(--muted,#475569);font-size:.8rem"></i></div>
     </div>
     <div style="display:grid;gap:.85rem">
-      <div><label style="display:block;font-size:.75rem;font-weight:600;color:var(--muted,#475569);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">Vollständiger Name</label><input id="rus-name" type="text" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font-family:inherit;font-size:.9rem;color:var(--ink,#0f172a);background:var(--bg,#fff);outline:none;box-sizing:border-box"></div>
-      <div><label style="display:block;font-size:.75rem;font-weight:600;color:var(--muted,#475569);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">E-Mail</label><input id="rus-email" type="email" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font-family:inherit;font-size:.9rem;color:var(--ink,#0f172a);background:var(--bg,#fff);outline:none;box-sizing:border-box"><p style="font-size:.72rem;color:var(--muted,#475569);margin:.25rem 0 0">Änderung erfordert E-Mail-Bestätigung.</p></div>
-      <div><label style="display:block;font-size:.75rem;font-weight:600;color:var(--muted,#475569);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">Position</label><input id="rus-position" type="text" placeholder="z.B. Brand Consultant" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font-family:inherit;font-size:.9rem;color:var(--ink,#0f172a);background:var(--bg,#fff);outline:none;box-sizing:border-box"></div>
-      <div><label style="display:block;font-size:.75rem;font-weight:600;color:var(--muted,#475569);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">LinkedIn</label><input id="rus-linkedin" type="url" placeholder="https://linkedin.com/in/..." style="width:100%;height:42px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font-family:inherit;font-size:.9rem;color:var(--ink,#0f172a);background:var(--bg,#fff);outline:none;box-sizing:border-box"></div>
+      <div><label style="display:block;font-size:.875rem;font-weight:500;color:var(--muted,#475569);margin-bottom:.4rem">Vollständiger Name</label><input id="rus-name" type="text" style="width:100%;height:44px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font-family:inherit;font-size:.9rem;color:var(--ink,#0f172a);background:var(--bg,#fff);outline:none;box-sizing:border-box"></div>
+      <div><label style="display:block;font-size:.875rem;font-weight:500;color:var(--muted,#475569);margin-bottom:.4rem">E-Mail</label><input id="rus-email" type="email" style="width:100%;height:44px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font-family:inherit;font-size:.9rem;color:var(--ink,#0f172a);background:var(--bg,#fff);outline:none;box-sizing:border-box"><p style="font-size:.72rem;color:var(--muted,#475569);margin:.25rem 0 0">Änderung erfordert E-Mail-Bestätigung.</p></div>
+      <div><label style="display:block;font-size:.875rem;font-weight:500;color:var(--muted,#475569);margin-bottom:.4rem">Position</label><input id="rus-position" type="text" placeholder="z.B. Brand Consultant" style="width:100%;height:44px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font-family:inherit;font-size:.9rem;color:var(--ink,#0f172a);background:var(--bg,#fff);outline:none;box-sizing:border-box"></div>
+      <div><label style="display:block;font-size:.875rem;font-weight:500;color:var(--muted,#475569);margin-bottom:.4rem">LinkedIn</label><input id="rus-linkedin" type="url" placeholder="https://linkedin.com/in/..." style="width:100%;height:44px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font-family:inherit;font-size:.9rem;color:var(--ink,#0f172a);background:var(--bg,#fff);outline:none;box-sizing:border-box"></div>
     </div>
     <div style="display:flex;gap:.75rem;margin-top:1.5rem">
-      <button id="rus-save" onclick="window.RootsUser.saveSettings()" style="flex:1;height:42px;background:#206efb;color:#fff;border:none;border-radius:999px;font-family:inherit;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s">Speichern</button>
-      <button onclick="window.RootsUser.closeSettings()" style="height:42px;padding:0 1.25rem;background:none;border:1px solid var(--line,#e2e8f0);color:var(--ink,#0f172a);border-radius:999px;font-family:inherit;font-size:.9rem;cursor:pointer">Abbrechen</button>
+      <button id="rus-save" onclick="window.RootsUser.saveSettings()" style="flex:1;height:44px;background:#206efb;color:#fff;border:none;border-radius:999px;font-family:inherit;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s">Speichern</button>
+      <button onclick="window.RootsUser.closeSettings()" style="height:44px;padding:0 1.25rem;background:none;border:1px solid var(--line,#e2e8f0);color:var(--ink,#0f172a);border-radius:999px;font-family:inherit;font-size:.9rem;cursor:pointer">Abbrechen</button>
     </div>
     <div id="rus-msg" style="display:none;margin-top:.75rem;font-size:.85rem;text-align:center"></div>
+    </div>
   </div>
 </div>
 

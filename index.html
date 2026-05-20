@@ -649,11 +649,11 @@
         </div>
       </nav>
 
-      <div class="sidebar-user">
-        <div class="user-avatar" style="background-image: url('https://roots-consultants.de/wp-content/uploads/2025/11/Design-ohne-Titel-24-1-e1763482494374.png');"></div>
+      <div class="sidebar-user" style="cursor:pointer" onclick="window.RootsUser&&RootsUser.openSettings()" title="Profil bearbeiten">
+        <div id="roots-header-avatar"></div>
         <div class="user-info">
-          <span class="user-name">Max Mustermann</span>
-          <span class="user-role">Strategy Consultant</span>
+          <span id="roots-header-name" class="user-name"></span>
+          <span id="roots-sidebar-position" class="user-role"></span>
         </div>
       </div>
 
@@ -676,8 +676,6 @@
           <a href="#recruiting" class="btn-primary" id="primary-action">
             <i class="fa-solid fa-user-tie"></i> Recruiting Tool
           </a>
-          <span id="roots-header-name" style="font-size:13px;color:var(--muted);cursor:pointer" onclick="window.RootsUser&&RootsUser.openSettings()"></span>
-          <div id="roots-header-avatar" style="cursor:pointer" onclick="window.RootsUser&&RootsUser.openSettings()"></div>
           <button id="roots-admin-btn" onclick="window.RootsAdmin&&RootsAdmin.open()" style="display:none;height:34px;padding:0 12px;background:var(--brand,#206efb);color:#fff;border:none;border-radius:999px;font-family:inherit;font-size:.8rem;font-weight:600;cursor:pointer;gap:6px;align-items:center" title="Nutzerverwaltung">
             <i class="fa-solid fa-users-gear"></i> Admin
           </button>
@@ -1042,8 +1040,10 @@ window.RootsUser = {
     const p = this._p;
     const avEl = document.getElementById('roots-header-avatar') || document.getElementById('user-avatar');
     const nmEl = document.getElementById('roots-header-name') || document.getElementById('user-name-topbar');
-    if (avEl) { avEl.innerHTML = this._avatarSpan(p.avatar_url, p.full_name, 32); avEl.style.cursor='pointer'; avEl.onclick=()=>this.openSettings(); }
-    if (nmEl) { nmEl.textContent = p.full_name || p.email || ''; nmEl.style.cursor='pointer'; nmEl.onclick=()=>this.openSettings(); }
+    const posEl = document.getElementById('roots-sidebar-position');
+    if (avEl) { avEl.innerHTML = this._avatarSpan(p.avatar_url, p.full_name, 38); }
+    if (nmEl) { nmEl.textContent = p.full_name || p.email || ''; }
+    if (posEl) { posEl.textContent = p.position || ''; }
   },
 
   isAdmin() { return this._p?.app_role === 'admin'; },
@@ -1156,11 +1156,11 @@ window.RootsAdmin = {
   const vLogin=document.getElementById('roots-view-login');
   const vForgot=document.getElementById('roots-view-forgot');
   sb.auth.getSession().then(({data:{session}})=>{
-    if(session)overlay.remove();
+    if(session)overlay.style.display='none';
     window.RootsUser&&RootsUser._loadAndMount(sb);
   });
   sb.auth.onAuthStateChange((event,session)=>{
-    if(session){overlay.remove();window.RootsUser&&RootsUser._loadAndMount(sb);}
+    if(session){overlay.style.display='none';window.RootsUser&&RootsUser._loadAndMount(sb);}
     else if(event==='SIGNED_OUT'){overlay.style.display='flex';vLogin.style.display='block';vForgot.style.display='none';}
   });
   document.getElementById('roots-login-form').addEventListener('submit',async(e)=>{

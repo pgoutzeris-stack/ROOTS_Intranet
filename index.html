@@ -461,6 +461,60 @@
     .placeholder-tile strong { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; }
     .placeholder-tile span { color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
 
+    .intranet-notif-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .intranet-notif-card {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 1rem 1.1rem;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #fff 0%, var(--brand-light) 100%);
+      border-left: 3px solid var(--brand);
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s;
+      text-align: left;
+      font-family: inherit;
+      width: 100%;
+    }
+
+    .intranet-notif-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(32, 110, 251, 0.14);
+    }
+
+    .intranet-notif-card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--brand-light);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .intranet-notif-card-body { min-width: 0; flex: 1; }
+    .intranet-notif-card-title { font-size: .9rem; font-weight: 700; color: var(--ink); margin-bottom: .25rem; }
+    .intranet-notif-card-msg { font-size: .82rem; color: var(--muted); line-height: 1.45; }
+    .intranet-notif-card-meta { font-size: .72rem; color: var(--muted); margin-top: .4rem; }
+
+    .intranet-notif-empty {
+      padding: 1.5rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: .9rem;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      background: var(--status-bg);
+    }
+
     .hidden { display: none !important; }
 
     @keyframes fade {
@@ -691,22 +745,11 @@
 
       <section class="app-view is-active" data-view-panel="dashboard" data-scroll>
         <div class="dashboard-grid">
-          <div class="content-block status-quo-block content-block--half">
-            <div class="stage-label"><i class="fa-solid fa-chart-gantt"></i> Kapazitätsplanung (Aktuelle Woche)</div>
-            <h3>85% Auslastung im Team</h3>
-            <p>Die aktuellen Sprints binden einen Großteil der Ressourcen. Für Eilaufträge sind noch Kapazitäten bei Anna und Thomas frei. Bitte Projektzeiten bis Freitag 14:00 Uhr eintragen.</p>
-          </div>
-
-          <div class="content-block next-steps-block content-block--half">
-            <div class="stage-label"><i class="fa-solid fa-layer-group"></i> SOP Rollout</div>
-            <h3>Erstes SOP Dashboard ist live</h3>
-            <p>Das erste von mehreren SOP-Modulen ist direkt im Intranet eingebunden. Weitere Dashboards können später unter derselben Struktur ergänzt werden.</p>
-          </div>
-
-          <div class="content-block risk-block">
-            <div class="stage-label"><i class="fa-solid fa-calendar-days"></i> Kalender &amp; Abwesenheiten</div>
-            <h3>Kommende Woche: 2 Abwesenheiten</h3>
-            <p>Lisa ist ab Montag im Urlaub (Vertretung: Julian). Das All-Hands-Meeting verschiebt sich auf Mittwoch, 10:00 Uhr. Denkt daran, offene Urlaubsanträge für Q3 rechtzeitig einzureichen.</p>
+          <div class="content-block intranet-notif-section">
+            <div class="stage-label"><i class="fa-solid fa-bell"></i> Deine Benachrichtigungen</div>
+            <div id="intranet-notif-grid" class="intranet-notif-grid">
+              <div class="intranet-notif-empty"><i class="fa-solid fa-circle-notch fa-spin"></i> Benachrichtigungen werden geladen…</div>
+            </div>
           </div>
 
           <div class="tools-grid">
@@ -965,7 +1008,62 @@
       // Admin page: load users when tab opened
       document.addEventListener('intranet-view-changed', ev => {
         if (ev.detail === 'admin') loadAdminPage();
+        if (ev.detail === 'dashboard') loadIntranetDashboardNotifications();
       });
+
+      async function loadIntranetDashboardNotifications() {
+        const grid = document.getElementById('intranet-notif-grid');
+        if (!grid || !window.RootsUser?._sb || !window.RootsUser._uid) return;
+        try {
+          const { data, error } = await window.RootsUser._sb.schema('recruiting').from('notifications')
+            .select('*')
+            .eq('user_id', window.RootsUser._uid)
+            .is('read_at', null)
+            .order('created_at', { ascending: false })
+            .limit(12);
+          if (error) throw error;
+          const items = data || [];
+          if (!items.length) {
+            grid.innerHTML = '<div class="intranet-notif-empty"><i class="fa-solid fa-bell-slash"></i> Keine offenen Benachrichtigungen.</div>';
+            return;
+          }
+          grid.innerHTML = items.map(n => {
+            const runde = n.runde === 'zweit' ? 'Zweitgespräch' : 'Erstgespräch';
+            const date = n.created_at ? new Date(n.created_at).toLocaleString('de-DE') : '';
+            return `<button type="button" class="intranet-notif-card" data-notif-id="${n.id}" data-session="${n.session_id || ''}" data-runde="${n.runde || 'erst'}">
+              <span class="intranet-notif-card-icon"><i class="fa-solid fa-bell"></i></span>
+              <span class="intranet-notif-card-body">
+                <div class="intranet-notif-card-title">${escapeHtml(n.title || 'Benachrichtigung')}</div>
+                <div class="intranet-notif-card-msg">${escapeHtml(n.message || '')}</div>
+                <div class="intranet-notif-card-meta">${escapeHtml(runde)}${date ? ' · ' + escapeHtml(date) : ''}</div>
+              </span>
+            </button>`;
+          }).join('');
+          grid.querySelectorAll('.intranet-notif-card').forEach(card => {
+            card.addEventListener('click', async () => {
+              const id = card.dataset.notifId;
+              await window.RootsUser._sb.schema('recruiting').from('notifications')
+                .update({ read_at: new Date().toISOString() }).eq('id', id);
+              const recNav = navItems.find(i => i.dataset.view === 'recruiting');
+              if (recNav) {
+                setActiveNav(recNav);
+                setView('recruiting');
+              }
+              loadIntranetDashboardNotifications();
+            });
+          });
+        } catch (e) {
+          console.error('loadIntranetDashboardNotifications', e);
+          grid.innerHTML = '<div class="intranet-notif-empty">Benachrichtigungen konnten nicht geladen werden.</div>';
+        }
+      }
+
+      function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      window.loadIntranetDashboardNotifications = loadIntranetDashboardNotifications;
 
       async function loadAdminPage() {
         if (!(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) return;
@@ -1121,6 +1219,16 @@ window.RootsUser = {
     this._p = data || { id: this._uid, email: session.user.email, app_role: 'reader' };
     this._mount();
     this._syncAdminNav();
+    if (typeof window.loadIntranetDashboardNotifications === 'function') {
+      window.loadIntranetDashboardNotifications();
+      if (!window._intranetNotifPoll) {
+        window._intranetNotifPoll = setInterval(() => {
+          if (document.querySelector('.app-view.is-active[data-view-panel="dashboard"]')) {
+            window.loadIntranetDashboardNotifications();
+          }
+        }, 45000);
+      }
+    }
   },
 
   _syncAdminNav() {

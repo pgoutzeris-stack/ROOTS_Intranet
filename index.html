@@ -726,9 +726,7 @@
             data-feature-description="Die Kapazitätsplanung ist als eigenes Modul vorbereitet und lässt sich später analog zu den Live-Tools einbetten.">
             <i class="fa-solid fa-chart-gantt"></i><span class="nav-label-text"> Kapazitätsplanung</span>
           </a>
-          <a href="#vacation" class="nav-item is-disabled" data-view="upcoming"
-            data-feature-title="Urlaubsplanung"
-            data-feature-description="Die Urlaubsplanung ist als nächster Team-Bereich vorgesehen und kann an derselben Stelle ergänzt werden.">
+          <a href="#vacation" class="nav-item" data-view="vacation" data-tool-id="vacation">
             <i class="fa-solid fa-umbrella-beach"></i><span class="nav-label-text"> Urlaubsplanung</span>
           </a>
         </div>
@@ -857,6 +855,19 @@
                 </a>
               </div>
             </article>
+
+            <article class="tool-launch-card" data-tool-id="vacation">
+              <span class="card-chip"><i class="fa-solid fa-umbrella-beach"></i> Planung &amp; Team</span>
+              <div class="tool-card-copy">
+                <h3>Urlaubsplanung</h3>
+                <p>Urlaub einreichen, freigeben lassen – genehmigte Tage erscheinen automatisch im Team-Kalender.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#vacation" class="btn-primary" data-open-view="vacation">
+                  <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Öffnen
+                </a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -929,6 +940,15 @@
           referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
 
+      <section class="app-view" data-view-panel="vacation">
+        <iframe
+          class="tool-iframe"
+          title="ROOTS Urlaubsplanung"
+          src="https://pgoutzeris-stack.github.io/urlaubsplanung/"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </section>
+
       <section class="app-view" data-view-panel="upcoming" data-scroll>
         <div class="placeholder-shell">
           <span class="card-chip"><i class="fa-solid fa-clock-rotate-left"></i> In Vorbereitung</span>
@@ -965,7 +985,7 @@
       const upTitle    = document.getElementById('upcoming-feature-title');
       const upDesc     = document.getElementById('upcoming-feature-description');
 
-      const TOOL_VIEWS = new Set(['recruiting', 'sop', 'image', 'teamkalender', 'onboarding']);
+      const TOOL_VIEWS = new Set(['recruiting', 'sop', 'image', 'teamkalender', 'onboarding', 'vacation']);
 
       function getGreeting() {
         const h = new Date().getHours();
@@ -1238,6 +1258,7 @@ window.INTRANET_TOOLS = [
   { id: 'sop', label: 'SOP Dashboard' },
   { id: 'image', label: 'Bildgenerierung (KI)' },
   { id: 'teamkalender', label: 'Team Kalender' },
+  { id: 'vacation', label: 'Urlaubsplanung' },
   { id: 'onboarding', label: 'Onboarding' },
 ];
 window.INTRANET_TOOL_IDS = window.INTRANET_TOOLS.map(t => t.id);

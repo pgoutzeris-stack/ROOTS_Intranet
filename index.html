@@ -1164,10 +1164,7 @@
         if (!iframe) return;
         const url = iframe.dataset.src;
         if (!url) return;
-        const syncAuth = () => {
-          window.RootsUser?._broadcastAuthSession?.();
-          window.RootsUser?._broadcastProfile?.();
-        };
+        const syncAuth = () => window.RootsUser?._broadcastAuthSession?.();
         if (!iframe.dataset.loaded) {
           iframe.dataset.loaded = '1';
           iframe.addEventListener('load', syncAuth, { once: true });
@@ -1999,7 +1996,7 @@ window.RootsUser = {
       }
 
       this._broadcastProfile();
-      this._broadcastAuthSession(session);
+      this._broadcastAuthSession();
       this._syncAdminNav();
       if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
       if (window.RootsNotifications) {
@@ -2021,35 +2018,23 @@ window.RootsUser = {
   _broadcastAuthSignOut() {
     document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
       try {
-        f.contentWindow?.postMessage({ type: 'roots-auth-sync', session: null, signOut: true }, 'https://pgoutzeris-stack.github.io');
+        f.contentWindow?.postMessage({ type: 'roots-auth-sync', signOut: true }, 'https://pgoutzeris-stack.github.io');
       } catch (_) {}
     });
   },
 
-  _broadcastAuthSession(sessionHint) {
-    if (!this._sb) return;
-    const send = (payload) => {
+  _broadcastAuthSession() {
+    const ping = () => {
       document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
         try {
-          f.contentWindow?.postMessage({ type: 'roots-auth-sync', session: payload }, 'https://pgoutzeris-stack.github.io');
+          f.contentWindow?.postMessage({ type: 'roots-auth-sync' }, 'https://pgoutzeris-stack.github.io');
         } catch (_) {}
       });
+      this._broadcastProfile();
     };
-    const emit = (session) => {
-      if (!session?.access_token || !session?.refresh_token) return;
-      const payload = {
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-      };
-      send(payload);
-      setTimeout(() => send(payload), 400);
-      setTimeout(() => send(payload), 1200);
-    };
-    if (sessionHint?.access_token && sessionHint?.refresh_token) {
-      emit(sessionHint);
-      return;
-    }
-    void this._sb.auth.getSession().then(({ data: { session } }) => emit(session));
+    ping();
+    setTimeout(ping, 400);
+    setTimeout(ping, 1200);
   },
 
   _syncAdminNav() {

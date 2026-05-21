@@ -234,11 +234,15 @@
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
   const AUTH_STORAGE_KEY = `sb-${SUPABASE_REF}-auth-token`;
   let _lastAuthFingerprint = null;
-  let _lastAppliedToken = null;
   let _hadSession = false;
+  let _syncInFlight = null;
 
   function dispatchAuthReady(session) {
     window.dispatchEvent(new CustomEvent('roots-auth-ready', { detail: { session } }));
+  }
+
+  function dispatchAuthSignedOut() {
+    window.dispatchEvent(new CustomEvent('roots-auth-signed-out'));
   }
 
   function getSupabaseClient() {
@@ -262,49 +266,62 @@
     try {
       return window.top.localStorage.getItem(AUTH_STORAGE_KEY);
     } catch (_) {
-      return null;
+      try {
+        return window.localStorage.getItem(AUTH_STORAGE_KEY);
+      } catch (_) {
+        return null;
+      }
     }
   }
 
-  async function applyAuthSync(sessionPayload, allowSignOut) {
+  async function hydrateSessionFromParentStorage() {
     const sb = getSupabaseClient();
-    if (!sb) return;
-    try {
-      if (sessionPayload?.access_token && sessionPayload?.refresh_token) {
-        const tokenKey = sessionPayload.access_token.slice(-24);
-        if (tokenKey === _lastAppliedToken) {
-          const { data: { session: current } } = await sb.auth.getSession();
-          if (current?.access_token === sessionPayload.access_token) return;
-        }
-        const { data, error } = await sb.auth.setSession({
-          access_token: sessionPayload.access_token,
-          refresh_token: sessionPayload.refresh_token,
-        });
-        if (error) {
-          console.warn('RootsAuthBridge setSession', error.message);
-          return;
-        }
-        _lastAppliedToken = tokenKey;
-        _hadSession = true;
-        if (data?.session) dispatchAuthReady(data.session);
-      } else if (sessionPayload === null && allowSignOut && _hadSession) {
-        await sb.auth.signOut({ scope: 'local' });
-        _hadSession = false;
-        _lastAppliedToken = null;
-      }
-    } catch (e) {
-      console.warn('RootsAuthBridge applyAuthSync', e);
+    if (!sb) return null;
+    const raw = readAuthStorageRaw();
+    const payload = sessionFromStorageRaw(raw);
+    if (!payload) return null;
+
+    const { data: { session: current } } = await sb.auth.getSession();
+    if (current?.access_token === payload.access_token) {
+      _hadSession = true;
+      return current;
     }
+
+    const { data, error } = await sb.auth.setSession({
+      access_token: payload.access_token,
+      refresh_token: payload.refresh_token,
+    });
+    if (error) {
+      console.warn('RootsAuthBridge hydrateSession', error.message);
+      return current || null;
+    }
+    _hadSession = true;
+    return data?.session || null;
   }
 
   async function syncAuthFromParentStorage() {
-    const sb = getSupabaseClient();
-    if (!sb) return;
-    const raw = readAuthStorageRaw();
-    if (raw === _lastAuthFingerprint) return;
-    _lastAuthFingerprint = raw;
-    const payload = sessionFromStorageRaw(raw);
-    if (payload) await applyAuthSync(payload, false);
+    if (_syncInFlight) return _syncInFlight;
+    _syncInFlight = (async () => {
+      const raw = readAuthStorageRaw();
+      if (raw === _lastAuthFingerprint && _hadSession) {
+        const sb = getSupabaseClient();
+        const { data: { session } } = sb ? await sb.auth.getSession() : { data: { session: null } };
+        if (session) return session;
+      }
+      _lastAuthFingerprint = raw;
+      const session = await hydrateSessionFromParentStorage();
+      if (session) dispatchAuthReady(session);
+      return session;
+    })().finally(() => {
+      _syncInFlight = null;
+    });
+    return _syncInFlight;
+  }
+
+  async function applyAuthSignOut() {
+    _hadSession = false;
+    _lastAuthFingerprint = null;
+    dispatchAuthSignedOut();
   }
 
   window.addEventListener('message', (e) => {
@@ -317,10 +334,8 @@
       playBridgeTone();
     }
     if (e.data?.type === 'roots-auth-sync') {
-      if (e.data.signOut) void applyAuthSync(null, true);
-      else if (e.data.session?.access_token && e.data.session?.refresh_token) {
-        void applyAuthSync(e.data.session, false);
-      }
+      if (e.data.signOut) void applyAuthSignOut();
+      else void syncAuthFromParentStorage();
     }
     if (e.data?.type === 'roots-notes-refresh') {
       void syncAuthFromParentStorage();
@@ -328,8 +343,14 @@
   });
 
   if (IN_IFRAME) {
-    setInterval(() => { void syncAuthFromParentStorage(); }, 1500);
-    setTimeout(() => { void syncAuthFromParentStorage(); }, 250);
+    window.addEventListener('storage', (e) => {
+      if (e.key === AUTH_STORAGE_KEY) void syncAuthFromParentStorage();
+    });
+    const waitForClient = (n) => {
+      if (getSupabaseClient()) void syncAuthFromParentStorage();
+      else if (n < 120) setTimeout(() => waitForClient(n + 1), 50);
+    };
+    waitForClient(0);
   }
 
   function tryPatch() {
@@ -343,5 +364,5 @@
     if (++n > 100 || (window.RootsUser && window.RootsUser._bridgePatched)) clearInterval(t);
   }, 50);
 
-  window.RootsUserBridge = { IN_IFRAME, patch, ORIGIN, showBridgeToast, playBridgeTone, applyAuthSync, syncAuthFromParentStorage };
+  window.RootsUserBridge = { IN_IFRAME, patch, ORIGIN, showBridgeToast, playBridgeTone, syncAuthFromParentStorage, applyAuthSignOut };
 })();

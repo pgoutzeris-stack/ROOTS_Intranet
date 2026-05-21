@@ -840,6 +840,12 @@
           <a href="#onboarding" class="nav-item" data-view="onboarding" data-tool-id="onboarding">
             <i class="fa-solid fa-door-open"></i><span class="nav-label-text"> Onboarding</span>
           </a>
+          <a href="#notes" class="nav-item" data-view="notes" data-tool-id="notes">
+            <i class="fa-solid fa-note-sticky"></i><span class="nav-label-text"> Notes Tool</span>
+          </a>
+          <a href="#whiteboard" class="nav-item" data-view="whiteboard" data-tool-id="whiteboard">
+            <i class="fa-solid fa-chalkboard-user"></i><span class="nav-label-text"> Whiteboard</span>
+          </a>
           <a href="#admin" class="nav-item nav-item--admin" id="roots-admin-nav-item" data-view="admin" hidden aria-hidden="true">
             <i class="fa-solid fa-users-gear"></i><span class="nav-label-text"> Nutzerverwaltung</span>
           </a>
@@ -957,6 +963,32 @@
                 </a>
               </div>
             </article>
+
+            <article class="tool-launch-card" data-tool-id="notes">
+              <span class="card-chip"><i class="fa-solid fa-note-sticky"></i> Produktivität</span>
+              <div class="tool-card-copy">
+                <h3>Notes Tool</h3>
+                <p>Visuelle Notizen mit Formen, Tabellen, Verbindern und Export – pro Nutzer geschützt.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#notes" class="btn-primary" data-open-view="notes">
+                  <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Öffnen
+                </a>
+              </div>
+            </article>
+
+            <article class="tool-launch-card" data-tool-id="whiteboard">
+              <span class="card-chip"><i class="fa-solid fa-chalkboard-user"></i> Kollaboration</span>
+              <div class="tool-card-copy">
+                <h3>Whiteboard</h3>
+                <p>Kollaboratives Whiteboard mit unendlichem Canvas, Sticky Notes, Shapes und Echtzeit-Sync für Workshops und Brainstormings.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#whiteboard" class="btn-primary" data-open-view="whiteboard">
+                  <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Öffnen
+                </a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -965,8 +997,7 @@
         <iframe
           class="tool-iframe"
           title="ROOTS Recruiting Tool"
-          src="https://pgoutzeris-stack.github.io/ROOTS_RecruitingApp/"
-          loading="lazy"
+          data-src="https://pgoutzeris-stack.github.io/ROOTS_RecruitingApp/"
           referrerpolicy="no-referrer-when-downgrade"
           allow="microphone; camera"></iframe>
       </section>
@@ -976,8 +1007,25 @@
           id="onboarding-iframe"
           class="tool-iframe"
           title="ROOTS Onboarding"
-          src="https://pgoutzeris-stack.github.io/onboarding/"
-          loading="lazy"
+          data-src="https://pgoutzeris-stack.github.io/onboarding/"
+          referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </section>
+
+      <section class="app-view" data-view-panel="notes">
+        <iframe
+          id="notes-iframe"
+          class="tool-iframe"
+          title="ROOTS Notes Tool"
+          data-src="https://pgoutzeris-stack.github.io/Notes-Tool/"
+          referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </section>
+
+      <section class="app-view" data-view-panel="whiteboard">
+        <iframe
+          id="whiteboard-iframe"
+          class="tool-iframe"
+          title="ROOTS Whiteboard"
+          data-src="https://pgoutzeris-stack.github.io/whiteboard/"
           referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
 
@@ -1006,8 +1054,7 @@
         <iframe
           class="tool-iframe"
           title="ROOTS SOP Dashboard"
-          src="https://pgoutzeris-stack.github.io/ROOTS_SOP_Tool/"
-          loading="lazy"
+          data-src="https://pgoutzeris-stack.github.io/ROOTS_SOP_Tool/"
           referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
 
@@ -1015,8 +1062,7 @@
         <iframe
           class="tool-iframe"
           title="Image Generation Tool"
-          src="https://pgoutzeris-stack.github.io/Image-Generation-Tool/"
-          loading="lazy"
+          data-src="https://pgoutzeris-stack.github.io/Image-Generation-Tool/"
           referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
 
@@ -1024,8 +1070,7 @@
         <iframe
           class="tool-iframe"
           title="ROOTS Team-Kalender · Abwesenheiten"
-          src="https://pgoutzeris-stack.github.io/Team-Kalender/"
-          loading="lazy"
+          data-src="https://pgoutzeris-stack.github.io/Team-Kalender/"
           referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
 
@@ -1033,8 +1078,7 @@
         <iframe
           class="tool-iframe"
           title="ROOTS Urlaubsplanung"
-          src="https://pgoutzeris-stack.github.io/urlaubsplanung/"
-          loading="lazy"
+          data-src="https://pgoutzeris-stack.github.io/urlaubsplanung/"
           referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
 
@@ -1074,7 +1118,7 @@
       const upTitle    = document.getElementById('upcoming-feature-title');
       const upDesc     = document.getElementById('upcoming-feature-description');
 
-      const TOOL_VIEWS = new Set(['recruiting', 'sop', 'image', 'teamkalender', 'onboarding', 'vacation']);
+      const TOOL_VIEWS = new Set(['recruiting', 'sop', 'image', 'teamkalender', 'onboarding', 'notes', 'vacation', 'whiteboard']);
 
       function getGreeting() {
         const h = new Date().getHours();
@@ -1114,6 +1158,23 @@
         navItems.forEach(item => item.classList.toggle('active', item === activeItem));
       }
 
+      function ensureToolIframe(viewName) {
+        const panel = document.querySelector(`.app-view[data-view-panel="${viewName}"]`);
+        const iframe = panel?.querySelector('iframe.tool-iframe');
+        if (!iframe) return;
+        const url = iframe.dataset.src;
+        if (!url) return;
+        const syncAuth = () => window.RootsUser?._broadcastAuthSession?.();
+        if (!iframe.dataset.loaded) {
+          iframe.dataset.loaded = '1';
+          iframe.addEventListener('load', syncAuth, { once: true });
+          iframe.src = url;
+        } else {
+          syncAuth();
+        }
+      }
+      window.ensureToolIframe = ensureToolIframe;
+
       function setView(viewName, options) {
         if (viewName === 'admin' && !(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) {
           viewName = 'dashboard';
@@ -1150,6 +1211,22 @@
           configureBtn(primaryBtn, cfg.primary);
           configureBtn(secondBtn, cfg.secondary);
         }
+
+        if (viewName === 'notes') refreshNotesIframe();
+        if (isTool) ensureToolIframe(viewName);
+        else if (window.RootsUser?._broadcastAuthSession) window.RootsUser._broadcastAuthSession();
+      }
+
+      function refreshNotesIframe() {
+        const iframe = document.getElementById('notes-iframe');
+        if (!iframe) return;
+        const ping = () => {
+          try {
+            iframe.contentWindow?.postMessage({ type: 'roots-notes-refresh' }, 'https://pgoutzeris-stack.github.io');
+          } catch (_) {}
+        };
+        if (iframe.contentWindow) ping();
+        else iframe.addEventListener('load', ping, { once: true });
       }
 
       // Nav-Klicks
@@ -1179,6 +1256,7 @@
           window.RootsNotifications.renderDashboard();
           window.RootsNotifications.poll();
         }
+        if (ev.detail === 'notes') refreshNotesIframe();
       });
 
       document.getElementById('intranet-notif-more')?.addEventListener('click', () => {
@@ -1701,6 +1779,8 @@ window.INTRANET_TOOLS = [
   { id: 'teamkalender', label: 'Team Kalender' },
   { id: 'vacation', label: 'Urlaubsplanung' },
   { id: 'onboarding', label: 'Onboarding' },
+  { id: 'notes', label: 'Notes Tool' },
+  { id: 'whiteboard', label: 'Whiteboard' },
 ];
 window.INTRANET_TOOL_IDS = window.INTRANET_TOOLS.map(t => t.id);
 
@@ -1878,37 +1958,86 @@ window.RootsUser = {
 
   _previewAvatar(url) { return this._avatarSpan(url || (this._p && this._p.avatar_url), this._p && this._p.full_name, 60); },
 
-  async _loadAndMount(sb) {
-    if (this._mountPromise) return this._mountPromise;
-    this._mountPromise = this._doLoadAndMount(sb).finally(() => {
-      this._mountPromise = null;
-    });
-    return this._mountPromise;
+  async _loadAndMount(sb, sessionHint) {
+    return this._doLoadAndMount(sb, sessionHint);
   },
 
-  async _doLoadAndMount(sb) {
+  async _doLoadAndMount(sb, sessionHint) {
     this._sb = sb;
-    const { data:{session} } = await sb.auth.getSession();
-    if (!session) return;
-    this._uid = session.user.id;
-    const { data } = await sb.schema('users').from('profiles')
-      .select('id,email,full_name,position,avatar_url,linkedin_url,app_role,app_settings,kuerzel')
-      .eq('id', this._uid).single();
-    this._p = data || { id: this._uid, email: session.user.email, app_role: 'reader' };
-    this._mount();
-    this._broadcastProfile();
-    this._syncAdminNav();
-    if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
-    if (window.RootsNotifications) {
-      const rn = window.RootsNotifications;
-      if (rn._userId !== this._uid) {
-        rn.reset();
-        rn._userId = this._uid;
-        rn.start();
-      } else if (!rn._pollTimer) {
-        rn.start();
+    window.__rootsSupabaseClient = sb;
+    window.rootsSupabase = sb;
+    try {
+      let session = sessionHint || null;
+      if (!session) {
+        const { data: { session: stored } } = await sb.auth.getSession();
+        session = stored;
       }
+      if (!session) {
+        this._uid = null;
+        this._p = null;
+        return;
+      }
+      this._uid = session.user.id;
+      this._p = {
+        id: this._uid,
+        email: session.user.email || '',
+        full_name: session.user.user_metadata?.full_name || '',
+        app_role: 'reader',
+      };
+      this._mount();
+
+      const { data, error } = await sb.schema('users').from('profiles')
+        .select('id,email,full_name,position,avatar_url,linkedin_url,app_role,app_settings,kuerzel')
+        .eq('id', this._uid).maybeSingle();
+      if (error) console.warn('Profil laden:', error.message);
+      else if (data) {
+        this._p = data;
+        this._mount();
+      }
+
+      this._broadcastProfile();
+      this._broadcastAuthSession(session);
+      this._syncAdminNav();
+      if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
+      if (window.RootsNotifications) {
+        const rn = window.RootsNotifications;
+        if (rn._userId !== this._uid) {
+          rn.reset();
+          rn._userId = this._uid;
+          rn.start();
+        } else if (!rn._pollTimer) {
+          rn.start();
+        }
+      }
+    } catch (e) {
+      console.error('RootsUser._doLoadAndMount', e);
+      if (this._p) this._mount();
     }
+  },
+
+  _broadcastAuthSession(sessionHint) {
+    if (!this._sb) return;
+    const send = (payload) => {
+      document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
+        try {
+          f.contentWindow?.postMessage({ type: 'roots-auth-sync', session: payload }, 'https://pgoutzeris-stack.github.io');
+        } catch (_) {}
+      });
+    };
+    const emit = (session) => {
+      const payload = session ? {
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      } : null;
+      send(payload);
+      setTimeout(() => send(payload), 400);
+      setTimeout(() => send(payload), 1200);
+    };
+    if (sessionHint?.access_token && sessionHint?.refresh_token) {
+      emit(sessionHint);
+      return;
+    }
+    void this._sb.auth.getSession().then(({ data: { session } }) => emit(session));
   },
 
   _syncAdminNav() {
@@ -1931,6 +2060,7 @@ window.RootsUser = {
 
   _mount() {
     const p = this._p;
+    if (!p) return;
     const avEl = document.getElementById('roots-header-avatar') || document.getElementById('user-avatar');
     const nmEl = document.getElementById('roots-header-name') || document.getElementById('user-name-topbar');
     const posEl = document.getElementById('roots-sidebar-position');
@@ -2206,7 +2336,11 @@ window.RootsAdmin = {
   const SB_URL='https://csmguwcvzreefluhahyu.supabase.co';
   const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNzbWd1d2N2enJlZWZsdWhhaHl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjM0ODcsImV4cCI6MjA5MjUzOTQ4N30.Fiafx7XBaQZXUX3bKQIBH7znBHx3B51yL-bftOHsL4Q';
   const {createClient}=window.supabase;
-  const sb=createClient(SB_URL,SB_ANON);
+  const sb=createClient(SB_URL,SB_ANON,{
+    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storage:window.localStorage}
+  });
+  window.__rootsSupabaseClient=sb;
+  window.rootsSupabase=sb;
   const overlay=document.getElementById('roots-auth-overlay');
   const vLogin=document.getElementById('roots-view-login');
   const vForgot=document.getElementById('roots-view-forgot');
@@ -2229,14 +2363,20 @@ window.RootsAdmin = {
     if(overlay)overlay.style.display='none';
   }
   sb.auth.getSession().then(({data:{session}})=>{
-    if(session){hideAuthOverlay();window.RootsUser&&RootsUser._loadAndMount(sb);}
+    if(session){hideAuthOverlay();window.RootsUser&&void RootsUser._loadAndMount(sb,session);}
     else{resetLoginUi();}
   });
   sb.auth.onAuthStateChange((event,session)=>{
-    if(session){hideAuthOverlay();window.RootsUser&&RootsUser._loadAndMount(sb);}
+    if(session){
+      hideAuthOverlay();
+      resetLoginUi();
+      window.RootsUser&&void RootsUser._loadAndMount(sb,session);
+    }
     else if(event==='SIGNED_OUT'){
       showAuthOverlay();
+      resetLoginUi();
       window.RootsNotifications?.reset();
+      window.RootsUser?._broadcastAuthSession?.();
     }
   });
   document.getElementById('roots-login-form').addEventListener('submit',async(e)=>{
@@ -2249,8 +2389,12 @@ window.RootsAdmin = {
     btn.disabled=true;
     btn.innerHTML='<i class="fa-solid fa-circle-notch roots-spin"></i> Anmelden...';
     errB.classList.remove('visible');
-    const {error}=await sb.auth.signInWithPassword({email,password:pw});
+    const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
     if(error){errB.classList.add('visible');errT.textContent='Ungültige E-Mail oder falsches Passwort.';btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';}
+    else{
+      resetLoginUi();
+      if(data?.session) void RootsUser._loadAndMount(sb,data.session);
+    }
   });
   document.getElementById('roots-forgot-form').addEventListener('submit',async(e)=>{
     e.preventDefault();

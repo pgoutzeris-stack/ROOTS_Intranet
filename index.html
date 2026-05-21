@@ -1345,13 +1345,15 @@ function escapeHtml(s) {
 window.RootsNotifications = {
   ORIGIN: 'https://pgoutzeris-stack.github.io',
   DASHBOARD_PREVIEW: 5,
-  TOAST_MS: 5500,
+  TOAST_MS: 9000,
   POLL_MS: 30000,
   knownIds: new Set(),
+  activeToastIds: new Set(),
   initialized: false,
   dashboardExpanded: false,
   items: [],
   _pollTimer: null,
+  _pollInFlight: false,
   _audioCtx: null,
   _beep: null,
   _beepUri: null,
@@ -1496,37 +1498,55 @@ window.RootsNotifications = {
   },
 
   renderParentToast(n) {
+    if (!n?.id || this.activeToastIds.has(n.id)) return;
+    this.activeToastIds.add(n.id);
     const stack = document.getElementById('roots-notif-toast-stack');
-    if (!stack) return;
+    if (!stack) {
+      this.activeToastIds.delete(n.id);
+      return;
+    }
     const meta = this.notifMeta(n);
     const el = document.createElement('button');
     el.type = 'button';
     el.className = 'roots-notif-toast';
+    el.dataset.notifId = n.id;
     el.innerHTML = `<span class="roots-notif-toast-icon"><i class="fa-solid ${meta.icon}"></i></span>
       <span class="roots-notif-toast-body">
         <div class="roots-notif-toast-title">${escapeHtml(n.title || 'Benachrichtigung')}</div>
         <div class="roots-notif-toast-msg">${escapeHtml(n.message || '')}</div>
       </span>`;
-    el.addEventListener('click', () => { void this.handleClick(n, el); });
+    const dismissToast = () => {
+      this.activeToastIds.delete(n.id);
+      el.remove();
+    };
+    el.addEventListener('click', () => {
+      dismissToast();
+      void this.handleClick(n, null);
+    });
     stack.appendChild(el);
     requestAnimationFrame(() => el.classList.add('is-in'));
     setTimeout(() => {
       if (!el.parentElement) return;
       el.classList.remove('is-in');
       el.classList.add('is-out');
-      setTimeout(() => el.remove(), 320);
+      setTimeout(dismissToast, 320);
     }, this.TOAST_MS);
   },
 
   showToast(n) {
+    if (!n?.id || this.activeToastIds.has(n.id)) return;
     const iframe = this.getActiveToolIframe();
     if (iframe?.contentWindow) {
+      this.activeToastIds.add(n.id);
       try {
         iframe.contentWindow.postMessage({
           type: 'roots-notification-toast',
           notification: this.toastPayload(n),
         }, this.ORIGIN);
-      } catch (_) {}
+      } catch (_) {
+        this.activeToastIds.delete(n.id);
+      }
+      setTimeout(() => this.activeToastIds.delete(n.id), this.TOAST_MS + 400);
       return;
     }
     this.renderParentToast(n);
@@ -1625,7 +1645,9 @@ window.RootsNotifications = {
   },
 
   async poll() {
+    if (this._pollInFlight) return;
     if (!window.RootsUser?._sb || !window.RootsUser._uid) return;
+    this._pollInFlight = true;
     try {
       this.items = await this.fetchUnread();
       const fresh = this.detectNew(this.items);
@@ -1639,6 +1661,8 @@ window.RootsNotifications = {
       if (grid && document.querySelector('.app-view.is-active[data-view-panel="dashboard"]')) {
         grid.innerHTML = '<div class="intranet-notif-empty">Benachrichtigungen konnten nicht geladen werden.</div>';
       }
+    } finally {
+      this._pollInFlight = false;
     }
   },
 
@@ -1652,6 +1676,7 @@ window.RootsNotifications = {
 
   reset() {
     this.knownIds.clear();
+    this.activeToastIds.clear();
     this.initialized = false;
     this.items = [];
     this.dashboardExpanded = false;
@@ -1845,6 +1870,14 @@ window.RootsUser = {
   _previewAvatar(url) { return this._avatarSpan(url || (this._p && this._p.avatar_url), this._p && this._p.full_name, 60); },
 
   async _loadAndMount(sb) {
+    if (this._mountPromise) return this._mountPromise;
+    this._mountPromise = this._doLoadAndMount(sb).finally(() => {
+      this._mountPromise = null;
+    });
+    return this._mountPromise;
+  },
+
+  async _doLoadAndMount(sb) {
     this._sb = sb;
     const { data:{session} } = await sb.auth.getSession();
     if (!session) return;

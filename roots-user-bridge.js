@@ -1,7 +1,8 @@
 (function () {
   const ORIGIN = 'https://pgoutzeris-stack.github.io';
   const IN_IFRAME = window.parent !== window;
-  const TOAST_MS = 5500;
+  const TOAST_MS = 9000;
+  const visibleToastIds = new Set();
 
   function escapeHtml(s) {
     if (s == null) return '';
@@ -163,20 +164,27 @@
   }
 
   function showBridgeToast(notification) {
-    if (!IN_IFRAME || !notification) return;
+    if (!IN_IFRAME || !notification?.id) return;
+    if (visibleToastIds.has(notification.id)) return;
+    visibleToastIds.add(notification.id);
     const stack = ensureNotifStack();
     const icon = notifIcon(notification.type);
     const el = document.createElement('button');
     el.type = 'button';
     el.className = 'roots-bridge-notif-toast';
+    el.dataset.notifId = notification.id;
     el.innerHTML = `<span class="roots-bridge-notif-toast-icon"><i class="fa-solid ${icon}"></i></span>
       <span class="roots-bridge-notif-toast-body">
         <div class="roots-bridge-notif-toast-title">${escapeHtml(notification.title || 'Benachrichtigung')}</div>
         <div class="roots-bridge-notif-toast-msg">${escapeHtml(notification.message || '')}</div>
       </span>`;
+    const dismissToast = () => {
+      visibleToastIds.delete(notification.id);
+      el.remove();
+    };
     el.addEventListener('click', () => {
       window.parent.postMessage({ type: 'roots-notification-click', id: notification.id }, ORIGIN);
-      el.remove();
+      dismissToast();
     });
     stack.appendChild(el);
     requestAnimationFrame(() => el.classList.add('is-in'));
@@ -184,7 +192,7 @@
       if (!el.parentElement) return;
       el.classList.remove('is-in');
       el.classList.add('is-out');
-      setTimeout(() => el.remove(), 320);
+      setTimeout(dismissToast, 320);
     }, TOAST_MS);
   }
 

@@ -1472,6 +1472,7 @@ window.RootsUser = {
       .eq('id', this._uid).single();
     this._p = data || { id: this._uid, email: session.user.email, app_role: 'reader' };
     this._mount();
+    this._broadcastProfile();
     this._syncAdminNav();
     if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
     if (typeof window.loadIntranetDashboardNotifications === 'function') {
@@ -1525,6 +1526,15 @@ window.RootsUser = {
   isAdmin() { return String(this._p?.app_role || '').trim() === 'admin'; },
   isReader() { return this._p?.app_role === 'reader'; },
   getProfile() { return this._p; },
+
+  _broadcastProfile() {
+    if (!this._p) return;
+    const profile = { ...this._p };
+    document.querySelectorAll('iframe').forEach((f) => {
+      try { f.contentWindow?.postMessage({ type: 'roots-profile-updated', profile }, 'https://pgoutzeris-stack.github.io'); } catch (_) {}
+    });
+  },
+
   _cs: null,
   _cropDraw(){
     const c=document.getElementById('rus-crop-canvas');if(!c)return;
@@ -1547,14 +1557,14 @@ window.RootsUser = {
     if(!file||!file.type.startsWith('image/'))return;
     const r=new FileReader();r.onload=()=>this._setImageSrc(r.result);r.readAsDataURL(file);
   },
-  _setImageSrc(src){
+  _setImageSrc(src, crop){
     const img=new Image();
     img.onload=()=>{
-      const baseScale=Math.max(120/img.naturalWidth,120/img.naturalHeight);
-      this._cs={img,baseScale,scale:1,x:0,y:0,dragging:false,lastX:0,lastY:0};
+      const baseScale=crop?.baseScale??Math.max(120/img.naturalWidth,120/img.naturalHeight);
+      this._cs={img,baseScale,scale:crop?.scale??1,x:crop?.x??0,y:crop?.y??0,dragging:false,lastX:0,lastY:0,sourceSrc:src};
       const sl=document.getElementById('rus-zoom-slider');
       const rb=document.getElementById('rus-reset-zoom');
-      if(sl){sl.disabled=false;sl.value='1';}
+      if(sl){sl.disabled=false;sl.value=String(this._cs.scale);}
       if(rb)rb.disabled=false;
       this._cropDraw();
     };
@@ -1659,7 +1669,9 @@ window.RootsUser = {
     if(_rb)_rb.disabled=true;
     this._initCropEditor();
     this._cropDraw();
-    if(p.avatar_url)this._setImageSrc(p.avatar_url);
+    const crop = p.app_settings?.avatar_crop;
+    const src = p.app_settings?.avatar_source || p.avatar_url;
+    if (src) this._setImageSrc(src, crop);
   },
 
   closeSettings() { document.getElementById('roots-user-settings-modal').style.display = 'none'; },
@@ -1677,13 +1689,20 @@ window.RootsUser = {
       const email = document.getElementById('rus-email')?.value.trim() || '';
       const pos = document.getElementById('rus-position')?.value || '';
       const li = document.getElementById('rus-linkedin')?.value.trim() || '';
-      const av = this._getCroppedDataURL();
-      const payload = { full_name: name, position: pos, linkedin_url: li || null, avatar_url: av };
+      let av = this._p?.avatar_url || null;
+      const appSettings = { ...(this._p?.app_settings || {}) };
+      if (this._cs?.img) {
+        av = this._getCroppedDataURL();
+        appSettings.avatar_crop = { x: this._cs.x, y: this._cs.y, scale: this._cs.scale, baseScale: this._cs.baseScale };
+        if (this._cs.sourceSrc?.startsWith('data:')) appSettings.avatar_source = this._cs.sourceSrc;
+      }
+      const payload = { full_name: name, position: pos, linkedin_url: li || null, avatar_url: av, app_settings: appSettings };
       const { error } = await this._sb.schema('users').from('profiles').update(payload).eq('id', this._uid);
       if (error) throw error;
       if (email && email !== this._p.email) await this._sb.auth.updateUser({ email });
       if (this._p) { Object.assign(this._p, payload); if (email && email !== this._p.email) this._p.email = email; }
       this._mount();
+      this._broadcastProfile();
       showMsg('✓ Erfolgreich gespeichert', true);
       setTimeout(() => this.closeSettings && this.closeSettings(), 900);
     } catch (e) {
@@ -1783,6 +1802,11 @@ window.RootsAdmin = {
   document.getElementById('roots-go-login').addEventListener('click',()=>{vForgot.style.display='none';vLogin.style.display='block';resetLoginUi();});
   document.getElementById('roots-logout-btn')?.addEventListener('click',()=>sb.auth.signOut());
 })();
+
+window.addEventListener('message', (e) => {
+  if (e.origin !== 'https://pgoutzeris-stack.github.io') return;
+  if (e.data?.type === 'roots-open-settings') window.RootsUser?.openSettings();
+});
 </script>
 </body>
 </html>

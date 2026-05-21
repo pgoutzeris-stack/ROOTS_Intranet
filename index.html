@@ -382,6 +382,18 @@
       background: #fff;
     }
 
+    /* iFrames überdecken sonst fixed Toasts im Viewport – rechts bleibt eine freie Spalte */
+    body.intranet-tool-active .app-view.is-active:not([data-scroll]) {
+      padding-right: clamp(320px, 30vw, 420px);
+      box-sizing: border-box;
+      background: var(--app-bg, #f4f7fb);
+    }
+
+    body.intranet-tool-active .app-view.is-active:not([data-scroll]) .tool-iframe {
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+
     /* ── Placeholder (Bildgenerierung noch nicht live) ── */
     .tool-placeholder {
       flex: 1;
@@ -594,12 +606,13 @@
       position: fixed;
       bottom: 24px;
       right: 24px;
-      z-index: 100000;
+      z-index: 2147483646;
       display: flex;
       flex-direction: column;
       gap: 10px;
       max-width: min(380px, calc(100vw - 32px));
       pointer-events: none;
+      isolation: isolate;
     }
 
     .roots-notif-toast {
@@ -640,6 +653,19 @@
     .roots-notif-toast-body { min-width: 0; flex: 1; }
     .roots-notif-toast-title { font-size: .88rem; font-weight: 700; color: var(--ink); margin-bottom: .2rem; }
     .roots-notif-toast-msg { font-size: .8rem; color: var(--muted); line-height: 1.45; }
+
+    @media (max-width: 900px) {
+      body.intranet-tool-active .app-view.is-active:not([data-scroll]) {
+        padding-right: 0;
+        padding-bottom: 120px;
+      }
+      .roots-notif-toast-stack {
+        right: 12px;
+        left: 12px;
+        bottom: 12px;
+        max-width: none;
+      }
+    }
 
     .hidden { display: none !important; }
 
@@ -1114,6 +1140,8 @@
         }
         const isTool = TOOL_VIEWS.has(viewName);
 
+        document.body.classList.toggle('intranet-tool-active', isTool);
+
         // Panels umschalten
         panels.forEach(p => {
           const active = p.dataset.viewPanel === viewName;
@@ -1342,6 +1370,28 @@ window.RootsNotifications = {
   dashboardExpanded: false,
   items: [],
   _pollTimer: null,
+  _audioCtx: null,
+  _audioUnlocked: false,
+
+  unlockAudio() {
+    if (this._audioUnlocked) return;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!this._audioCtx) this._audioCtx = new Ctx();
+      if (this._audioCtx.state === 'suspended') void this._audioCtx.resume();
+      this._audioUnlocked = true;
+    } catch (_) {}
+  },
+
+  bindAudioUnlock() {
+    if (this._audioUnlockBound) return;
+    this._audioUnlockBound = true;
+    const unlock = () => this.unlockAudio();
+    document.addEventListener('click', unlock, { passive: true });
+    document.addEventListener('keydown', unlock, { passive: true });
+    document.addEventListener('touchstart', unlock, { passive: true });
+  },
 
   notifMeta(n) {
     const isUrlaub = String(n.type || '').startsWith('urlaub');
@@ -1367,9 +1417,9 @@ window.RootsNotifications = {
 
   playTone() {
     try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = new Ctx();
+      this.unlockAudio();
+      const ctx = this._audioCtx;
+      if (!ctx || ctx.state !== 'running') return;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -1378,11 +1428,10 @@ window.RootsNotifications = {
       osc.frequency.setValueAtTime(740, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(980, ctx.currentTime + 0.08);
       gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.07, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.32);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.34);
-      setTimeout(() => { try { ctx.close(); } catch (_) {} }, 500);
     } catch (_) {}
   },
 
@@ -1476,7 +1525,7 @@ window.RootsNotifications = {
     if (!this.initialized) {
       items.forEach(item => this.knownIds.add(item.id));
       this.initialized = true;
-      return [];
+      return items.length ? [items[0]] : [];
     }
     const fresh = items.filter(item => !this.knownIds.has(item.id));
     fresh.forEach(item => this.knownIds.add(item.id));
@@ -1515,6 +1564,7 @@ window.RootsNotifications = {
   },
 
   start() {
+    this.bindAudioUnlock();
     void this.poll();
     if (!this._pollTimer) {
       this._pollTimer = setInterval(() => { void this.poll(); }, this.POLL_MS);

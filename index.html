@@ -574,6 +574,69 @@
       background: var(--status-bg);
     }
 
+    .intranet-notif-footer {
+      margin-top: .85rem;
+      display: flex;
+      justify-content: center;
+    }
+
+    .intranet-notif-more {
+      font-size: .84rem;
+      font-weight: 600;
+      padding: .55rem 1rem;
+    }
+
+    .roots-notif-toast-stack {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 100000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: min(380px, calc(100vw - 32px));
+      pointer-events: none;
+    }
+
+    .roots-notif-toast {
+      pointer-events: auto;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--brand);
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+      opacity: 0;
+      transform: translateX(20px);
+      transition: opacity .28s ease, transform .28s ease;
+    }
+
+    .roots-notif-toast.is-in { opacity: 1; transform: none; }
+    .roots-notif-toast.is-out { opacity: 0; transform: translateX(20px); }
+
+    .roots-notif-toast-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: var(--brand-light);
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .roots-notif-toast-body { min-width: 0; flex: 1; }
+    .roots-notif-toast-title { font-size: .88rem; font-weight: 700; color: var(--ink); margin-bottom: .2rem; }
+    .roots-notif-toast-msg { font-size: .8rem; color: var(--muted); line-height: 1.45; }
+
     .hidden { display: none !important; }
 
     @keyframes fade {
@@ -809,6 +872,9 @@
             <div id="intranet-notif-grid" class="intranet-notif-grid">
               <div class="intranet-notif-empty"><i class="fa-solid fa-circle-notch fa-spin"></i> Benachrichtigungen werden geladen…</div>
             </div>
+            <div class="intranet-notif-footer">
+              <button type="button" class="btn-ghost intranet-notif-more" id="intranet-notif-more" hidden>Mehr anzeigen</button>
+            </div>
           </div>
 
           <div class="tools-grid">
@@ -980,6 +1046,8 @@
     </main>
   </div>
 
+  <div id="roots-notif-toast-stack" class="roots-notif-toast-stack" aria-live="polite" aria-atomic="false"></div>
+
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       const navItems   = Array.from(document.querySelectorAll('.nav-item[data-view]'));
@@ -1094,66 +1162,21 @@
       // Admin page: load users when tab opened
       document.addEventListener('intranet-view-changed', ev => {
         if (ev.detail === 'admin') loadAdminPage();
-        if (ev.detail === 'dashboard') loadIntranetDashboardNotifications();
+        if (ev.detail === 'dashboard' && window.RootsNotifications) {
+          window.RootsNotifications.renderDashboard();
+          window.RootsNotifications.poll();
+        }
       });
 
-      async function loadIntranetDashboardNotifications() {
-        const grid = document.getElementById('intranet-notif-grid');
-        if (!grid || !window.RootsUser?._sb || !window.RootsUser._uid) return;
-        try {
-          const { data, error } = await window.RootsUser._sb.schema('recruiting').from('notifications')
-            .select('*')
-            .eq('user_id', window.RootsUser._uid)
-            .is('read_at', null)
-            .order('created_at', { ascending: false })
-            .limit(12);
-          if (error) throw error;
-          const items = data || [];
-          if (!items.length) {
-            grid.innerHTML = '<div class="intranet-notif-empty"><i class="fa-solid fa-bell-slash"></i> Keine offenen Benachrichtigungen.</div>';
-            return;
-          }
-          grid.innerHTML = items.map(n => {
-            const isUrlaub = String(n.type || '').startsWith('urlaub');
-            const runde = isUrlaub
-              ? 'Urlaubsplanung'
-              : (n.runde === 'zweit' ? 'Zweitgespräch' : 'Erstgespräch');
-            const date = n.created_at ? new Date(n.created_at).toLocaleString('de-DE') : '';
-            const icon = isUrlaub ? 'fa-umbrella-beach' : 'fa-bell';
-            return `<button type="button" class="intranet-notif-card" data-notif-id="${n.id}" data-session="${n.session_id || ''}" data-runde="${n.runde || 'erst'}" data-notif-type="${escapeHtml(n.type || '')}">
-              <span class="intranet-notif-card-icon"><i class="fa-solid ${icon}"></i></span>
-              <span class="intranet-notif-card-body">
-                <div class="intranet-notif-card-title">${escapeHtml(n.title || 'Benachrichtigung')}</div>
-                <div class="intranet-notif-card-msg">${escapeHtml(n.message || '')}</div>
-                <div class="intranet-notif-card-meta">${escapeHtml(runde)}${date ? ' · ' + escapeHtml(date) : ''}</div>
-              </span>
-            </button>`;
-          }).join('');
-          grid.querySelectorAll('.intranet-notif-card').forEach(card => {
-            card.addEventListener('click', async () => {
-              const id = card.dataset.notifId;
-              await window.RootsUser._sb.schema('recruiting').from('notifications')
-                .update({ read_at: new Date().toISOString() }).eq('id', id);
-              if (String(card.dataset.notifType || '').startsWith('urlaub')) {
-                navigateToView('vacation');
-                loadIntranetDashboardNotifications();
-                return;
-              }
-              const recNav = navItems.find(i => i.dataset.view === 'recruiting');
-              if (recNav) {
-                setActiveNav(recNav);
-                setView('recruiting');
-              }
-              loadIntranetDashboardNotifications();
-            });
-          });
-        } catch (e) {
-          console.error('loadIntranetDashboardNotifications', e);
-          grid.innerHTML = '<div class="intranet-notif-empty">Benachrichtigungen konnten nicht geladen werden.</div>';
-        }
-      }
+      document.getElementById('intranet-notif-more')?.addEventListener('click', () => {
+        if (!window.RootsNotifications) return;
+        window.RootsNotifications.dashboardExpanded = !window.RootsNotifications.dashboardExpanded;
+        window.RootsNotifications.renderDashboard();
+      });
 
-      window.loadIntranetDashboardNotifications = loadIntranetDashboardNotifications;
+      window.loadIntranetDashboardNotifications = function loadIntranetDashboardNotifications() {
+        if (window.RootsNotifications) window.RootsNotifications.renderDashboard();
+      };
 
       async function loadAdminPage() {
         if (!(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) return;
@@ -1305,6 +1328,199 @@ function escapeHtml(s) {
   if (s == null) return '';
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
+window.RootsNotifications = {
+  DASHBOARD_PREVIEW: 5,
+  TOAST_MS: 5500,
+  POLL_MS: 30000,
+  knownIds: new Set(),
+  initialized: false,
+  dashboardExpanded: false,
+  items: [],
+  _pollTimer: null,
+
+  notifMeta(n) {
+    const isUrlaub = String(n.type || '').startsWith('urlaub');
+    return {
+      isUrlaub,
+      runde: isUrlaub ? 'Urlaubsplanung' : (n.runde === 'zweit' ? 'Zweitgespräch' : 'Erstgespräch'),
+      date: n.created_at ? new Date(n.created_at).toLocaleString('de-DE') : '',
+      icon: isUrlaub ? 'fa-umbrella-beach' : 'fa-bell',
+    };
+  },
+
+  renderCardHtml(n) {
+    const meta = this.notifMeta(n);
+    return `<button type="button" class="intranet-notif-card" data-notif-id="${n.id}" data-session="${n.session_id || ''}" data-runde="${n.runde || 'erst'}" data-notif-type="${escapeHtml(n.type || '')}">
+      <span class="intranet-notif-card-icon"><i class="fa-solid ${meta.icon}"></i></span>
+      <span class="intranet-notif-card-body">
+        <div class="intranet-notif-card-title">${escapeHtml(n.title || 'Benachrichtigung')}</div>
+        <div class="intranet-notif-card-msg">${escapeHtml(n.message || '')}</div>
+        <div class="intranet-notif-card-meta">${escapeHtml(meta.runde)}${meta.date ? ' · ' + escapeHtml(meta.date) : ''}</div>
+      </span>
+    </button>`;
+  },
+
+  playTone() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(740, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(980, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.07, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.32);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.34);
+      setTimeout(() => { try { ctx.close(); } catch (_) {} }, 500);
+    } catch (_) {}
+  },
+
+  showToast(n) {
+    const stack = document.getElementById('roots-notif-toast-stack');
+    if (!stack) return;
+    const meta = this.notifMeta(n);
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'roots-notif-toast';
+    el.innerHTML = `<span class="roots-notif-toast-icon"><i class="fa-solid ${meta.icon}"></i></span>
+      <span class="roots-notif-toast-body">
+        <div class="roots-notif-toast-title">${escapeHtml(n.title || 'Benachrichtigung')}</div>
+        <div class="roots-notif-toast-msg">${escapeHtml(n.message || '')}</div>
+      </span>`;
+    el.addEventListener('click', () => { void this.handleClick(n, el); });
+    stack.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('is-in'));
+    this.playTone();
+    setTimeout(() => {
+      if (!el.parentElement) return;
+      el.classList.remove('is-in');
+      el.classList.add('is-out');
+      setTimeout(() => el.remove(), 320);
+    }, this.TOAST_MS);
+  },
+
+  async markRead(id) {
+    if (!window.RootsUser?._sb || !id) return;
+    await window.RootsUser._sb.schema('recruiting').from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', id);
+  },
+
+  async navigateForNotification(n) {
+    if (String(n.type || '').startsWith('urlaub')) {
+      if (window.intranetNavigateToView) window.intranetNavigateToView('vacation');
+      return;
+    }
+    const recNav = document.querySelector('.nav-item[data-view="recruiting"]');
+    if (recNav) recNav.click();
+    else if (window.intranetNavigateToView) window.intranetNavigateToView('recruiting');
+  },
+
+  async handleClick(n, toastEl) {
+    toastEl?.remove();
+    await this.markRead(n.id);
+    this.items = this.items.filter(item => item.id !== n.id);
+    this.knownIds.add(n.id);
+    await this.navigateForNotification(n);
+    this.renderDashboard();
+  },
+
+  bindDashboardCards(root) {
+    root.querySelectorAll('.intranet-notif-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const id = card.dataset.notifId;
+        const n = this.items.find(item => item.id === id);
+        if (n) void this.handleClick(n, null);
+      });
+    });
+  },
+
+  renderDashboard() {
+    const grid = document.getElementById('intranet-notif-grid');
+    const moreBtn = document.getElementById('intranet-notif-more');
+    if (!grid) return;
+    const items = this.items || [];
+    if (!items.length) {
+      grid.innerHTML = '<div class="intranet-notif-empty"><i class="fa-solid fa-bell-slash"></i> Keine offenen Benachrichtigungen.</div>';
+      if (moreBtn) moreBtn.hidden = true;
+      return;
+    }
+    const visible = this.dashboardExpanded ? items : items.slice(0, this.DASHBOARD_PREVIEW);
+    grid.innerHTML = visible.map(n => this.renderCardHtml(n)).join('');
+    this.bindDashboardCards(grid);
+    if (moreBtn) {
+      const hiddenCount = items.length - this.DASHBOARD_PREVIEW;
+      moreBtn.hidden = hiddenCount <= 0;
+      moreBtn.textContent = this.dashboardExpanded
+        ? 'Weniger anzeigen'
+        : `Mehr anzeigen (${hiddenCount})`;
+    }
+  },
+
+  detectNew(items) {
+    if (!this.initialized) {
+      items.forEach(item => this.knownIds.add(item.id));
+      this.initialized = true;
+      return [];
+    }
+    const fresh = items.filter(item => !this.knownIds.has(item.id));
+    fresh.forEach(item => this.knownIds.add(item.id));
+    return fresh;
+  },
+
+  async fetchUnread() {
+    const sb = window.RootsUser?._sb;
+    const uid = window.RootsUser?._uid;
+    if (!sb || !uid) return [];
+    const { data, error } = await sb.schema('recruiting').from('notifications')
+      .select('*')
+      .eq('user_id', uid)
+      .is('read_at', null)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async poll() {
+    if (!window.RootsUser?._sb || !window.RootsUser._uid) return;
+    try {
+      this.items = await this.fetchUnread();
+      const fresh = this.detectNew(this.items);
+      fresh.forEach(n => this.showToast(n));
+      if (document.querySelector('.app-view.is-active[data-view-panel="dashboard"]')) {
+        this.renderDashboard();
+      }
+    } catch (e) {
+      console.error('RootsNotifications.poll', e);
+      const grid = document.getElementById('intranet-notif-grid');
+      if (grid && document.querySelector('.app-view.is-active[data-view-panel="dashboard"]')) {
+        grid.innerHTML = '<div class="intranet-notif-empty">Benachrichtigungen konnten nicht geladen werden.</div>';
+      }
+    }
+  },
+
+  start() {
+    void this.poll();
+    if (!this._pollTimer) {
+      this._pollTimer = setInterval(() => { void this.poll(); }, this.POLL_MS);
+    }
+  },
+
+  reset() {
+    this.knownIds.clear();
+    this.initialized = false;
+    this.items = [];
+    this.dashboardExpanded = false;
+    document.getElementById('roots-notif-toast-stack')?.replaceChildren();
+  },
+};
 
 // ===== Intranet tool access =====
 window.INTRANET_TOOLS = [
@@ -1504,15 +1720,9 @@ window.RootsUser = {
     this._broadcastProfile();
     this._syncAdminNav();
     if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
-    if (typeof window.loadIntranetDashboardNotifications === 'function') {
-      window.loadIntranetDashboardNotifications();
-      if (!window._intranetNotifPoll) {
-        window._intranetNotifPoll = setInterval(() => {
-          if (document.querySelector('.app-view.is-active[data-view-panel="dashboard"]')) {
-            window.loadIntranetDashboardNotifications();
-          }
-        }, 45000);
-      }
+    if (window.RootsNotifications) {
+      window.RootsNotifications.reset();
+      window.RootsNotifications.start();
     }
   },
 

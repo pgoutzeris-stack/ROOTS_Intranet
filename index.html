@@ -1348,10 +1348,12 @@ window.RootsNotifications = {
   TOAST_MS: 9000,
   POLL_MS: 30000,
   knownIds: new Set(),
+  toastShownIds: new Set(),
   activeToastIds: new Set(),
   initialized: false,
   dashboardExpanded: false,
   items: [],
+  _userId: null,
   _pollTimer: null,
   _pollInFlight: false,
   _audioCtx: null,
@@ -1534,7 +1536,8 @@ window.RootsNotifications = {
   },
 
   showToast(n) {
-    if (!n?.id || this.activeToastIds.has(n.id)) return;
+    if (!n?.id || this.toastShownIds.has(n.id) || this.activeToastIds.has(n.id)) return;
+    this.toastShownIds.add(n.id);
     const iframe = this.getActiveToolIframe();
     if (iframe?.contentWindow) {
       this.activeToastIds.add(n.id);
@@ -1676,10 +1679,16 @@ window.RootsNotifications = {
 
   reset() {
     this.knownIds.clear();
+    this.toastShownIds.clear();
     this.activeToastIds.clear();
     this.initialized = false;
     this.items = [];
     this.dashboardExpanded = false;
+    this._userId = null;
+    if (this._pollTimer) {
+      clearInterval(this._pollTimer);
+      this._pollTimer = null;
+    }
     document.getElementById('roots-notif-toast-stack')?.replaceChildren();
   },
 };
@@ -1891,8 +1900,14 @@ window.RootsUser = {
     this._syncAdminNav();
     if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
     if (window.RootsNotifications) {
-      window.RootsNotifications.reset();
-      window.RootsNotifications.start();
+      const rn = window.RootsNotifications;
+      if (rn._userId !== this._uid) {
+        rn.reset();
+        rn._userId = this._uid;
+        rn.start();
+      } else if (!rn._pollTimer) {
+        rn.start();
+      }
     }
   },
 
@@ -2219,7 +2234,10 @@ window.RootsAdmin = {
   });
   sb.auth.onAuthStateChange((event,session)=>{
     if(session){hideAuthOverlay();window.RootsUser&&RootsUser._loadAndMount(sb);}
-    else if(event==='SIGNED_OUT'){showAuthOverlay();}
+    else if(event==='SIGNED_OUT'){
+      showAuthOverlay();
+      window.RootsNotifications?.reset();
+    }
   });
   document.getElementById('roots-login-form').addEventListener('submit',async(e)=>{
     e.preventDefault();

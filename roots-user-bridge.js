@@ -3,6 +3,7 @@
   const IN_IFRAME = window.parent !== window;
   const TOAST_MS = 9000;
   const visibleToastIds = new Set();
+  const toastShownIds = new Set();
 
   function escapeHtml(s) {
     if (s == null) return '';
@@ -165,7 +166,8 @@
 
   function showBridgeToast(notification) {
     if (!IN_IFRAME || !notification?.id) return;
-    if (visibleToastIds.has(notification.id)) return;
+    if (toastShownIds.has(notification.id) || visibleToastIds.has(notification.id)) return;
+    toastShownIds.add(notification.id);
     visibleToastIds.add(notification.id);
     const stack = ensureNotifStack();
     const icon = notifIcon(notification.type);

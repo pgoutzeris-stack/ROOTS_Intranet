@@ -1003,7 +1003,6 @@
           class="tool-iframe"
           title="ROOTS Notes Tool"
           src="https://pgoutzeris-stack.github.io/Notes-Tool/"
-          loading="lazy"
           referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
 
@@ -1176,6 +1175,20 @@
           configureBtn(primaryBtn, cfg.primary);
           configureBtn(secondBtn, cfg.secondary);
         }
+
+        if (viewName === 'notes') refreshNotesIframe();
+      }
+
+      function refreshNotesIframe() {
+        const iframe = document.getElementById('notes-iframe');
+        if (!iframe) return;
+        const ping = () => {
+          try {
+            iframe.contentWindow?.postMessage({ type: 'roots-notes-refresh' }, 'https://pgoutzeris-stack.github.io');
+          } catch (_) {}
+        };
+        if (iframe.contentWindow) ping();
+        else iframe.addEventListener('load', ping, { once: true });
       }
 
       // Nav-Klicks
@@ -1205,6 +1218,7 @@
           window.RootsNotifications.renderDashboard();
           window.RootsNotifications.poll();
         }
+        if (ev.detail === 'notes') refreshNotesIframe();
       });
 
       document.getElementById('intranet-notif-more')?.addEventListener('click', () => {

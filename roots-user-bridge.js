@@ -234,6 +234,11 @@
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
   const AUTH_STORAGE_KEY = `sb-${SUPABASE_REF}-auth-token`;
   let _lastAuthFingerprint = null;
+  let _hadSession = false;
+
+  function dispatchAuthReady(session) {
+    window.dispatchEvent(new CustomEvent('roots-auth-ready', { detail: { session } }));
+  }
 
   function getSupabaseClient() {
     return window.__rootsSupabaseClient || window.RootsUser?._sb || null;
@@ -265,13 +270,19 @@
     if (!sb) return;
     try {
       if (sessionPayload?.access_token && sessionPayload?.refresh_token) {
-        const { error } = await sb.auth.setSession({
+        const { data, error } = await sb.auth.setSession({
           access_token: sessionPayload.access_token,
           refresh_token: sessionPayload.refresh_token,
         });
-        if (error) console.warn('RootsAuthBridge setSession', error.message);
-      } else if (sessionPayload === null) {
+        if (error) {
+          console.warn('RootsAuthBridge setSession', error.message);
+          return;
+        }
+        _hadSession = true;
+        if (data?.session) dispatchAuthReady(data.session);
+      } else if (sessionPayload === null && _hadSession) {
         await sb.auth.signOut({ scope: 'local' });
+        _hadSession = false;
       }
     } catch (e) {
       console.warn('RootsAuthBridge applyAuthSync', e);
@@ -305,7 +316,8 @@
   });
 
   if (IN_IFRAME) {
-    setInterval(() => { void syncAuthFromParentStorage(); }, 2000);
+    setInterval(() => { void syncAuthFromParentStorage(); }, 1500);
+    setTimeout(() => { void syncAuthFromParentStorage(); }, 250);
   }
 
   function tryPatch() {

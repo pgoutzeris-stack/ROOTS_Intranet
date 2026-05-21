@@ -1183,16 +1183,35 @@
         });
       });
 
-      // Initial
+      // Initial + Hash-Navigation
+      function navigateToView(viewName) {
+        if (!viewName) { setView('dashboard'); return; }
+        if (viewName === 'admin' && !(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) {
+          viewName = 'dashboard';
+        }
+        if (TOOL_VIEWS.has(viewName) && window.IntranetAccess && !window.IntranetAccess.canAccessTool(viewName)) {
+          viewName = 'dashboard';
+        }
+        const nav = navItems.find(i => i.dataset.view === viewName);
+        if (nav) setActiveNav(nav);
+        setView(viewName);
+        if (location.hash !== '#' + viewName) history.replaceState(null, '', '#' + viewName);
+      }
+      window.intranetNavigateToView = navigateToView;
+
       const dashNav = navItems.find(i => i.dataset.view === 'dashboard');
-      if (dashNav) setActiveNav(dashNav);
       const hashView = (location.hash || '').replace(/^#/, '');
-      if (hashView === 'admin' && window.RootsUser?.isAdmin?.()) {
-        const adminNav = navItems.find(i => i.dataset.view === 'admin');
-        if (adminNav) { setActiveNav(adminNav); setView('admin'); }
-      } else {
+      if (hashView && (hashView === 'admin' || TOOL_VIEWS.has(hashView))) {
+        navigateToView(hashView);
+      } else if (dashNav) {
+        setActiveNav(dashNav);
         setView('dashboard');
       }
+
+      window.addEventListener('hashchange', () => {
+        const v = (location.hash || '').replace(/^#/, '');
+        if (v) navigateToView(v);
+      });
 
       // Sidebar-Toggle
       const layout        = document.querySelector('.intranet-layout');
@@ -1557,11 +1576,43 @@ window.RootsUser = {
     if(!file||!file.type.startsWith('image/'))return;
     const r=new FileReader();r.onload=()=>this._setImageSrc(r.result);r.readAsDataURL(file);
   },
-  _setImageSrc(src, crop){
+  async _toSafeDataUrl(src){
+    if(!src)return null;
+    if(String(src).startsWith('data:'))return src;
+    try{
+      const res=await fetch(src,{mode:'cors',credentials:'omit',cache:'no-cache'});
+      if(!res.ok)throw new Error('fetch failed');
+      const blob=await res.blob();
+      return await new Promise((resolve,reject)=>{
+        const fr=new FileReader();
+        fr.onload=()=>resolve(fr.result);
+        fr.onerror=reject;
+        fr.readAsDataURL(blob);
+      });
+    }catch(_){
+      return new Promise((resolve,reject)=>{
+        const img=new Image();
+        img.crossOrigin='anonymous';
+        img.onload=()=>{
+          try{
+            const c=document.createElement('canvas');
+            c.width=img.naturalWidth;c.height=img.naturalHeight;
+            c.getContext('2d').drawImage(img,0,0);
+            resolve(c.toDataURL('image/jpeg',0.92));
+          }catch(err){reject(err);}
+        };
+        img.onerror=()=>reject(new Error('Bild konnte nicht geladen werden'));
+        img.src=src;
+      });
+    }
+  },
+  async _setImageSrc(src, crop){
+    let safeSrc=src;
+    try{safeSrc=await this._toSafeDataUrl(src);}catch(_){}
     const img=new Image();
     img.onload=()=>{
       const baseScale=crop?.baseScale??Math.max(120/img.naturalWidth,120/img.naturalHeight);
-      this._cs={img,baseScale,scale:crop?.scale??1,x:crop?.x??0,y:crop?.y??0,dragging:false,lastX:0,lastY:0,sourceSrc:src};
+      this._cs={img,baseScale,scale:crop?.scale??1,x:crop?.x??0,y:crop?.y??0,dragging:false,lastX:0,lastY:0,sourceSrc:safeSrc};
       const sl=document.getElementById('rus-zoom-slider');
       const rb=document.getElementById('rus-reset-zoom');
       if(sl){sl.disabled=false;sl.value=String(this._cs.scale);}
@@ -1569,7 +1620,7 @@ window.RootsUser = {
       this._cropDraw();
     };
     img.onerror=()=>{this._cs=null;this._cropDraw();};
-    img.src=src;
+    img.src=safeSrc;
   },
   _initCropEditor(){
     if(this._editorReady)return;this._editorReady=true;
@@ -1648,13 +1699,19 @@ window.RootsUser = {
     });
   },
   _getCroppedDataURL(){
+    if(!this._cs?.img)return this._p?.avatar_url||null;
     const out=document.createElement('canvas');out.width=240;out.height=240;
-    const cx=out.getContext('2d');const src=document.getElementById('rus-crop-canvas');
-    if(src){cx.beginPath();cx.arc(120,120,120,0,Math.PI*2);cx.clip();cx.drawImage(src,0,0,120,120,0,0,240,240);}
+    const cx=out.getContext('2d');
+    const{img,scale,x,y,baseScale}=this._cs;
+    const eff=baseScale*scale,f=2;
+    const dw=img.naturalWidth*eff*f,dh=img.naturalHeight*eff*f;
+    const dx=(240-dw)/2+x*f,dy=(240-dh)/2+y*f;
+    cx.save();cx.beginPath();cx.arc(120,120,120,0,Math.PI*2);cx.clip();
+    cx.drawImage(img,dx,dy,dw,dh);cx.restore();
     return out.toDataURL('image/jpeg',0.88);
   },
 
-  openSettings() {
+  async openSettings() {
     const p = this._p || {};
     document.getElementById('rus-name').value = p.full_name || '';
     document.getElementById('rus-email').value = p.email || '';
@@ -1671,7 +1728,7 @@ window.RootsUser = {
     this._cropDraw();
     const crop = p.app_settings?.avatar_crop;
     const src = p.app_settings?.avatar_source || p.avatar_url;
-    if (src) this._setImageSrc(src, crop);
+    if (src) await this._setImageSrc(src, crop);
   },
 
   closeSettings() { document.getElementById('roots-user-settings-modal').style.display = 'none'; },
@@ -1806,6 +1863,9 @@ window.RootsAdmin = {
 window.addEventListener('message', (e) => {
   if (e.origin !== 'https://pgoutzeris-stack.github.io') return;
   if (e.data?.type === 'roots-open-settings') window.RootsUser?.openSettings();
+  if (e.data?.type === 'roots-open-view' && window.intranetNavigateToView) {
+    window.intranetNavigateToView(e.data.view);
+  }
 });
 </script>
 </body>

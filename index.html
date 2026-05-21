@@ -1958,20 +1958,20 @@ window.RootsUser = {
 
   _previewAvatar(url) { return this._avatarSpan(url || (this._p && this._p.avatar_url), this._p && this._p.full_name, 60); },
 
-  async _loadAndMount(sb) {
-    if (this._mountPromise) return this._mountPromise;
-    this._mountPromise = this._doLoadAndMount(sb).finally(() => {
-      this._mountPromise = null;
-    });
-    return this._mountPromise;
+  async _loadAndMount(sb, sessionHint) {
+    return this._doLoadAndMount(sb, sessionHint);
   },
 
-  async _doLoadAndMount(sb) {
+  async _doLoadAndMount(sb, sessionHint) {
     this._sb = sb;
     window.__rootsSupabaseClient = sb;
     window.rootsSupabase = sb;
     try {
-      const { data: { session } } = await sb.auth.getSession();
+      let session = sessionHint || null;
+      if (!session) {
+        const { data: { session: stored } } = await sb.auth.getSession();
+        session = stored;
+      }
       if (!session) {
         this._uid = null;
         this._p = null;
@@ -1996,7 +1996,7 @@ window.RootsUser = {
       }
 
       this._broadcastProfile();
-      this._broadcastAuthSession();
+      this._broadcastAuthSession(session);
       this._syncAdminNav();
       if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
       if (window.RootsNotifications) {
@@ -2015,7 +2015,7 @@ window.RootsUser = {
     }
   },
 
-  _broadcastAuthSession() {
+  _broadcastAuthSession(sessionHint) {
     if (!this._sb) return;
     const send = (payload) => {
       document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
@@ -2024,7 +2024,7 @@ window.RootsUser = {
         } catch (_) {}
       });
     };
-    void this._sb.auth.getSession().then(({ data: { session } }) => {
+    const emit = (session) => {
       const payload = session ? {
         access_token: session.access_token,
         refresh_token: session.refresh_token,
@@ -2032,7 +2032,12 @@ window.RootsUser = {
       send(payload);
       setTimeout(() => send(payload), 400);
       setTimeout(() => send(payload), 1200);
-    });
+    };
+    if (sessionHint?.access_token && sessionHint?.refresh_token) {
+      emit(sessionHint);
+      return;
+    }
+    void this._sb.auth.getSession().then(({ data: { session } }) => emit(session));
   },
 
   _syncAdminNav() {
@@ -2358,14 +2363,14 @@ window.RootsAdmin = {
     if(overlay)overlay.style.display='none';
   }
   sb.auth.getSession().then(({data:{session}})=>{
-    if(session){hideAuthOverlay();window.RootsUser&&void RootsUser._loadAndMount(sb);}
+    if(session){hideAuthOverlay();window.RootsUser&&void RootsUser._loadAndMount(sb,session);}
     else{resetLoginUi();}
   });
   sb.auth.onAuthStateChange((event,session)=>{
     if(session){
       hideAuthOverlay();
       resetLoginUi();
-      window.RootsUser&&void RootsUser._loadAndMount(sb);
+      window.RootsUser&&void RootsUser._loadAndMount(sb,session);
     }
     else if(event==='SIGNED_OUT'){
       showAuthOverlay();
@@ -2384,9 +2389,12 @@ window.RootsAdmin = {
     btn.disabled=true;
     btn.innerHTML='<i class="fa-solid fa-circle-notch roots-spin"></i> Anmelden...';
     errB.classList.remove('visible');
-    const {error}=await sb.auth.signInWithPassword({email,password:pw});
+    const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
     if(error){errB.classList.add('visible');errT.textContent='Ungültige E-Mail oder falsches Passwort.';btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';}
-    else{resetLoginUi();}
+    else{
+      resetLoginUi();
+      if(data?.session) void RootsUser._loadAndMount(sb,data.session);
+    }
   });
   document.getElementById('roots-forgot-form').addEventListener('submit',async(e)=>{
     e.preventDefault();

@@ -234,6 +234,7 @@
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
   const AUTH_STORAGE_KEY = `sb-${SUPABASE_REF}-auth-token`;
   let _lastAuthFingerprint = null;
+  let _lastAppliedToken = null;
   let _hadSession = false;
 
   function dispatchAuthReady(session) {
@@ -265,11 +266,16 @@
     }
   }
 
-  async function applyAuthSync(sessionPayload) {
+  async function applyAuthSync(sessionPayload, allowSignOut) {
     const sb = getSupabaseClient();
     if (!sb) return;
     try {
       if (sessionPayload?.access_token && sessionPayload?.refresh_token) {
+        const tokenKey = sessionPayload.access_token.slice(-24);
+        if (tokenKey === _lastAppliedToken) {
+          const { data: { session: current } } = await sb.auth.getSession();
+          if (current?.access_token === sessionPayload.access_token) return;
+        }
         const { data, error } = await sb.auth.setSession({
           access_token: sessionPayload.access_token,
           refresh_token: sessionPayload.refresh_token,
@@ -278,11 +284,13 @@
           console.warn('RootsAuthBridge setSession', error.message);
           return;
         }
+        _lastAppliedToken = tokenKey;
         _hadSession = true;
         if (data?.session) dispatchAuthReady(data.session);
-      } else if (sessionPayload === null && _hadSession) {
+      } else if (sessionPayload === null && allowSignOut && _hadSession) {
         await sb.auth.signOut({ scope: 'local' });
         _hadSession = false;
+        _lastAppliedToken = null;
       }
     } catch (e) {
       console.warn('RootsAuthBridge applyAuthSync', e);
@@ -295,7 +303,8 @@
     const raw = readAuthStorageRaw();
     if (raw === _lastAuthFingerprint) return;
     _lastAuthFingerprint = raw;
-    await applyAuthSync(sessionFromStorageRaw(raw));
+    const payload = sessionFromStorageRaw(raw);
+    if (payload) await applyAuthSync(payload, false);
   }
 
   window.addEventListener('message', (e) => {
@@ -308,7 +317,10 @@
       playBridgeTone();
     }
     if (e.data?.type === 'roots-auth-sync') {
-      void applyAuthSync(e.data.session ?? null);
+      if (e.data.signOut) void applyAuthSync(null, true);
+      else if (e.data.session?.access_token && e.data.session?.refresh_token) {
+        void applyAuthSync(e.data.session, false);
+      }
     }
     if (e.data?.type === 'roots-notes-refresh') {
       void syncAuthFromParentStorage();

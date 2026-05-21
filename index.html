@@ -1164,7 +1164,10 @@
         if (!iframe) return;
         const url = iframe.dataset.src;
         if (!url) return;
-        const syncAuth = () => window.RootsUser?._broadcastAuthSession?.();
+        const syncAuth = () => {
+          window.RootsUser?._broadcastAuthSession?.();
+          window.RootsUser?._broadcastProfile?.();
+        };
         if (!iframe.dataset.loaded) {
           iframe.dataset.loaded = '1';
           iframe.addEventListener('load', syncAuth, { once: true });
@@ -2015,6 +2018,14 @@ window.RootsUser = {
     }
   },
 
+  _broadcastAuthSignOut() {
+    document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
+      try {
+        f.contentWindow?.postMessage({ type: 'roots-auth-sync', session: null, signOut: true }, 'https://pgoutzeris-stack.github.io');
+      } catch (_) {}
+    });
+  },
+
   _broadcastAuthSession(sessionHint) {
     if (!this._sb) return;
     const send = (payload) => {
@@ -2025,10 +2036,11 @@ window.RootsUser = {
       });
     };
     const emit = (session) => {
-      const payload = session ? {
+      if (!session?.access_token || !session?.refresh_token) return;
+      const payload = {
         access_token: session.access_token,
         refresh_token: session.refresh_token,
-      } : null;
+      };
       send(payload);
       setTimeout(() => send(payload), 400);
       setTimeout(() => send(payload), 1200);
@@ -2376,7 +2388,7 @@ window.RootsAdmin = {
       showAuthOverlay();
       resetLoginUi();
       window.RootsNotifications?.reset();
-      window.RootsUser?._broadcastAuthSession?.();
+      window.RootsUser?._broadcastAuthSignOut?.();
     }
   });
   document.getElementById('roots-login-form').addEventListener('submit',async(e)=>{
@@ -2414,6 +2426,9 @@ window.RootsAdmin = {
 
 window.addEventListener('message', (e) => {
   if (e.origin !== 'https://pgoutzeris-stack.github.io') return;
+  if (e.data?.type === 'roots-request-signout') {
+    void window.__rootsSupabaseClient?.auth.signOut();
+  }
   if (e.data?.type === 'roots-open-settings') window.RootsUser?.openSettings();
   if (e.data?.type === 'roots-open-view' && window.intranetNavigateToView) {
     window.intranetNavigateToView(e.data.view);

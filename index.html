@@ -1120,10 +1120,14 @@
             return;
           }
           grid.innerHTML = items.map(n => {
-            const runde = n.runde === 'zweit' ? 'Zweitgespräch' : 'Erstgespräch';
+            const isUrlaub = String(n.type || '').startsWith('urlaub');
+            const runde = isUrlaub
+              ? 'Urlaubsplanung'
+              : (n.runde === 'zweit' ? 'Zweitgespräch' : 'Erstgespräch');
             const date = n.created_at ? new Date(n.created_at).toLocaleString('de-DE') : '';
-            return `<button type="button" class="intranet-notif-card" data-notif-id="${n.id}" data-session="${n.session_id || ''}" data-runde="${n.runde || 'erst'}">
-              <span class="intranet-notif-card-icon"><i class="fa-solid fa-bell"></i></span>
+            const icon = isUrlaub ? 'fa-umbrella-beach' : 'fa-bell';
+            return `<button type="button" class="intranet-notif-card" data-notif-id="${n.id}" data-session="${n.session_id || ''}" data-runde="${n.runde || 'erst'}" data-notif-type="${escapeHtml(n.type || '')}">
+              <span class="intranet-notif-card-icon"><i class="fa-solid ${icon}"></i></span>
               <span class="intranet-notif-card-body">
                 <div class="intranet-notif-card-title">${escapeHtml(n.title || 'Benachrichtigung')}</div>
                 <div class="intranet-notif-card-msg">${escapeHtml(n.message || '')}</div>
@@ -1136,6 +1140,11 @@
               const id = card.dataset.notifId;
               await window.RootsUser._sb.schema('recruiting').from('notifications')
                 .update({ read_at: new Date().toISOString() }).eq('id', id);
+              if (String(card.dataset.notifType || '').startsWith('urlaub')) {
+                navigateToView('vacation');
+                loadIntranetDashboardNotifications();
+                return;
+              }
               const recNav = navItems.find(i => i.dataset.view === 'recruiting');
               if (recNav) {
                 setActiveNav(recNav);

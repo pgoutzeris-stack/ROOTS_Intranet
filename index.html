@@ -1202,6 +1202,9 @@
         }
 
         if (viewName === 'notes') refreshNotesIframe();
+        if (isTool && window.RootsUser?._broadcastAuthSession) {
+          window.RootsUser._broadcastAuthSession();
+        }
       }
 
       function refreshNotesIframe() {
@@ -1955,27 +1958,53 @@ window.RootsUser = {
 
   async _doLoadAndMount(sb) {
     this._sb = sb;
-    const { data:{session} } = await sb.auth.getSession();
-    if (!session) return;
-    this._uid = session.user.id;
-    const { data } = await sb.schema('users').from('profiles')
-      .select('id,email,full_name,position,avatar_url,linkedin_url,app_role,app_settings,kuerzel')
-      .eq('id', this._uid).single();
-    this._p = data || { id: this._uid, email: session.user.email, app_role: 'reader' };
-    this._mount();
-    this._broadcastProfile();
-    this._syncAdminNav();
-    if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
-    if (window.RootsNotifications) {
-      const rn = window.RootsNotifications;
-      if (rn._userId !== this._uid) {
-        rn.reset();
-        rn._userId = this._uid;
-        rn.start();
-      } else if (!rn._pollTimer) {
-        rn.start();
+    window.__rootsSupabaseClient = sb;
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      this._uid = session.user.id;
+      const fallback = { id: this._uid, email: session.user.email || '', app_role: 'reader' };
+      let profile = fallback;
+      const { data, error } = await sb.schema('users').from('profiles')
+        .select('id,email,full_name,position,avatar_url,linkedin_url,app_role,app_settings,kuerzel')
+        .eq('id', this._uid).maybeSingle();
+      if (error) console.warn('Profil laden:', error.message);
+      else if (data) profile = data;
+      this._p = profile;
+      this._mount();
+      this._broadcastProfile();
+      this._broadcastAuthSession();
+      this._syncAdminNav();
+      if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
+      if (window.RootsNotifications) {
+        const rn = window.RootsNotifications;
+        if (rn._userId !== this._uid) {
+          rn.reset();
+          rn._userId = this._uid;
+          rn.start();
+        } else if (!rn._pollTimer) {
+          rn.start();
+        }
       }
+    } catch (e) {
+      console.error('RootsUser._doLoadAndMount', e);
+      if (this._uid) this._mount();
     }
+  },
+
+  _broadcastAuthSession() {
+    if (!this._sb) return;
+    void this._sb.auth.getSession().then(({ data: { session } }) => {
+      const payload = session ? {
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      } : null;
+      document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
+        try {
+          f.contentWindow?.postMessage({ type: 'roots-auth-sync', session: payload }, 'https://pgoutzeris-stack.github.io');
+        } catch (_) {}
+      });
+    });
   },
 
   _syncAdminNav() {
@@ -2274,6 +2303,7 @@ window.RootsAdmin = {
   const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNzbWd1d2N2enJlZWZsdWhhaHl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjM0ODcsImV4cCI6MjA5MjUzOTQ4N30.Fiafx7XBaQZXUX3bKQIBH7znBHx3B51yL-bftOHsL4Q';
   const {createClient}=window.supabase;
   const sb=createClient(SB_URL,SB_ANON);
+  window.__rootsSupabaseClient=sb;
   const overlay=document.getElementById('roots-auth-overlay');
   const vLogin=document.getElementById('roots-view-login');
   const vForgot=document.getElementById('roots-view-forgot');
@@ -2296,14 +2326,20 @@ window.RootsAdmin = {
     if(overlay)overlay.style.display='none';
   }
   sb.auth.getSession().then(({data:{session}})=>{
-    if(session){hideAuthOverlay();window.RootsUser&&RootsUser._loadAndMount(sb);}
+    if(session){hideAuthOverlay();window.RootsUser&&void RootsUser._loadAndMount(sb);}
     else{resetLoginUi();}
   });
   sb.auth.onAuthStateChange((event,session)=>{
-    if(session){hideAuthOverlay();window.RootsUser&&RootsUser._loadAndMount(sb);}
+    if(session){
+      hideAuthOverlay();
+      resetLoginUi();
+      window.RootsUser&&void RootsUser._loadAndMount(sb);
+    }
     else if(event==='SIGNED_OUT'){
       showAuthOverlay();
+      resetLoginUi();
       window.RootsNotifications?.reset();
+      window.RootsUser?._broadcastAuthSession?.();
     }
   });
   document.getElementById('roots-login-form').addEventListener('submit',async(e)=>{
@@ -2318,6 +2354,7 @@ window.RootsAdmin = {
     errB.classList.remove('visible');
     const {error}=await sb.auth.signInWithPassword({email,password:pw});
     if(error){errB.classList.add('visible');errT.textContent='Ungültige E-Mail oder falsches Passwort.';btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';}
+    else{resetLoginUi();}
   });
   document.getElementById('roots-forgot-form').addEventListener('submit',async(e)=>{
     e.preventDefault();

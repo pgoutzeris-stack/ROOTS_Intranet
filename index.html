@@ -586,6 +586,10 @@
       padding: .55rem 1rem;
     }
 
+    .intranet-notif-more[hidden] {
+      display: none !important;
+    }
+
     .roots-notif-toast-stack {
       position: fixed;
       bottom: 24px;
@@ -1456,11 +1460,15 @@ window.RootsNotifications = {
     grid.innerHTML = visible.map(n => this.renderCardHtml(n)).join('');
     this.bindDashboardCards(grid);
     if (moreBtn) {
-      const hiddenCount = items.length - this.DASHBOARD_PREVIEW;
-      moreBtn.hidden = hiddenCount <= 0;
-      moreBtn.textContent = this.dashboardExpanded
-        ? 'Weniger anzeigen'
-        : `Mehr anzeigen (${hiddenCount})`;
+      const extraCount = Math.max(0, items.length - this.DASHBOARD_PREVIEW);
+      const showMore = items.length > this.DASHBOARD_PREVIEW;
+      if (!showMore) this.dashboardExpanded = false;
+      moreBtn.hidden = !showMore;
+      if (showMore) {
+        moreBtn.textContent = this.dashboardExpanded
+          ? 'Weniger anzeigen'
+          : `Mehr anzeigen (${extraCount})`;
+      }
     }
   },
 

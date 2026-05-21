@@ -1207,23 +1207,14 @@
       function refreshNotesIframe() {
         const iframe = document.getElementById('notes-iframe');
         if (!iframe) return;
-        const send = () => {
-          void sb.auth.getSession().then(({ data: { session } }) => {
-            try {
-              iframe.contentWindow?.postMessage({
-                type: 'roots-auth-session',
-                session: session ? {
-                  access_token: session.access_token,
-                  refresh_token: session.refresh_token,
-                } : null,
-              }, 'https://pgoutzeris-stack.github.io');
-            } catch (_) {}
-          });
+        const ping = () => {
+          try {
+            iframe.contentWindow?.postMessage({ type: 'roots-notes-refresh' }, 'https://pgoutzeris-stack.github.io');
+          } catch (_) {}
         };
-        if (iframe.contentWindow) send();
-        else iframe.addEventListener('load', send, { once: true });
+        if (iframe.contentWindow) ping();
+        else iframe.addEventListener('load', ping, { once: true });
       }
-      window.refreshNotesIframe = refreshNotesIframe;
 
       // Nav-Klicks
       navItems.forEach(item => {
@@ -1973,7 +1964,6 @@ window.RootsUser = {
     this._p = data || { id: this._uid, email: session.user.email, app_role: 'reader' };
     this._mount();
     this._broadcastProfile();
-    window.refreshNotesIframe?.();
     this._syncAdminNav();
     if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
     if (window.RootsNotifications) {
@@ -2354,7 +2344,6 @@ window.addEventListener('message', (e) => {
   if (e.data?.type === 'roots-notification-click' && e.data.id) {
     void window.RootsNotifications?.handleClickById(e.data.id);
   }
-  if (e.data?.type === 'roots-notes-request-auth') window.refreshNotesIframe?.();
 });
 </script>
 

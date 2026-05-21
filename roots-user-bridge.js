@@ -231,73 +231,6 @@
     document.addEventListener('touchstart', unlock, { passive: true, once: false });
   }
 
-  const SUPABASE_REF = 'csmguwcvzreefluhahyu';
-  const AUTH_STORAGE_KEY = `sb-${SUPABASE_REF}-auth-token`;
-  let _lastAuthFingerprint = null;
-  let _hadSession = false;
-
-  function dispatchAuthReady(session) {
-    window.dispatchEvent(new CustomEvent('roots-auth-ready', { detail: { session } }));
-  }
-
-  function getSupabaseClient() {
-    return window.__rootsSupabaseClient || window.RootsUser?._sb || null;
-  }
-
-  function sessionFromStorageRaw(raw) {
-    if (!raw) return null;
-    try {
-      const data = JSON.parse(raw);
-      const access_token = data.access_token || data.currentSession?.access_token;
-      const refresh_token = data.refresh_token || data.currentSession?.refresh_token;
-      if (!access_token || !refresh_token) return null;
-      return { access_token, refresh_token };
-    } catch (_) {
-      return null;
-    }
-  }
-
-  function readAuthStorageRaw() {
-    try {
-      return window.top.localStorage.getItem(AUTH_STORAGE_KEY);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  async function applyAuthSync(sessionPayload) {
-    const sb = getSupabaseClient();
-    if (!sb) return;
-    try {
-      if (sessionPayload?.access_token && sessionPayload?.refresh_token) {
-        const { data, error } = await sb.auth.setSession({
-          access_token: sessionPayload.access_token,
-          refresh_token: sessionPayload.refresh_token,
-        });
-        if (error) {
-          console.warn('RootsAuthBridge setSession', error.message);
-          return;
-        }
-        _hadSession = true;
-        if (data?.session) dispatchAuthReady(data.session);
-      } else if (sessionPayload === null && _hadSession) {
-        await sb.auth.signOut({ scope: 'local' });
-        _hadSession = false;
-      }
-    } catch (e) {
-      console.warn('RootsAuthBridge applyAuthSync', e);
-    }
-  }
-
-  async function syncAuthFromParentStorage() {
-    const sb = getSupabaseClient();
-    if (!sb) return;
-    const raw = readAuthStorageRaw();
-    if (raw === _lastAuthFingerprint) return;
-    _lastAuthFingerprint = raw;
-    await applyAuthSync(sessionFromStorageRaw(raw));
-  }
-
   window.addEventListener('message', (e) => {
     if (e.origin !== ORIGIN) return;
     if (e.data?.type === 'roots-profile-updated') {
@@ -307,18 +240,7 @@
       showBridgeToast(e.data.notification);
       playBridgeTone();
     }
-    if (e.data?.type === 'roots-auth-sync') {
-      void applyAuthSync(e.data.session ?? null);
-    }
-    if (e.data?.type === 'roots-notes-refresh') {
-      void syncAuthFromParentStorage();
-    }
   });
-
-  if (IN_IFRAME) {
-    setInterval(() => { void syncAuthFromParentStorage(); }, 1500);
-    setTimeout(() => { void syncAuthFromParentStorage(); }, 250);
-  }
 
   function tryPatch() {
     if (window.RootsUser) patch(window.RootsUser);
@@ -331,5 +253,5 @@
     if (++n > 100 || (window.RootsUser && window.RootsUser._bridgePatched)) clearInterval(t);
   }, 50);
 
-  window.RootsUserBridge = { IN_IFRAME, patch, ORIGIN, showBridgeToast, playBridgeTone, applyAuthSync, syncAuthFromParentStorage };
+  window.RootsUserBridge = { IN_IFRAME, patch, ORIGIN, showBridgeToast, playBridgeTone };
 })();

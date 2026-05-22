@@ -198,9 +198,237 @@
     }, TOAST_MS);
   }
 
+  const SYNC_INTERVAL_MS = 20000;
+
+  function ensureSyncStyles() {
+    if (document.getElementById('roots-sync-status-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'roots-sync-status-styles';
+    s.textContent = `
+      .roots-sync-wrap { position: relative; flex-shrink: 0; }
+      .roots-sync-pill {
+        display: inline-flex; align-items: center; gap: 7px;
+        height: 32px; padding: 0 12px 0 10px; border-radius: 999px;
+        border: 1px solid #e2e8f0; background: #fff; font-size: 12px; font-weight: 600;
+        color: #475569; cursor: default; user-select: none;
+        font-family: 'Circular Std', system-ui, -apple-system, sans-serif;
+        transition: background .2s, border-color .2s, color .2s;
+      }
+      .roots-sync-pill.is-online { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
+      .roots-sync-pill.is-offline { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+      .roots-sync-pill.is-checking { opacity: .88; }
+      .roots-sync-dot {
+        width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0;
+      }
+      .roots-sync-pill.is-online .roots-sync-dot {
+        background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.18);
+      }
+      .roots-sync-pill.is-offline .roots-sync-dot { background: #ef4444; }
+      .roots-sync-term {
+        display: none; position: absolute; top: calc(100% + 8px); right: 0;
+        width: min(340px, calc(100vw - 24px)); padding: 10px 12px;
+        border-radius: 10px; border: 1px solid #334155; background: #0f172a;
+        box-shadow: 0 14px 36px rgba(0,0,0,.28); z-index: 99999;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11px; line-height: 1.55; color: #94a3b8; text-align: left;
+        pointer-events: none;
+      }
+      .roots-sync-wrap:hover .roots-sync-term,
+      .roots-sync-wrap:focus-within .roots-sync-term { display: block; }
+      .roots-sync-term-line { white-space: pre-wrap; word-break: break-word; margin: 0; }
+      .roots-sync-term-line.is-ok { color: #4ade80; }
+      .roots-sync-term-line.is-err { color: #f87171; }
+      .roots-sync-term-line.is-warn { color: #fbbf24; }
+      .roots-sync-term-line.is-dim { color: #64748b; }
+    `;
+    document.head.appendChild(s);
+  }
+
+  function findToolHeaderRight() {
+    return document.querySelector(
+      '.sop-header .header-right, .app-topbar .header-right, .app-header .header-right, header[role="banner"] .header-right'
+    );
+  }
+
+  function hideLegacyProfileHeader() {
+    const headerRight = findToolHeaderRight();
+    if (!headerRight) return;
+    headerRight.querySelectorAll(
+      '#roots-header-avatar, #user-avatar, #roots-header-name, #user-name-topbar, .app-user-avatar, .app-user-name, .dash-avatar, #syncBadge, .sync-badge'
+    ).forEach((el) => {
+      el.hidden = true;
+      el.style.display = 'none';
+    });
+  }
+
+  function classifyTermLine(line) {
+    const t = String(line || '').trim();
+    if (/^status\s+online/i.test(t)) return 'is-ok';
+    if (/^status\s+offline/i.test(t) || /^error/i.test(t) || /^code/i.test(t)) return 'is-err';
+    if (/^warn/i.test(t) || /^hint/i.test(t)) return 'is-warn';
+    if (/^db\s+synced/i.test(t) || /^auth\s+session ok/i.test(t)) return 'is-ok';
+    return 'is-dim';
+  }
+
+  const SyncStatus = {
+    _timer: null,
+    _sb: null,
+    _checking: false,
+    _state: { online: null, lines: ['status  initializing…'], lastCheck: null, latencyMs: null },
+
+    ensureSlot() {
+      hideLegacyProfileHeader();
+      let slot = document.getElementById('roots-sync-status');
+      const headerRight = findToolHeaderRight();
+      if (!slot && headerRight) {
+        slot = document.createElement('div');
+        slot.id = 'roots-sync-status';
+        slot.className = 'roots-sync-wrap';
+        slot.setAttribute('aria-live', 'polite');
+        headerRight.appendChild(slot);
+      }
+      return slot;
+    },
+
+    render() {
+      const slot = this.ensureSlot();
+      if (!slot) return;
+      ensureSyncStyles();
+      const online = this._state.online === true;
+      const checking = this._checking;
+      const label = checking ? 'Prüfe…' : (online ? 'Online' : 'Offline');
+      const cls = checking ? 'is-checking' : (online ? 'is-online' : 'is-offline');
+      const lines = (this._state.lines || []).map((line) => {
+        const kind = classifyTermLine(line);
+        return `<div class="roots-sync-term-line ${kind}">${escapeHtml(line)}</div>`;
+      }).join('');
+      const stamp = this._state.lastCheck
+        ? new Date(this._state.lastCheck).toLocaleTimeString('de-DE')
+        : '—';
+      slot.innerHTML = `
+        <div class="roots-sync-pill ${cls}" title="Supabase Sync-Status">
+          <span class="roots-sync-dot" aria-hidden="true"></span>
+          <span class="roots-sync-label">${escapeHtml(label)}</span>
+        </div>
+        <div class="roots-sync-term" role="tooltip">
+          <div class="roots-sync-term-line is-dim">roots sync monitor</div>
+          ${lines}
+          <div class="roots-sync-term-line is-dim">checked  ${escapeHtml(stamp)}</div>
+        </div>`;
+    },
+
+    async ping(sb) {
+      const started = Date.now();
+      const lines = [];
+      const customPing = window.RootsSyncStatusConfig?.ping;
+      if (typeof customPing === 'function') {
+        const result = await customPing(sb);
+        return {
+          online: !!result?.online,
+          lines: Array.isArray(result?.lines) ? result.lines : [result?.online ? 'status  online' : 'status  offline'],
+          latencyMs: Date.now() - started,
+        };
+      }
+      if (!sb) {
+        return {
+          online: false,
+          lines: ['status  offline', 'error   no_supabase_client', 'hint    warte auf auth-session…'],
+          latencyMs: null,
+        };
+      }
+      const { data: { session }, error: sessErr } = await sb.auth.getSession();
+      if (sessErr) lines.push(`error   ${sessErr.message}`);
+      if (!session) {
+        lines.push('status  offline', 'error   no_active_session', 'hint    bitte neu anmelden');
+        return { online: false, lines, latencyMs: Date.now() - started };
+      }
+      lines.push(`auth    session ok (${session.user.id.slice(0, 8)}…)`);
+      try {
+        const { error } = await sb.schema('users').from('profiles').select('id', { head: true, count: 'exact' }).limit(1);
+        const ms = Date.now() - started;
+        if (error) {
+          lines.push(`db      fail (${ms}ms)`);
+          if (error.code) lines.push(`code    ${error.code}`);
+          lines.push(`error   ${error.message}`);
+          lines.push('status  offline');
+          return { online: false, lines, latencyMs: ms };
+        }
+        lines.push(`db      synced (${ms}ms)`);
+        lines.push('status  online');
+        return { online: true, lines, latencyMs: ms };
+      } catch (e) {
+        const ms = Date.now() - started;
+        lines.push(`db      fail (${ms}ms)`);
+        lines.push(`error   ${e.message || 'network_error'}`);
+        lines.push('status  offline');
+        return { online: false, lines, latencyMs: ms };
+      }
+    },
+
+    async check() {
+      if (this._checking) return;
+      this._checking = true;
+      this.render();
+      try {
+        const sb = this._sb || getSupabaseClient();
+        const result = await this.ping(sb);
+        this._state = {
+          online: result.online,
+          lines: result.lines,
+          lastCheck: Date.now(),
+          latencyMs: result.latencyMs,
+        };
+      } catch (e) {
+        this._state = {
+          online: false,
+          lines: ['status  offline', `error   ${e.message || 'check_failed'}`],
+          lastCheck: Date.now(),
+          latencyMs: null,
+        };
+      } finally {
+        this._checking = false;
+        this.render();
+      }
+    },
+
+    mount(sb) {
+      this._sb = sb || getSupabaseClient();
+      ensureSyncStyles();
+      this.ensureSlot();
+      void this.check();
+      if (this._timer) clearInterval(this._timer);
+      this._timer = setInterval(() => void this.check(), SYNC_INTERVAL_MS);
+    },
+
+    stop() {
+      if (this._timer) clearInterval(this._timer);
+      this._timer = null;
+    },
+  };
+
+  function patchSyncHeader(RU) {
+    if (!RU || RU._syncHeaderPatched) return;
+    RU._syncHeaderPatched = true;
+    const origMount = typeof RU._mount === 'function' ? RU._mount.bind(RU) : null;
+    RU._mount = function (...args) {
+      if (origMount) origMount(...args);
+      hideLegacyProfileHeader();
+      SyncStatus.mount(RU._sb || getSupabaseClient());
+    };
+    const origLoad = typeof RU._loadAndMount === 'function' ? RU._loadAndMount.bind(RU) : null;
+    if (origLoad) {
+      RU._loadAndMount = async function (...args) {
+        await origLoad(...args);
+        hideLegacyProfileHeader();
+        SyncStatus.mount(RU._sb || getSupabaseClient());
+      };
+    }
+  }
+
   function patch(RU) {
     if (!RU || RU._bridgePatched) return;
     RU._bridgePatched = true;
+    patchSyncHeader(RU);
     const origOpen = RU.openSettings ? RU.openSettings.bind(RU) : null;
 
     RU.openSettings = function () {
@@ -364,5 +592,32 @@
     if (++n > 100 || (window.RootsUser && window.RootsUser._bridgePatched)) clearInterval(t);
   }, 50);
 
-  window.RootsUserBridge = { IN_IFRAME, patch, ORIGIN, showBridgeToast, playBridgeTone, syncAuthFromParentStorage, applyAuthSignOut };
+  window.addEventListener('roots-auth-ready', () => SyncStatus.mount(getSupabaseClient()));
+  window.addEventListener('roots-auth-signed-out', () => {
+    SyncStatus._state = { online: false, lines: ['status  offline', 'error   signed_out'], lastCheck: Date.now(), latencyMs: null };
+    SyncStatus.mount(getSupabaseClient());
+  });
+
+  window.RootsUserBridge = {
+    IN_IFRAME,
+    patch,
+    ORIGIN,
+    showBridgeToast,
+    playBridgeTone,
+    syncAuthFromParentStorage,
+    applyAuthSignOut,
+    SyncStatus,
+    mountSyncStatus: (sb) => SyncStatus.mount(sb),
+  };
+
+  const bootSync = (n) => {
+    if (window.RootsUser) patch(window.RootsUser);
+    const sb = getSupabaseClient();
+    if (sb || document.getElementById('roots-sync-status') || findToolHeaderRight()) {
+      SyncStatus.mount(sb);
+    } else if (n < 160) {
+      setTimeout(() => bootSync(n + 1), 50);
+    }
+  };
+  bootSync(0);
 })();

@@ -200,6 +200,7 @@
 
   const SYNC_INTERVAL_MS = 20000;
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
+  const BRIDGE_VERSION = '20260522-hover';
 
   function escapeAttr(s) {
     return escapeHtml(s).replace(/"/g, '&quot;');
@@ -680,7 +681,21 @@
       document.head.appendChild(s);
     }
     s.textContent = `
-      .roots-sync-wrap { position: relative; flex-shrink: 0; }
+      .sop-header:has(.roots-sync-wrap),
+      .app-header:has(.roots-sync-wrap),
+      .app-topbar:has(.roots-sync-wrap),
+      header[role="banner"]:has(.roots-sync-wrap) {
+        overflow: visible !important;
+      }
+      .sop-header .header-right:has(.roots-sync-wrap),
+      .app-header .header-right:has(.roots-sync-wrap),
+      .app-topbar .header-right:has(.roots-sync-wrap),
+      header[role="banner"] .header-right:has(.roots-sync-wrap) {
+        overflow: visible !important;
+        position: relative;
+        z-index: 200;
+      }
+      .roots-sync-wrap { position: relative; flex-shrink: 0; z-index: 201; }
       .roots-sync-pill {
         display: inline-flex; align-items: center; gap: 7px;
         height: 32px; padding: 0 12px 0 10px; border-radius: 999px;
@@ -700,13 +715,15 @@
       }
       .roots-sync-pill.is-offline .roots-sync-dot { background: #ef4444; }
       .roots-sync-term {
-        position: absolute; top: 100%; right: 0;
+        position: fixed;
+        top: 0;
+        right: 0;
         width: min(360px, calc(100vw - 24px));
         padding-top: 10px;
         opacity: 0; visibility: hidden; pointer-events: none;
         transform: translateY(2px);
         transition: opacity .16s ease, visibility .16s ease, transform .16s ease;
-        z-index: 99999;
+        z-index: 2147483646;
       }
       .roots-sync-term-box {
         padding: 10px 12px;
@@ -837,6 +854,7 @@
         }
         this._panelOpen = true;
         slot.classList.add('is-open');
+        this.positionTerminal(slot);
       };
       const scheduleClose = () => {
         if (this._panelCloseTimer) clearTimeout(this._panelCloseTimer);
@@ -844,7 +862,7 @@
           this._panelOpen = false;
           slot.classList.remove('is-open');
           this._panelCloseTimer = null;
-        }, 420);
+        }, 500);
       };
       slot.addEventListener('mouseenter', open);
       slot.addEventListener('mouseleave', scheduleClose);
@@ -853,6 +871,29 @@
         if (slot.contains(e.relatedTarget)) return;
         scheduleClose();
       });
+    },
+
+    bindPanelPosition(slot) {
+      if (!slot || slot.dataset.posBound) return;
+      slot.dataset.posBound = '1';
+      const update = () => this.positionTerminal(slot);
+      window.addEventListener('scroll', update, true);
+      window.addEventListener('resize', update);
+      slot.addEventListener('mouseenter', update);
+    },
+
+    positionTerminal(slot) {
+      const term = slot?.querySelector('.roots-sync-term');
+      const pill = slot?.querySelector('.roots-sync-pill');
+      if (!term || !pill) return;
+      const isOpen = slot.classList.contains('is-open') || slot.matches(':hover');
+      if (!isOpen) return;
+      const rect = pill.getBoundingClientRect();
+      const width = Math.min(360, window.innerWidth - 24);
+      term.style.width = `${width}px`;
+      term.style.top = `${Math.max(0, rect.bottom - 10)}px`;
+      term.style.right = `${Math.max(12, window.innerWidth - rect.right)}px`;
+      term.style.left = 'auto';
     },
 
     ensureSlot() {
@@ -877,6 +918,7 @@
         });
       }
       this.bindPanelHover(slot);
+      this.bindPanelPosition(slot);
       return slot;
     },
 
@@ -945,7 +987,15 @@
             <div class="roots-sync-term-line is-dim">checked  ${escapeHtml(stamp)}</div>
           </div>
         </div>`;
-      if (this._panelOpen) slot.classList.add('is-open');
+      if (this._panelOpen || slot.matches(':hover')) {
+        this._panelOpen = true;
+        slot.classList.add('is-open');
+        if (this._panelCloseTimer) {
+          clearTimeout(this._panelCloseTimer);
+          this._panelCloseTimer = null;
+        }
+      }
+      requestAnimationFrame(() => this.positionTerminal(slot));
     },
 
     async ping(sb) {
@@ -1246,6 +1296,7 @@
     SyncStatus,
     DataSourceTracker,
     mountSyncStatus: (sb) => SyncStatus.mount(sb),
+    VERSION: BRIDGE_VERSION,
   };
 
   DataSourceTracker.install();

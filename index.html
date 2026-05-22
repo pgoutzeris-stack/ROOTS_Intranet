@@ -2022,7 +2022,7 @@ window.INTRANET_TOOLS = [
 ];
 window.INTRANET_TOOL_IDS = window.INTRANET_TOOLS.map(t => t.id);
 
-window.ADMIN_PROFILE_SELECT = 'id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,app_role,app_settings,reporting_line_id';
+window.ADMIN_PROFILE_SELECT = 'id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,app_role,app_settings,reporting_line_id,mentor_id';
 window.ROOTS_EMPLOYEE_EMAIL_DOMAIN = '@roots-consultants.com';
 
 window.ROOTS_POSITIONS = ['Praktikant', 'Junior Consultant', 'Consultant', 'Senior Consultant', 'Director', 'Partner'];
@@ -2326,6 +2326,7 @@ window.RootsAdminEmployee = {
           <div class="admin-field"><label for="aec-position">Position / Rolle</label><select class="modern-select" id="aec-position">${this.positionOptions('')}</select></div>
           <div class="admin-field"><label for="aec-hourly-rate">Stundensatz (allgemein)</label><input class="modern-input" id="aec-hourly-rate" type="number" min="0" step="0.01" placeholder="€/h"></div>
           <div class="admin-field"><label for="aec-reporting">Reporting Line</label><select class="modern-select" id="aec-reporting">${this.reportingOptions(users, null, null)}</select></div>
+          <div class="admin-field"><label for="aec-mentor">Onboarding-Mentor</label><select class="modern-select" id="aec-mentor">${this.reportingOptions(users, null, null)}</select></div>
           <div class="admin-field span-2">
             <label>Stundensatz pro Kunde</label>
             ${this.clientRatesHtml(rates)}
@@ -2400,6 +2401,7 @@ window.RootsAdminEmployee = {
           <div class="admin-field"><label for="aec-position">Position / Rolle</label><select class="modern-select" id="aec-position">${this.positionOptions(u.position || '')}</select></div>
           <div class="admin-field"><label for="aec-hourly-rate">Stundensatz (allgemein)</label><input class="modern-input" id="aec-hourly-rate" type="number" min="0" step="0.01" value="${u.hourly_rate ?? ''}" placeholder="€/h"></div>
           <div class="admin-field"><label for="aec-reporting">Reporting Line</label><select class="modern-select" id="aec-reporting">${this.reportingOptions(users, u.reporting_line_id, u.id)}</select></div>
+          <div class="admin-field"><label for="aec-mentor">Onboarding-Mentor</label><select class="modern-select" id="aec-mentor">${this.reportingOptions(users, u.mentor_id, u.id)}</select></div>
           <div class="admin-field span-2">
             <label>Stundensatz pro Kunde</label>
             ${this.clientRatesHtml(rates)}
@@ -2604,6 +2606,7 @@ window.RootsAdminEmployee = {
         position: document.getElementById('aec-position')?.value || null,
         hourly_rate: document.getElementById('aec-hourly-rate')?.value === '' ? null : Number(document.getElementById('aec-hourly-rate').value),
         reporting_line_id: document.getElementById('aec-reporting')?.value || null,
+        mentor_id: document.getElementById('aec-mentor')?.value || null,
         email: document.getElementById('aec-email')?.value.trim() || u.email,
         phone: document.getElementById('aec-phone')?.value.trim() || null,
         linkedin_url: document.getElementById('aec-linkedin')?.value.trim() || null,
@@ -2655,6 +2658,7 @@ window.RootsAdminEmployee = {
       position: document.getElementById('aec-position')?.value || null,
       hourly_rate: document.getElementById('aec-hourly-rate')?.value === '' ? null : Number(document.getElementById('aec-hourly-rate').value),
       reporting_line_id: document.getElementById('aec-reporting')?.value || null,
+      mentor_id: document.getElementById('aec-mentor')?.value || null,
       phone: document.getElementById('aec-phone')?.value.trim() || null,
       linkedin_url: document.getElementById('aec-linkedin')?.value.trim() || null,
       app_role: document.getElementById('aec-role')?.value || 'reader',

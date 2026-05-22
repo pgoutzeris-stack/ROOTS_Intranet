@@ -67,6 +67,7 @@ type InvitePayload = {
   position?: string | null;
   hourly_rate?: number | null;
   reporting_line_id?: string | null;
+  mentor_id?: string | null;
   phone?: string | null;
   linkedin_url?: string | null;
   app_role?: string;
@@ -174,6 +175,7 @@ Deno.serve(async (req) => {
     position: body.position || null,
     hourly_rate: body.hourly_rate ?? null,
     reporting_line_id: body.reporting_line_id || null,
+    mentor_id: body.mentor_id || null,
     phone: body.phone || null,
     linkedin_url: body.linkedin_url || null,
     app_role: appRole,
@@ -183,7 +185,7 @@ Deno.serve(async (req) => {
   const { data: profile, error: upsertErr } = await usersDb
     .from("profiles")
     .upsert({ id: newUserId, ...profilePayload }, { onConflict: "id" })
-    .select("id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,app_role,app_settings,reporting_line_id")
+    .select("id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,app_role,app_settings,reporting_line_id,mentor_id")
     .single();
   if (upsertErr) {
     console.error("[roots-admin-users] profile upsert", upsertErr.message);

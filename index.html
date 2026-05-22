@@ -211,7 +211,15 @@
       outline: none; border-color: var(--brand); box-shadow: var(--shadow-focus);
     }
     .admin-field textarea { height: auto; min-height: 72px; padding: .6rem 12px; resize: vertical; }
-    .admin-field-hint { margin: .3rem 0 0; font-size: .72rem; color: var(--muted); line-height: 1.45; }
+    .admin-field-hint {
+      margin: .35rem 0 0; font-size: .72rem; color: #94a3b8; font-style: italic; line-height: 1.45;
+      display: flex; align-items: flex-start; gap: .4rem;
+    }
+    .admin-field-hint i { font-size: .68rem; margin-top: .12rem; flex-shrink: 0; font-style: normal; opacity: .9; color: #94a3b8; }
+    .admin-readonly {
+      background: var(--status-bg) !important; color: var(--muted) !important;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; cursor: default;
+    }
 
     /* ── ROOTS checkbox (wie Onboarding / andere Tools) ── */
     .roots-check { display: inline-flex; align-items: center; gap: .55rem; cursor: pointer; user-select: none; }
@@ -229,15 +237,28 @@
     }
 
     .admin-tools-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .55rem; display: block; }
-    .admin-tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: .5rem; }
+    .admin-tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .5rem; }
     .admin-tool-opt {
-      display: flex; align-items: center; gap: .55rem; font-size: .82rem; font-weight: 500; color: var(--ink);
-      cursor: pointer; padding: .55rem .7rem; border: 1px solid var(--line); border-radius: 10px;
+      display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: .6rem;
+      font-size: .82rem; font-weight: 500; color: var(--ink);
+      cursor: pointer; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: 10px;
       background: var(--bg); user-select: none; transition: border-color .15s, background .15s, color .15s;
+    }
+    .admin-tool-opt input[type="checkbox"] {
+      -webkit-appearance: none; appearance: none; width: 18px; height: 18px; margin: 1px 0 0;
+      border: 1.5px solid var(--line); border-radius: 5px; background: var(--bg); cursor: pointer;
+      transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+    }
+    .admin-tool-opt input[type="checkbox"]:hover { border-color: var(--brand); }
+    .admin-tool-opt input[type="checkbox"]:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+    .admin-tool-opt input[type="checkbox"]:checked {
+      border-color: var(--brand); background-color: var(--brand);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.5 8.2 6.4 11l6.1-6.5' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: center; background-size: 11px 11px;
     }
     .admin-tool-opt:hover { border-color: #c7dbfa; background: var(--brand-light); }
     .admin-tool-opt:has(input:checked) { border-color: var(--brand); background: var(--brand-light); color: var(--brand-dark); box-shadow: inset 0 0 0 1px rgba(32,110,251,.08); }
-    .admin-tool-opt .roots-check-label { flex: 1; min-width: 0; line-height: 1.35; }
+    .admin-tool-opt .roots-check-label { line-height: 1.35; min-width: 0; word-break: break-word; }
 
     .admin-layout { display: grid; grid-template-columns: minmax(280px, 320px) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
     @media (max-width: 960px) { .admin-layout { grid-template-columns: 1fr; } }
@@ -245,7 +266,9 @@
       background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius);
       box-shadow: var(--shadow); padding: 1.25rem 1.35rem;
     }
-    .admin-detail-panel { min-height: 420px; }
+    .admin-detail-panel { min-height: 420px; position: relative; }
+    .admin-detail-panel.has-selection .admin-empty-detail { display: none !important; }
+    .admin-detail-panel:not(.has-selection) #roots-admin-employee-form-wrap { display: none !important; }
     .admin-user-list { display: flex; flex-direction: column; gap: .5rem; min-height: 80px; }
     .admin-user-row {
       display: flex; align-items: center; gap: .75rem; width: 100%; padding: .72rem .85rem;
@@ -1995,7 +2018,7 @@ window.INTRANET_TOOLS = [
 ];
 window.INTRANET_TOOL_IDS = window.INTRANET_TOOLS.map(t => t.id);
 
-window.ADMIN_PROFILE_SELECT = 'id,email,full_name,first_name,last_name,salutation,personal_id,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,urlaubstage_jahr,app_role,app_settings,reporting_line_id';
+window.ADMIN_PROFILE_SELECT = 'id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,app_role,app_settings,reporting_line_id';
 
 window.ROOTS_POSITIONS = ['Praktikant', 'Junior Consultant', 'Consultant', 'Senior Consultant', 'Director', 'Partner'];
 
@@ -2097,7 +2120,7 @@ window.IntranetAccess = {
     const av = window.RootsUser._avatarSpan(u.avatar_url, u.full_name, 38);
     const toolChecks = window.INTRANET_TOOLS.map(t => {
       const on = edits.allowed_tools.includes(t.id);
-      return `<label class="admin-tool-opt roots-check"><input type="checkbox" data-uid="${u.id}" data-tool="${t.id}" ${on ? 'checked' : ''}><span class="roots-check-label">${t.label}</span></label>`;
+      return `<label class="admin-tool-opt"><input type="checkbox" data-uid="${u.id}" data-tool="${t.id}" ${on ? 'checked' : ''}><span class="roots-check-label">${t.label}</span></label>`;
     }).join('');
     const role = this.normalizeRole(edits.app_role);
     return `<div class="admin-user-card" data-uid="${u.id}">
@@ -2197,6 +2220,10 @@ window.RootsAdminEmployee = {
   _activeId: null,
   _draftAvatar: null,
 
+  hintHtml(text) {
+    return `<p class="admin-field-hint"><i class="fa-solid fa-circle-info"></i><span>${escapeHtml(text)}</span></p>`;
+  },
+
   fmtDateInput(val) {
     if (!val) return '';
     const s = String(val).slice(0, 10);
@@ -2249,7 +2276,7 @@ window.RootsAdminEmployee = {
     const edits = window._adminUserEdits?.[u.id] || window.IntranetAccess.initialEditsFromUser(u);
     return window.INTRANET_TOOLS.map(t => {
       const on = edits.allowed_tools.includes(t.id);
-      return `<label class="admin-tool-opt roots-check"><input type="checkbox" class="aec-tool" data-tool="${t.id}" ${on ? 'checked' : ''}><span class="roots-check-label">${t.label}</span></label>`;
+      return `<label class="admin-tool-opt"><input type="checkbox" class="aec-tool" data-tool="${t.id}" ${on ? 'checked' : ''}><span class="roots-check-label">${t.label}</span></label>`;
     }).join('');
   },
 
@@ -2271,7 +2298,7 @@ window.RootsAdminEmployee = {
       <form id="roots-admin-employee-form" autocomplete="off">
         <div class="admin-section-title">Personal</div>
         <div class="admin-form-grid">
-          <div class="admin-field"><label for="aec-personal-id">Personal-ID</label><input class="modern-input" id="aec-personal-id" type="text" value="${escapeHtml(u.personal_id || '')}"></div>
+          <div class="admin-field span-2"><label for="aec-personal-id">Personal-ID</label><input class="modern-input admin-readonly" id="aec-personal-id" type="text" value="${escapeHtml(u.id)}" readonly tabindex="-1">${this.hintHtml('Einzigartige Supabase-UUID — automatisch in der Datenbank generiert.')}</div>
           <div class="admin-field"><label for="aec-salutation">Ansprache</label>
             <select class="modern-select" id="aec-salutation">
               <option value="" ${!u.salutation ? 'selected' : ''}>—</option>
@@ -2290,7 +2317,7 @@ window.RootsAdminEmployee = {
               <div>
                 <input type="file" id="aec-avatar-file" accept="image/*" hidden>
                 <button type="button" id="aec-avatar-btn" class="admin-btn admin-btn--ghost">Bild wählen …</button>
-                <p class="admin-field-hint">Wird in der Nutzerdatenbank gespeichert.</p>
+                ${this.hintHtml('Wird in der Nutzerdatenbank gespeichert.')}
               </div>
             </div>
           </div>
@@ -2299,7 +2326,7 @@ window.RootsAdminEmployee = {
         <div class="admin-form-grid">
           <div class="admin-field"><label for="aec-start-date">Einstiegsdatum</label><input class="modern-input" id="aec-start-date" type="date" value="${this.fmtDateInput(u.start_date)}"></div>
           <div class="admin-field"><label for="aec-weekly-hours">Arbeitsstunden / Woche</label><input class="modern-input" id="aec-weekly-hours" type="number" min="0" step="0.5" value="${u.weekly_hours ?? ''}"></div>
-          <div class="admin-field"><label for="aec-urlaub-jahr">Urlaubstage / Jahr</label><input class="modern-input" id="aec-urlaub-jahr" type="number" min="0" step="1" value="${u.urlaubstage_jahr ?? 30}"></div>
+          <div class="admin-field"><label for="aec-urlaubstage">Urlaubstage</label><input class="modern-input" id="aec-urlaubstage" type="number" min="0" step="1" value="${u.urlaubstage ?? 30}"></div>
           <div class="admin-field"><label for="aec-position">Position / Rolle</label><select class="modern-select" id="aec-position">${this.positionOptions(u.position || '')}</select></div>
           <div class="admin-field"><label for="aec-hourly-rate">Stundensatz (allgemein)</label><input class="modern-input" id="aec-hourly-rate" type="number" min="0" step="0.01" value="${u.hourly_rate ?? ''}" placeholder="€/h"></div>
           <div class="admin-field"><label for="aec-reporting">Reporting Line</label><select class="modern-select" id="aec-reporting">${this.reportingOptions(users, u.reporting_line_id, u.id)}</select></div>
@@ -2310,7 +2337,7 @@ window.RootsAdminEmployee = {
         </div>
         <div class="admin-section-title">Kontakt</div>
         <div class="admin-form-grid">
-          <div class="admin-field"><label for="aec-email">E-Mail</label><input class="modern-input" id="aec-email" type="email" value="${escapeHtml(u.email || '')}"><p class="admin-field-hint">Profil-E-Mail in der Datenbank (Auth-Login separat).</p></div>
+          <div class="admin-field"><label for="aec-email">E-Mail</label><input class="modern-input" id="aec-email" type="email" value="${escapeHtml(u.email || '')}">${this.hintHtml('Profil-E-Mail in der Datenbank (Auth-Login separat).')}</div>
           <div class="admin-field"><label for="aec-phone">Telefon</label><input class="modern-input" id="aec-phone" type="tel" value="${escapeHtml(u.phone || '')}"></div>
           <div class="admin-field span-2"><label for="aec-linkedin">LinkedIn</label><input class="modern-input" id="aec-linkedin" type="url" value="${escapeHtml(u.linkedin_url || '')}" placeholder="https://linkedin.com/in/…"></div>
         </div>
@@ -2326,7 +2353,7 @@ window.RootsAdminEmployee = {
           <div class="admin-field span-2">
             <span class="admin-tools-label">Sichtbare Intranet-Tools</span>
             <div class="admin-tool-grid" id="aec-tools">${this.toolChecksHtml(u)}</div>
-            <p class="admin-field-hint">Ohne Auswahl sehen Nutzer standardmäßig alle Module.</p>
+            ${this.hintHtml('Ohne Auswahl sehen Nutzer standardmäßig alle Module.')}
           </div>
         </div>
         <div class="admin-detail-actions">
@@ -2429,7 +2456,7 @@ window.RootsAdminEmployee = {
     const panel = document.getElementById('roots-admin-employee-panel');
     const empty = document.getElementById('roots-admin-employee-empty');
     const wrap = document.getElementById('roots-admin-employee-form-wrap');
-    if (panel) panel.hidden = false;
+    panel?.classList.remove('has-selection');
     if (empty) empty.hidden = false;
     if (wrap) { wrap.hidden = true; wrap.innerHTML = ''; }
     this.highlightRow(null);
@@ -2444,7 +2471,7 @@ window.RootsAdminEmployee = {
     const panel = document.getElementById('roots-admin-employee-panel');
     const empty = document.getElementById('roots-admin-employee-empty');
     const wrap = document.getElementById('roots-admin-employee-form-wrap');
-    if (panel) panel.hidden = false;
+    panel?.classList.add('has-selection');
     if (empty) empty.hidden = true;
     if (wrap) {
       wrap.hidden = false;
@@ -2483,7 +2510,6 @@ window.RootsAdminEmployee = {
         appSettings.avatar_source = this._draftAvatar;
       }
       const payload = {
-        personal_id: document.getElementById('aec-personal-id')?.value.trim() || null,
         salutation: document.getElementById('aec-salutation')?.value || null,
         first_name: first || null,
         last_name: last || null,
@@ -2492,7 +2518,7 @@ window.RootsAdminEmployee = {
         birthday: document.getElementById('aec-birthday')?.value.trim() || null,
         start_date: document.getElementById('aec-start-date')?.value || null,
         weekly_hours: document.getElementById('aec-weekly-hours')?.value === '' ? null : Number(document.getElementById('aec-weekly-hours').value),
-        urlaubstage_jahr: document.getElementById('aec-urlaub-jahr')?.value === '' ? 30 : parseInt(document.getElementById('aec-urlaub-jahr').value, 10),
+        urlaubstage: document.getElementById('aec-urlaubstage')?.value === '' ? 30 : parseInt(document.getElementById('aec-urlaubstage').value, 10),
         position: document.getElementById('aec-position')?.value || null,
         hourly_rate: document.getElementById('aec-hourly-rate')?.value === '' ? null : Number(document.getElementById('aec-hourly-rate').value),
         reporting_line_id: document.getElementById('aec-reporting')?.value || null,

@@ -200,126 +200,475 @@
 
   const SYNC_INTERVAL_MS = 20000;
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
-  const SB_LABEL = `Supabase · ${SUPABASE_REF}`;
 
-  /** @type {{ match: RegExp, tool: string, dbs: string[] }[]} */
-  const TOOL_DB_REGISTRY = [
-    {
-      match: /team-kalender|Team-Kalender/i,
-      tool: 'Team-Kalender',
-      dbs: [
-        `${SB_LABEL} · users.profiles (Auth)`,
-        `${SB_LABEL} · team_kalender.events, team_members, nrw_holidays`,
-        `${SB_LABEL} · Edge Function team-kalender`,
-      ],
-    },
-    {
-      match: /urlaubsplanung|vacation/i,
-      tool: 'Urlaubsplanung',
-      dbs: [
-        `${SB_LABEL} · users.profiles (Auth)`,
-        `${SB_LABEL} · team_kalender.urlaub_requests, roots_closure_days`,
-        `${SB_LABEL} · Edge Function urlaubsplanung`,
-      ],
-    },
-    {
-      match: /ROOTS_SOP|SOP_Tool|\bsop\b/i,
-      tool: 'SOP Tool',
-      dbs: [
-        `${SB_LABEL} · users.profiles (Auth)`,
-        'PythonAnywhere · PGoutzeris.pythonanywhere.com (SOP-Inhalte)',
-        'Browser · localStorage (Autosave)',
-      ],
-    },
-    {
-      match: /Zeiterfassung|zeiterfassung|ROOTS.?TIME/i,
-      tool: 'Zeiterfassung',
-      dbs: [
-        `${SB_LABEL} · users.profiles (Auth)`,
-        `${SB_LABEL} · zeiterfassung.profiles, categories, projects, tasks, time_entries`,
-      ],
-    },
-    {
-      match: /Notes-Tool|\bnotes\b/i,
-      tool: 'Notes',
-      dbs: [
-        `${SB_LABEL} · users.profiles (Auth)`,
-        `${SB_LABEL} · notes.folders, notes.documents`,
-      ],
-    },
-    {
-      match: /onboarding/i,
-      tool: 'Onboarding',
-      dbs: [
-        `${SB_LABEL} · users.profiles (Auth)`,
-        `${SB_LABEL} · onboarding.user_progress`,
-      ],
-    },
-    {
-      match: /image-generation|Image-Generation/i,
-      tool: 'Image Generator',
-      dbs: [
-        `${SB_LABEL} · users.profiles (Auth)`,
-        'Extern · Google Gemini API (Generierung, kein DB-Speicher)',
-      ],
-    },
-    {
-      match: /whiteboard/i,
-      tool: 'Whiteboard',
-      dbs: [
-        `${SB_LABEL} · users.profiles (Auth)`,
-        `${SB_LABEL} · public.wb_boards, wb_objects, wb_comments, wb_snapshots`,
-      ],
-    },
-    {
-      match: /RecruitingApp|recruiting/i,
-      tool: 'Recruiting',
-      dbs: [
-        `${SB_LABEL} · users.profiles (Auth)`,
-        `${SB_LABEL} · recruiting.applicants, interviews, notifications`,
-      ],
-    },
-  ];
-
-  function normalizeDatabaseList(list) {
-    if (!list) return [];
-    const arr = Array.isArray(list) ? list : [list];
-    return arr.map((item) => {
-      if (typeof item === 'string') return item.trim();
-      if (item && typeof item === 'object') {
-        const label = item.label || item.name || item.schema || 'Datenbank';
-        const detail = item.detail || item.tables || item.url || '';
-        return detail ? `${label} · ${detail}` : String(label);
-      }
-      return String(item);
-    }).filter(Boolean);
+  function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, '&quot;');
   }
+
+  function supabaseRefFromUrl(url) {
+    try {
+      const host = new URL(String(url)).hostname;
+      const m = host.match(/^([a-z0-9]+)\.supabase\.co$/i);
+      return m ? m[1] : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function supabaseProjectHref(ref) {
+    return `https://supabase.com/dashboard/project/${ref}`;
+  }
+
+  function supabaseTableHref(ref, schema, table) {
+    const base = supabaseProjectHref(ref);
+    const safeSchema = encodeURIComponent(schema || 'public');
+    const safeTable = encodeURIComponent(table || '');
+    if ((schema || 'public') === 'public') {
+      return `${base}/editor?filter=table:${safeTable}`;
+    }
+    return `${base}/editor?schema=${safeSchema}&filter=table:${safeTable}`;
+  }
+
+  function supabaseFunctionHref(ref, name) {
+    return `${supabaseProjectHref(ref)}/functions/${encodeURIComponent(name)}`;
+  }
+
+  function supabaseAuthHref(ref) {
+    return `${supabaseProjectHref(ref)}/auth/users`;
+  }
+
+  function supabaseStorageHref(ref) {
+    return `${supabaseProjectHref(ref)}/storage/buckets`;
+  }
+
+  function requestHeaders(init) {
+    const h = new Headers();
+    if (!init?.headers) return h;
+    const raw = init.headers;
+    if (raw instanceof Headers) raw.forEach((v, k) => h.set(k, v));
+    else if (Array.isArray(raw)) raw.forEach(([k, v]) => h.set(k, v));
+    else Object.entries(raw).forEach(([k, v]) => h.set(k, v));
+    return h;
+  }
+
+  function headerValue(headers, name) {
+    return headers.get(name) || headers.get(name.toLowerCase()) || '';
+  }
+
+  function normalizeSourceEntry(item) {
+    if (!item) return null;
+    if (typeof item === 'string') {
+      const text = item.trim();
+      if (!text) return null;
+      const urlMatch = text.match(/https?:\/\/[^\s]+/);
+      return {
+        id: `manual:${text}`,
+        kind: 'manual',
+        label: text.replace(/https?:\/\/[^\s]+/g, '').replace(/^[·\s-]+|[·\s-]+$/g, '') || text,
+        href: urlMatch ? urlMatch[0] : null,
+      };
+    }
+    if (typeof item === 'object') {
+      const label = item.label || item.name || item.schema || 'Datenbank';
+      const detail = item.detail || item.tables || '';
+      const href = item.href || item.url || null;
+      return {
+        id: item.id || `manual:${label}:${detail}`,
+        kind: item.kind || 'manual',
+        label: detail ? `${label} · ${detail}` : String(label),
+        href,
+      };
+    }
+    return null;
+  }
+
+  const DataSourceTracker = {
+    _sources: new Map(),
+    _renderTimer: null,
+    _installed: false,
+    _clientWatchTimer: null,
+
+    install() {
+      if (this._installed) return;
+      this._installed = true;
+      this._patchFetch();
+      this._patchXHR();
+      this._patchCreateClient();
+      this._patchLocalStorage();
+      this._scanLocalStorage();
+      this._watchExistingClients();
+    },
+
+    _scheduleRender() {
+      if (this._renderTimer) clearTimeout(this._renderTimer);
+      this._renderTimer = setTimeout(() => {
+        this._renderTimer = null;
+        if (typeof SyncStatus !== 'undefined') SyncStatus.render();
+      }, 120);
+    },
+
+    _remember(entry) {
+      const id = entry.id;
+      if (!id) return;
+      const prev = this._sources.get(id);
+      if (prev) {
+        prev.hits = (prev.hits || 0) + 1;
+        prev.lastSeen = Date.now();
+        if (entry.href && !prev.href) prev.href = entry.href;
+      } else {
+        this._sources.set(id, { ...entry, hits: 1, lastSeen: Date.now() });
+      }
+      this._scheduleRender();
+    },
+
+    noteTable(ref, schema, table) {
+      const sch = schema || 'public';
+      const tbl = String(table || '').split('?')[0];
+      if (!ref || !tbl || tbl === 'rpc') return;
+      this._remember({
+        id: `sb-table:${ref}:${sch}.${tbl}`,
+        kind: 'supabase-table',
+        ref,
+        schema: sch,
+        table: tbl,
+        label: `${sch}.${tbl}`,
+        href: supabaseTableHref(ref, sch, tbl),
+      });
+    },
+
+    noteRpc(ref, schema, fnName) {
+      const sch = schema || 'public';
+      const fn = String(fnName || '').trim();
+      if (!ref || !fn) return;
+      this._remember({
+        id: `sb-rpc:${ref}:${sch}.${fn}`,
+        kind: 'supabase-rpc',
+        ref,
+        schema: sch,
+        label: `${sch}.rpc(${fn})`,
+        href: `${supabaseProjectHref(ref)}/database/functions`,
+      });
+    },
+
+    noteFunction(ref, name) {
+      const fn = String(name || '').split('?')[0];
+      if (!ref || !fn) return;
+      this._remember({
+        id: `sb-fn:${ref}:${fn}`,
+        kind: 'supabase-function',
+        ref,
+        label: `Edge Function ${fn}`,
+        href: supabaseFunctionHref(ref, fn),
+      });
+    },
+
+    noteAuth(ref) {
+      if (!ref) return;
+      this._remember({
+        id: `sb-auth:${ref}`,
+        kind: 'supabase-auth',
+        ref,
+        label: 'Supabase Auth',
+        href: supabaseAuthHref(ref),
+      });
+    },
+
+    noteStorage(ref, bucket) {
+      if (!ref) return;
+      const label = bucket ? `Storage · ${bucket}` : 'Supabase Storage';
+      this._remember({
+        id: `sb-storage:${ref}:${bucket || 'all'}`,
+        kind: 'supabase-storage',
+        ref,
+        label,
+        href: supabaseStorageHref(ref),
+      });
+    },
+
+    noteProject(ref, label) {
+      if (!ref) return;
+      this._remember({
+        id: `sb-project:${ref}`,
+        kind: 'supabase-project',
+        ref,
+        label: label || `Supabase · ${ref}`,
+        href: supabaseProjectHref(ref),
+      });
+    },
+
+    noteExternal(url, label) {
+      try {
+        const u = new URL(url);
+        this._remember({
+          id: `ext:${u.origin}`,
+          kind: 'external-api',
+          label: label || u.hostname,
+          href: u.origin,
+        });
+      } catch (_) {}
+    },
+
+    noteLocalStorage(key) {
+      const k = String(key || '').trim();
+      if (!k) return;
+      this._remember({
+        id: `local:${k}`,
+        kind: 'browser-storage',
+        label: `Browser · localStorage.${k}`,
+        href: null,
+      });
+    },
+
+    observeRequest(url, init) {
+      let u;
+      try {
+        u = new URL(String(url), window.location.href);
+      } catch (_) {
+        return;
+      }
+
+      const sbRef = supabaseRefFromUrl(u.href);
+      if (sbRef) {
+        this.noteProject(sbRef);
+        const path = u.pathname || '';
+        const headers = requestHeaders(init);
+
+        if (path.startsWith('/rest/v1/')) {
+          const tail = path.slice('/rest/v1/'.length);
+          const resource = tail.split('/')[0]?.split('?')[0];
+          const schema = headerValue(headers, 'Accept-Profile')
+            || headerValue(headers, 'Content-Profile')
+            || 'public';
+          if (resource === 'rpc' && u.searchParams.get('rpc')) {
+            this.noteRpc(sbRef, schema, u.searchParams.get('rpc'));
+          } else if (resource) {
+            this.noteTable(sbRef, schema, resource);
+          }
+          return;
+        }
+
+        if (path.startsWith('/functions/v1/')) {
+          const fn = path.slice('/functions/v1/'.length).split('/')[0];
+          this.noteFunction(sbRef, fn);
+          return;
+        }
+
+        if (path.startsWith('/auth/v1/')) {
+          this.noteAuth(sbRef);
+          return;
+        }
+
+        if (path.startsWith('/storage/v1/')) {
+          const parts = path.split('/').filter(Boolean);
+          const bucket = parts[2] || '';
+          this.noteStorage(sbRef, bucket);
+          return;
+        }
+
+        if (path.startsWith('/realtime/v1/')) {
+          this._remember({
+            id: `sb-realtime:${sbRef}`,
+            kind: 'supabase-realtime',
+            ref: sbRef,
+            label: 'Supabase Realtime',
+            href: `${supabaseProjectHref(sbRef)}/database/replication`,
+          });
+        }
+        return;
+      }
+
+      const host = u.hostname.toLowerCase();
+      if (host.includes('pythonanywhere.com')) {
+        this.noteExternal(u.origin, `PythonAnywhere · ${host}`);
+      } else if (host.includes('googleapis.com') || host.includes('generativelanguage.googleapis.com')) {
+        this.noteExternal(u.origin, `Extern · ${host}`);
+      }
+    },
+
+    patchSupabaseClient(sb, ref, defaultSchema) {
+      if (!sb || sb.__rootsTracked) return sb;
+      sb.__rootsTracked = true;
+      const projectRef = ref || supabaseRefFromUrl(sb.supabaseUrl || sb.rest?.url || '') || SUPABASE_REF;
+      const baseSchema = defaultSchema || sb.rest?.headers?.['Accept-Profile'] || 'public';
+      this.noteProject(projectRef);
+
+      if (typeof sb.schema === 'function') {
+        const origSchema = sb.schema.bind(sb);
+        sb.schema = (schemaName) => {
+          const builder = origSchema(schemaName);
+          if (builder && typeof builder.from === 'function') {
+            const origFrom = builder.from.bind(builder);
+            builder.from = (table) => {
+              this.noteTable(projectRef, schemaName, table);
+              return origFrom(table);
+            };
+          }
+          return builder;
+        };
+      }
+
+      if (typeof sb.from === 'function') {
+        const origFrom = sb.from.bind(sb);
+        sb.from = (table) => {
+          this.noteTable(projectRef, baseSchema, table);
+          return origFrom(table);
+        };
+      }
+
+      if (typeof sb.rpc === 'function') {
+        const origRpc = sb.rpc.bind(sb);
+        sb.rpc = (fn, args, opts) => {
+          this.noteRpc(projectRef, baseSchema, fn);
+          return origRpc(fn, args, opts);
+        };
+      }
+
+      if (sb.functions && typeof sb.functions.invoke === 'function') {
+        const origInvoke = sb.functions.invoke.bind(sb.functions);
+        sb.functions.invoke = (name, opts) => {
+          this.noteFunction(projectRef, name);
+          return origInvoke(name, opts);
+        };
+      }
+
+      return sb;
+    },
+
+    _patchFetch() {
+      if (window.__rootsFetchPatched) return;
+      window.__rootsFetchPatched = true;
+      const origFetch = window.fetch.bind(window);
+      window.fetch = (...args) => {
+        try {
+          this.observeRequest(args[0], args[1]);
+        } catch (_) {}
+        return origFetch(...args);
+      };
+    },
+
+    _patchXHR() {
+      if (window.__rootsXhrPatched) return;
+      window.__rootsXhrPatched = true;
+      const origOpen = XMLHttpRequest.prototype.open;
+      const origSend = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+        this.__rootsUrl = url;
+        this.__rootsMethod = method;
+        return origOpen.call(this, method, url, ...rest);
+      };
+      XMLHttpRequest.prototype.send = function(body) {
+        try {
+          DataSourceTracker.observeRequest(this.__rootsUrl, { method: this.__rootsMethod, body });
+        } catch (_) {}
+        return origSend.call(this, body);
+      };
+    },
+
+    _patchCreateClient() {
+      const tryPatch = () => {
+        if (!window.supabase?.createClient || window.supabase.__rootsCreatePatched) return;
+        const origCreate = window.supabase.createClient;
+        window.supabase.createClient = (url, key, opts) => {
+          const sb = origCreate(url, key, opts);
+          const ref = supabaseRefFromUrl(url) || SUPABASE_REF;
+          DataSourceTracker.patchSupabaseClient(sb, ref, opts?.db?.schema || 'public');
+          return sb;
+        };
+        window.supabase.__rootsCreatePatched = true;
+      };
+      tryPatch();
+      if (!window.supabase?.__rootsCreatePatched) {
+        let n = 0;
+        const t = setInterval(() => {
+          tryPatch();
+          if (window.supabase?.__rootsCreatePatched || ++n > 120) clearInterval(t);
+        }, 50);
+      }
+    },
+
+    _patchLocalStorage() {
+      if (Storage.prototype.__rootsSetItemPatched) return;
+      const orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function(key, value) {
+        try {
+          if (typeof key === 'string' && /^(roots_|sop_|tk_|notes_|urlaub_)/i.test(key)) {
+            DataSourceTracker.noteLocalStorage(key);
+          }
+        } catch (_) {}
+        return orig.call(this, key, value);
+      };
+      Storage.prototype.__rootsSetItemPatched = true;
+    },
+
+    _scanLocalStorage() {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && /^(roots_|sop_|tk_|notes_|urlaub_)/i.test(key)) this.noteLocalStorage(key);
+        }
+      } catch (_) {}
+    },
+
+    _watchExistingClients() {
+      const scan = () => {
+        [window.__rootsSupabaseClient, window.RootsUser?._sb]
+          .filter(Boolean)
+          .forEach((sb) => {
+            if (!sb?.auth?.getSession) return;
+            const ref = supabaseRefFromUrl(sb.supabaseUrl || sb.rest?.url || '') || SUPABASE_REF;
+            this.patchSupabaseClient(sb, ref, sb.rest?.headers?.['Accept-Profile'] || 'public');
+          });
+      };
+      scan();
+      if (this._clientWatchTimer) clearInterval(this._clientWatchTimer);
+      this._clientWatchTimer = setInterval(scan, 1500);
+    },
+
+    listSources() {
+      const manual = (window.RootsSyncStatusConfig?.databases || [])
+        .map(normalizeSourceEntry)
+        .filter(Boolean);
+      const auto = Array.from(this._sources.values())
+        .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+      const merged = new Map();
+      auto.forEach((s) => merged.set(s.id, s));
+      manual.forEach((s) => merged.set(s.id, { ...merged.get(s.id), ...s }));
+      return Array.from(merged.values());
+    },
+  };
+
+  /** legacy placeholder removed – detection is automatic via DataSourceTracker */
 
   function resolveToolMeta() {
     const cfg = window.RootsSyncStatusConfig || {};
-    if (cfg.toolName || cfg.databases) {
-      return {
-        tool: cfg.toolName || document.title?.split('–')[0]?.trim() || 'ROOTS Tool',
-        databases: normalizeDatabaseList(cfg.databases),
-      };
-    }
-    const path = `${window.location.pathname}${window.location.hash}${window.location.href}`;
-    for (const entry of TOOL_DB_REGISTRY) {
-      if (entry.match.test(path)) {
-        return { tool: entry.tool, databases: entry.dbs.slice() };
-      }
-    }
     return {
-      tool: document.title?.split('–')[0]?.trim() || 'ROOTS Tool',
-      databases: [`${SB_LABEL} · users.profiles (Auth/Profil)`],
+      tool: cfg.toolName || document.title?.split('–')[0]?.trim() || 'ROOTS Tool',
+      sources: DataSourceTracker.listSources(),
     };
+  }
+
+  function renderStoreRows(meta) {
+    const sources = meta.sources || [];
+    if (!sources.length) {
+      return `<div class="roots-sync-term-line is-data">store   (wird beim Laden automatisch erkannt…)</div>`;
+    }
+    return sources.map((src, i) => {
+      const prefix = i === 0 ? 'store   ' : '        ';
+      const text = `${prefix}${src.label}`;
+      const link = src.href
+        ? `<a class="roots-sync-open-btn" href="${escapeAttr(src.href)}" target="_blank" rel="noopener noreferrer" title="Datenbank/API öffnen">↗</a>`
+        : `<span class="roots-sync-open-btn is-disabled" title="Kein Dashboard-Link">·</span>`;
+      return `<div class="roots-sync-store-row"><span class="roots-sync-store-label">${escapeHtml(text)}</span>${link}</div>`;
+    }).join('');
   }
 
   function databaseTermLines(meta) {
     const lines = [`tool    ${meta.tool}`];
-    (meta.databases || []).forEach((db, i) => {
-      lines.push(`${i === 0 ? 'store   ' : '        '}${db}`);
+    (meta.sources || []).forEach((src, i) => {
+      const prefix = i === 0 ? 'store   ' : '        ';
+      lines.push(`${prefix}${src.label}${src.href ? `  ${src.href}` : ''}`);
     });
+    if (!meta.sources?.length) lines.push('store   (wird beim Laden automatisch erkannt…)');
     return lines;
   }
 
@@ -384,6 +733,25 @@
       .roots-sync-term-line.is-warn { color: #fbbf24; }
       .roots-sync-term-line.is-dim { color: #64748b; }
       .roots-sync-term-line.is-data { color: #7dd3fc; }
+      .roots-sync-store-row {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        gap: 8px; margin: 0;
+      }
+      .roots-sync-store-label {
+        flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; color: #7dd3fc;
+      }
+      .roots-sync-open-btn {
+        flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+        min-width: 22px; height: 18px; padding: 0 5px; border-radius: 4px;
+        border: 1px solid #334155; background: #1e293b; color: #7dd3fc;
+        text-decoration: none; font-size: 11px; line-height: 1;
+      }
+      .roots-sync-open-btn:hover {
+        background: #334155; border-color: #475569; color: #bae6fd;
+      }
+      .roots-sync-open-btn.is-disabled {
+        opacity: .35; cursor: default; pointer-events: none;
+      }
     `;
     document.head.appendChild(s);
   }
@@ -510,7 +878,7 @@
       const checking = this._checking;
       const label = checking ? 'Prüfe…' : (online ? 'Online' : 'Offline');
       const cls = checking ? 'is-checking' : (online ? 'is-online' : 'is-offline');
-      const dbLines = databaseTermLines(meta).map(termLineHtml).join('');
+      const dbLines = renderStoreRows(meta);
       const lines = (this._state.lines || []).map(termLineHtml).join('');
       const stamp = this._state.lastCheck
         ? new Date(this._state.lastCheck).toLocaleTimeString('de-DE')
@@ -608,6 +976,13 @@
 
     mount(sb) {
       this._sb = sb || getSupabaseClient();
+      if (this._sb) {
+        DataSourceTracker.patchSupabaseClient(
+          this._sb,
+          supabaseRefFromUrl(this._sb.supabaseUrl || this._sb.rest?.url || '') || SUPABASE_REF,
+          this._sb.rest?.headers?.['Accept-Profile'] || 'public'
+        );
+      }
       ensureSyncStyles();
       this.ensureSlot();
       void this.check();
@@ -821,8 +1196,11 @@
     syncAuthFromParentStorage,
     applyAuthSignOut,
     SyncStatus,
+    DataSourceTracker,
     mountSyncStatus: (sb) => SyncStatus.mount(sb),
   };
+
+  DataSourceTracker.install();
 
   const bootSync = (n) => {
     if (window.RootsUser) patch(window.RootsUser);

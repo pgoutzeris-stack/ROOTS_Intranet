@@ -177,6 +177,72 @@
     .admin-tool-opt:has(input:checked) { border-color: #c7dbfa; background: var(--brand-light); color: var(--brand-dark); }
     .admin-tool-opt input { accent-color: var(--brand); width: 14px; height: 14px; }
 
+    .admin-layout { display: grid; grid-template-columns: minmax(280px, 340px) 1fr; gap: 1.25rem; align-items: start; }
+    @media (max-width: 960px) { .admin-layout { grid-template-columns: 1fr; } }
+    .admin-list-panel, .admin-detail-panel {
+      background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 1.25rem;
+    }
+    .admin-user-row {
+      display: flex; align-items: center; gap: .75rem; padding: .7rem .85rem;
+      border: 1px solid var(--line); border-radius: 10px; background: var(--status-bg);
+      cursor: pointer; transition: border-color .15s, background .15s;
+    }
+    .admin-user-row:hover { border-color: #c7dbfa; background: var(--brand-light); }
+    .admin-user-row.is-active { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-light); background: var(--brand-light); }
+    .admin-user-row-meta { flex: 1; min-width: 0; }
+    .admin-user-row-name { font-size: .88rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .admin-user-row-sub { font-size: .72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .admin-role-badge {
+      font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+      padding: .2rem .5rem; border-radius: 999px; background: #e2e8f0; color: #475569; flex-shrink: 0;
+    }
+    .admin-role-badge--admin { background: #dbeafe; color: #1d4ed8; }
+    .admin-role-badge--editor { background: #dcfce7; color: #15803d; }
+    .admin-role-badge--reader { background: #f1f5f9; color: #64748b; }
+    .admin-detail-panel[hidden] { display: none !important; }
+    .admin-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
+    .admin-detail-head h3 { margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--ink); }
+    .admin-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem 1rem; }
+    @media (max-width: 720px) { .admin-form-grid { grid-template-columns: 1fr; } }
+    .admin-form-grid .span-2 { grid-column: 1 / -1; }
+    .admin-field label { display: block; font-size: .78rem; font-weight: 600; color: var(--muted); margin-bottom: .35rem; }
+    .admin-field input, .admin-field select, .admin-field textarea {
+      width: 100%; height: 40px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px;
+      font-family: inherit; font-size: .86rem; color: var(--ink); background: var(--bg); box-sizing: border-box;
+    }
+    .admin-field textarea { height: auto; min-height: 72px; padding: .55rem 11px; resize: vertical; }
+    .admin-section-title {
+      font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+      color: var(--muted); margin: 1.1rem 0 .65rem; padding-top: .85rem; border-top: 1px solid var(--line);
+    }
+    .admin-section-title:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+    .admin-av-block { display: flex; align-items: center; gap: 1rem; }
+    .admin-av-block img, .admin-av-fallback {
+      width: 72px; height: 72px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center; font-weight: 700;
+      background: var(--brand-light); color: var(--brand); font-size: 1.4rem;
+    }
+    .admin-client-rates { display: flex; flex-direction: column; gap: .5rem; }
+    .admin-client-rate-row { display: grid; grid-template-columns: 1fr 110px auto; gap: .5rem; align-items: center; }
+    .admin-client-rate-row button {
+      width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+      color: var(--muted); cursor: pointer;
+    }
+    .admin-detail-actions { display: flex; align-items: center; gap: .75rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+    .admin-detail-actions .btn-primary {
+      height: 40px; padding: 0 1.5rem; background: #206efb; color: #fff; border: none; border-radius: 999px;
+      font-family: inherit; font-size: .88rem; font-weight: 600; cursor: pointer;
+    }
+    .admin-detail-actions .btn-ghost {
+      height: 40px; padding: 0 1rem; background: none; border: 1px solid var(--line); border-radius: 999px;
+      font-family: inherit; font-size: .88rem; cursor: pointer; color: var(--ink);
+    }
+    .admin-empty-detail {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 320px; color: var(--muted); text-align: center; gap: .5rem;
+    }
+
     .sidebar-user-block {
       margin-top: auto;
       padding-top: 1.5rem;
@@ -1063,17 +1129,22 @@
           <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
             <div>
               <h2 style="font-size:1.5rem;font-weight:700;color:var(--ink);margin:0 0 .25rem">Nutzerverwaltung</h2>
-              <p class="muted">Rollen und Zugriffsrechte aller ROOTS-Mitglieder</p>
+              <p class="muted">Mitarbeiter-Stammdaten, Rollen und Zugriffsrechte</p>
             </div>
           </div>
-          <div style="background:var(--bg);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--line);padding:1.5rem;max-width:960px">
-            <p class="muted" style="font-size:.88rem;margin:0 0 1rem">Rolle und sichtbare Intranet-Tools pro Nutzer festlegen. Ohne gesetzte Tools sehen Nutzer standardmäßig alle Module.</p>
-            <div id="roots-admin-user-list-page" style="display:flex;flex-direction:column;gap:.65rem;min-height:80px">
-              <div style="text-align:center;padding:2rem;color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin"></i> Lade Nutzer…</div>
+          <div class="admin-layout" style="max-width:1200px">
+            <div class="admin-list-panel">
+              <p class="muted" style="font-size:.82rem;margin:0 0 .85rem">Mitarbeiter auswählen, um Stammdaten zu bearbeiten.</p>
+              <div id="roots-admin-user-list-page" style="display:flex;flex-direction:column;gap:.5rem;min-height:80px">
+                <div style="text-align:center;padding:2rem;color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin"></i> Lade Nutzer…</div>
+              </div>
             </div>
-            <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line);display:flex;align-items:center;gap:.75rem">
-              <button id="roots-admin-save-page-btn" style="height:40px;padding:0 1.5rem;background:#206efb;color:#fff;border:none;border-radius:999px;font-family:inherit;font-size:.88rem;font-weight:600;cursor:pointer">Änderungen speichern</button>
-              <span id="roots-admin-page-msg" style="font-size:.85rem;color:var(--muted)"></span>
+            <div class="admin-detail-panel" id="roots-admin-employee-panel">
+              <div class="admin-empty-detail" id="roots-admin-employee-empty">
+                <i class="fa-solid fa-user-pen" style="font-size:1.75rem;opacity:.45"></i>
+                <p style="margin:0;font-size:.9rem">Wähle links einen Mitarbeiter aus.</p>
+              </div>
+              <div id="roots-admin-employee-form-wrap" hidden></div>
             </div>
           </div>
         </div>
@@ -1332,16 +1403,7 @@
 
       async function loadAdminPage() {
         if (!(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) return;
-        const list = document.getElementById('roots-admin-user-list-page');
-        list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin"></i> Lade Nutzer…</div>';
-        const { data } = await window.RootsUser._sb.schema('users').from('profiles')
-          .select('id,email,full_name,position,avatar_url,app_role,app_settings,kuerzel').order('full_name');
-        if (!data || !data.length) { list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Keine Nutzer.</div>'; return; }
-        window._adminUsers = data;
-        window._adminUserEdits = {};
-        list.innerHTML = data.map(u => window.IntranetAccess.renderAdminUserCard(u)).join('');
-        window.IntranetAccess.bindAdminUserCards(list);
-        document.getElementById('roots-admin-save-page-btn').onclick = () => window.IntranetAccess.saveAdminUserEdits('roots-admin-save-page-btn', 'roots-admin-page-msg', loadAdminPage);
+        await window.RootsAdminEmployee.loadList('roots-admin-user-list-page');
       }
 
       // Dashboard-Karten "Öffnen"-Buttons
@@ -1853,6 +1915,12 @@ window.INTRANET_TOOLS = [
 ];
 window.INTRANET_TOOL_IDS = window.INTRANET_TOOLS.map(t => t.id);
 
+window.ADMIN_PROFILE_SELECT = 'id,email,full_name,first_name,last_name,salutation,personal_id,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,urlaubstage_jahr,app_role,app_settings,reporting_line_id';
+
+window.ROOTS_POSITIONS = ['Praktikant', 'Junior Consultant', 'Consultant', 'Senior Consultant', 'Director', 'Partner'];
+
+window.ROOTS_CLIENT_SUGGESTIONS = ['Beiersdorf', 'Danone', 'Lidl'];
+
 window.IntranetAccess = {
   getAllowedTools(profile) {
     const raw = profile?.app_settings?.allowed_tools;
@@ -1900,11 +1968,46 @@ window.IntranetAccess = {
     }
   },
 
+  roleLabel(role) {
+    const r = String(role || 'reader').trim();
+    if (r === 'admin') return 'Admin';
+    if (r === 'editor' || r === 'member') return 'Bearbeiten';
+    return 'Lesen';
+  },
+
+  roleBadgeClass(role) {
+    const r = String(role || 'reader').trim();
+    if (r === 'admin') return 'admin-role-badge--admin';
+    if (r === 'editor' || r === 'member') return 'admin-role-badge--editor';
+    return 'admin-role-badge--reader';
+  },
+
+  normalizeRole(role) {
+    const r = String(role || 'reader').trim();
+    if (r === 'member') return 'editor';
+    return r || 'reader';
+  },
+
   initialEditsFromUser(u) {
     return {
-      app_role: u.app_role || 'reader',
+      app_role: this.normalizeRole(u.app_role),
       allowed_tools: this.toolsForUi(u),
     };
+  },
+
+  renderAdminUserRow(u, activeId) {
+    const role = this.normalizeRole(u.app_role);
+    const badgeCls = role === 'admin' ? 'admin-role-badge--admin' : role === 'editor' ? 'admin-role-badge--editor' : 'admin-role-badge--reader';
+    const av = window.RootsUser._avatarSpan(u.avatar_url, u.full_name || u.email, 36);
+    const sub = [u.kuerzel, u.position, u.email].filter(Boolean).join(' · ');
+    return `<button type="button" class="admin-user-row ${u.id === activeId ? 'is-active' : ''}" data-uid="${u.id}">
+      ${av}
+      <span class="admin-user-row-meta">
+        <span class="admin-user-row-name">${escapeHtml(u.full_name || u.email || '—')}</span>
+        <span class="admin-user-row-sub">${escapeHtml(sub)}</span>
+      </span>
+      <span class="admin-role-badge ${badgeCls}">${escapeHtml(this.roleLabel(role))}</span>
+    </button>`;
   },
 
   renderAdminUserCard(u) {
@@ -1916,6 +2019,7 @@ window.IntranetAccess = {
       const on = edits.allowed_tools.includes(t.id);
       return `<label class="admin-tool-opt"><input type="checkbox" data-uid="${u.id}" data-tool="${t.id}" ${on ? 'checked' : ''}> ${t.label}</label>`;
     }).join('');
+    const role = this.normalizeRole(edits.app_role);
     return `<div class="admin-user-card" data-uid="${u.id}">
       <div class="admin-user-head">
         ${av}
@@ -1925,9 +2029,9 @@ window.IntranetAccess = {
         </div>
         <div class="admin-user-role">
           <select data-uid="${u.id}" data-field="role">
-            <option value="admin" ${edits.app_role === 'admin' ? 'selected' : ''}>Admin</option>
-            <option value="member" ${edits.app_role === 'member' ? 'selected' : ''}>Mitglied</option>
-            <option value="reader" ${edits.app_role === 'reader' ? 'selected' : ''}>Leser</option>
+            <option value="admin" ${role === 'admin' ? 'selected' : ''}>Admin</option>
+            <option value="editor" ${role === 'editor' ? 'selected' : ''}>Bearbeiten</option>
+            <option value="reader" ${role === 'reader' ? 'selected' : ''}>Lesen</option>
           </select>
         </div>
       </div>
@@ -2006,6 +2110,338 @@ window.IntranetAccess = {
       else { msg.style.color = '#10b981'; msg.textContent = `✓ ${saved} Nutzer gespeichert.`; }
     }
     if (onDone) onDone();
+  },
+};
+
+window.RootsAdminEmployee = {
+  _activeId: null,
+  _draftAvatar: null,
+
+  fmtDateInput(val) {
+    if (!val) return '';
+    const s = String(val).slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+  },
+
+  parseClientRates(appSettings) {
+    const raw = appSettings?.client_hourly_rates;
+    if (!raw) return [];
+    if (Array.isArray(raw)) {
+      return raw.map(r => ({
+        client: String(r?.client || r?.name || '').trim(),
+        rate: r?.rate == null || r?.rate === '' ? '' : Number(r.rate),
+      })).filter(r => r.client);
+    }
+    if (typeof raw === 'object') {
+      return Object.entries(raw).map(([client, rate]) => ({ client, rate: Number(rate) || '' }));
+    }
+    return [];
+  },
+
+  clientRatesHtml(rates) {
+    const rows = (rates.length ? rates : [{ client: '', rate: '' }]).map((r, i) => `
+      <div class="admin-client-rate-row" data-idx="${i}">
+        <input type="text" class="aec-client-name" list="roots-client-suggestions" value="${escapeHtml(r.client || '')}" placeholder="Kunde">
+        <input type="number" class="aec-client-rate" min="0" step="0.01" value="${r.rate === '' || r.rate == null ? '' : r.rate}" placeholder="€/h">
+        <button type="button" class="aec-remove-client" title="Entfernen"><i class="fa-solid fa-trash-can"></i></button>
+      </div>`).join('');
+    return `<div class="admin-client-rates" id="aec-client-rates">${rows}</div>
+      <button type="button" id="aec-add-client" style="margin-top:.5rem;height:34px;padding:0 .85rem;border:1px dashed var(--line);border-radius:8px;background:var(--bg);font-family:inherit;font-size:.78rem;cursor:pointer;color:var(--brand)"><i class="fa-solid fa-plus"></i> Kunde hinzufügen</button>
+      <datalist id="roots-client-suggestions">${window.ROOTS_CLIENT_SUGGESTIONS.map(c => `<option value="${escapeHtml(c)}">`).join('')}</datalist>`;
+  },
+
+  positionOptions(selected) {
+    return ['<option value="">Position wählen …</option>']
+      .concat(window.ROOTS_POSITIONS.map(p => `<option value="${escapeHtml(p)}" ${p === selected ? 'selected' : ''}>${escapeHtml(p)}</option>`))
+      .join('');
+  },
+
+  reportingOptions(users, selectedId, selfId) {
+    return ['<option value="">— Keine —</option>']
+      .concat(users.filter(u => u.id !== selfId).map(u => {
+        const label = u.full_name || u.email || u.id;
+        return `<option value="${u.id}" ${u.id === selectedId ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+      }))
+      .join('');
+  },
+
+  toolChecksHtml(u) {
+    const edits = window._adminUserEdits?.[u.id] || window.IntranetAccess.initialEditsFromUser(u);
+    return window.INTRANET_TOOLS.map(t => {
+      const on = edits.allowed_tools.includes(t.id);
+      return `<label class="admin-tool-opt"><input type="checkbox" class="aec-tool" data-tool="${t.id}" ${on ? 'checked' : ''}> ${t.label}</label>`;
+    }).join('');
+  },
+
+  renderForm(u) {
+    const users = window._adminUsers || [];
+    const role = window.IntranetAccess.normalizeRole(u.app_role);
+    const rates = this.parseClientRates(u.app_settings);
+    const av = u.avatar_url
+      ? `<img src="${escapeHtml(u.avatar_url)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'admin-av-fallback',textContent:'${escapeHtml(window.RootsUser._initials(u.full_name || u.email))}'}))">`
+      : `<span class="admin-av-fallback">${escapeHtml(window.RootsUser._initials(u.full_name || u.email))}</span>`;
+    return `
+      <div class="admin-detail-head">
+        <div>
+          <h3>${escapeHtml(u.full_name || u.email || 'Mitarbeiter')}</h3>
+          <p class="muted" style="margin:.25rem 0 0;font-size:.8rem">${escapeHtml(u.email || '')}</p>
+        </div>
+        <button type="button" class="btn-ghost" id="aec-close" style="height:36px;padding:0 .75rem;border:1px solid var(--line);border-radius:999px;background:none;cursor:pointer"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="roots-admin-employee-form" autocomplete="off">
+        <div class="admin-section-title">Personal</div>
+        <div class="admin-form-grid">
+          <div class="admin-field"><label for="aec-personal-id">Personal-ID</label><input id="aec-personal-id" type="text" value="${escapeHtml(u.personal_id || '')}"></div>
+          <div class="admin-field"><label for="aec-salutation">Ansprache</label>
+            <select id="aec-salutation">
+              <option value="" ${!u.salutation ? 'selected' : ''}>—</option>
+              <option value="Herr" ${u.salutation === 'Herr' ? 'selected' : ''}>Herr</option>
+              <option value="Frau" ${u.salutation === 'Frau' ? 'selected' : ''}>Frau</option>
+            </select>
+          </div>
+          <div class="admin-field"><label for="aec-first-name">Vorname</label><input id="aec-first-name" type="text" value="${escapeHtml(u.first_name || '')}"></div>
+          <div class="admin-field"><label for="aec-last-name">Nachname</label><input id="aec-last-name" type="text" value="${escapeHtml(u.last_name || '')}"></div>
+          <div class="admin-field"><label for="aec-kuerzel">Kürzel</label><input id="aec-kuerzel" type="text" maxlength="8" value="${escapeHtml(u.kuerzel || '')}" placeholder="z. B. PG"></div>
+          <div class="admin-field"><label for="aec-birthday">Geburtsdatum (TT.MM.)</label><input id="aec-birthday" type="text" value="${escapeHtml(u.birthday || '')}" placeholder="15.03."></div>
+          <div class="admin-field span-2">
+            <label>Profilbild</label>
+            <div class="admin-av-block">
+              <div id="aec-avatar-preview">${av}</div>
+              <div>
+                <input type="file" id="aec-avatar-file" accept="image/*" hidden>
+                <button type="button" id="aec-avatar-btn" class="btn-ghost" style="height:36px;margin-bottom:.35rem">Bild wählen …</button>
+                <p class="muted" style="margin:0;font-size:.72rem">Wird in der Nutzerdatenbank gespeichert.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="admin-section-title">Arbeit</div>
+        <div class="admin-form-grid">
+          <div class="admin-field"><label for="aec-start-date">Einstiegsdatum</label><input id="aec-start-date" type="date" value="${this.fmtDateInput(u.start_date)}"></div>
+          <div class="admin-field"><label for="aec-weekly-hours">Arbeitsstunden / Woche</label><input id="aec-weekly-hours" type="number" min="0" step="0.5" value="${u.weekly_hours ?? ''}"></div>
+          <div class="admin-field"><label for="aec-urlaub-jahr">Urlaubstage / Jahr</label><input id="aec-urlaub-jahr" type="number" min="0" step="1" value="${u.urlaubstage_jahr ?? 30}"></div>
+          <div class="admin-field"><label for="aec-position">Position / Rolle</label><select id="aec-position">${this.positionOptions(u.position || '')}</select></div>
+          <div class="admin-field"><label for="aec-hourly-rate">Stundensatz (allgemein)</label><input id="aec-hourly-rate" type="number" min="0" step="0.01" value="${u.hourly_rate ?? ''}" placeholder="€/h"></div>
+          <div class="admin-field"><label for="aec-reporting">Reporting Line</label><select id="aec-reporting">${this.reportingOptions(users, u.reporting_line_id, u.id)}</select></div>
+          <div class="admin-field span-2">
+            <label>Stundensatz pro Kunde</label>
+            ${this.clientRatesHtml(rates)}
+          </div>
+        </div>
+        <div class="admin-section-title">Kontakt</div>
+        <div class="admin-form-grid">
+          <div class="admin-field"><label for="aec-email">E-Mail</label><input id="aec-email" type="email" value="${escapeHtml(u.email || '')}"><p class="muted" style="margin:.25rem 0 0;font-size:.7rem">Profil-E-Mail in der Datenbank (Auth-Login separat).</p></div>
+          <div class="admin-field"><label for="aec-phone">Telefon</label><input id="aec-phone" type="tel" value="${escapeHtml(u.phone || '')}"></div>
+          <div class="admin-field span-2"><label for="aec-linkedin">LinkedIn</label><input id="aec-linkedin" type="url" value="${escapeHtml(u.linkedin_url || '')}" placeholder="https://linkedin.com/in/…"></div>
+        </div>
+        <div class="admin-section-title">Rechte &amp; Tools</div>
+        <div class="admin-form-grid">
+          <div class="admin-field"><label for="aec-role">Rechte</label>
+            <select id="aec-role">
+              <option value="admin" ${role === 'admin' ? 'selected' : ''}>Admin</option>
+              <option value="editor" ${role === 'editor' ? 'selected' : ''}>Bearbeiten</option>
+              <option value="reader" ${role === 'reader' ? 'selected' : ''}>Lesen</option>
+            </select>
+          </div>
+          <div class="admin-field span-2">
+            <span class="admin-tools-label">Sichtbare Intranet-Tools</span>
+            <div class="admin-tool-grid" id="aec-tools">${this.toolChecksHtml(u)}</div>
+            <p class="muted" style="margin:.45rem 0 0;font-size:.72rem">Ohne Auswahl sehen Nutzer standardmäßig alle Module.</p>
+          </div>
+        </div>
+        <div class="admin-detail-actions">
+          <button type="submit" class="btn-primary" id="aec-save">Speichern</button>
+          <button type="button" class="btn-ghost" id="aec-cancel">Abbrechen</button>
+          <span id="aec-msg" style="font-size:.85rem;color:var(--muted)"></span>
+        </div>
+      </form>`;
+  },
+
+  bindForm(u) {
+    this._draftAvatar = null;
+    const form = document.getElementById('roots-admin-employee-form');
+    const fileInput = document.getElementById('aec-avatar-file');
+    document.getElementById('aec-avatar-btn')?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (!file || !file.type.startsWith('image/')) return;
+      const r = new FileReader();
+      r.onload = () => {
+        this._draftAvatar = r.result;
+        const prev = document.getElementById('aec-avatar-preview');
+        if (prev) prev.innerHTML = `<img src="${r.result}" alt="">`;
+      };
+      r.readAsDataURL(file);
+    });
+    document.getElementById('aec-add-client')?.addEventListener('click', () => {
+      const wrap = document.getElementById('aec-client-rates');
+      if (!wrap) return;
+      const idx = wrap.querySelectorAll('.admin-client-rate-row').length;
+      wrap.insertAdjacentHTML('beforeend', `<div class="admin-client-rate-row" data-idx="${idx}">
+        <input type="text" class="aec-client-name" list="roots-client-suggestions" placeholder="Kunde">
+        <input type="number" class="aec-client-rate" min="0" step="0.01" placeholder="€/h">
+        <button type="button" class="aec-remove-client" title="Entfernen"><i class="fa-solid fa-trash-can"></i></button>
+      </div>`);
+      this.bindClientRateRows();
+    });
+    this.bindClientRateRows();
+    document.getElementById('aec-close')?.addEventListener('click', () => this.closeDetail());
+    document.getElementById('aec-cancel')?.addEventListener('click', () => this.openEmployee(u.id));
+    form?.addEventListener('submit', (e) => { e.preventDefault(); void this.saveEmployee(u.id); });
+  },
+
+  bindClientRateRows() {
+    document.querySelectorAll('.aec-remove-client').forEach(btn => {
+      btn.onclick = () => {
+        const row = btn.closest('.admin-client-rate-row');
+        const wrap = document.getElementById('aec-client-rates');
+        if (!row || !wrap) return;
+        if (wrap.querySelectorAll('.admin-client-rate-row').length <= 1) {
+          row.querySelector('.aec-client-name').value = '';
+          row.querySelector('.aec-client-rate').value = '';
+          return;
+        }
+        row.remove();
+      };
+    });
+  },
+
+  collectClientRates() {
+    const rows = [...document.querySelectorAll('#aec-client-rates .admin-client-rate-row')];
+    return rows.map(row => ({
+      client: row.querySelector('.aec-client-name')?.value.trim() || '',
+      rate: row.querySelector('.aec-client-rate')?.value,
+    })).filter(r => r.client).map(r => ({ client: r.client, rate: r.rate === '' ? null : Number(r.rate) }));
+  },
+
+  async loadList(listId) {
+    const list = document.getElementById(listId);
+    if (!list) return;
+    list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin"></i> Lade Nutzer…</div>';
+    const { data, error } = await window.RootsUser._sb.schema('users').from('profiles')
+      .select(window.ADMIN_PROFILE_SELECT).order('full_name');
+    if (error) {
+      list.innerHTML = `<div style="text-align:center;padding:2rem;color:#dc2626">${escapeHtml(error.message)}</div>`;
+      return;
+    }
+    window._adminUsers = data || [];
+    window._adminUserEdits = {};
+    if (!window._adminUsers.length) {
+      list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Keine Nutzer.</div>';
+      return;
+    }
+    list.innerHTML = window._adminUsers.map(u => window.IntranetAccess.renderAdminUserRow(u, this._activeId)).join('');
+    list.querySelectorAll('.admin-user-row').forEach(row => {
+      row.addEventListener('click', () => this.openEmployee(row.dataset.uid));
+    });
+    if (this._activeId) this.highlightRow(this._activeId);
+  },
+
+  highlightRow(uid) {
+    document.querySelectorAll('.admin-user-row').forEach(row => {
+      row.classList.toggle('is-active', row.dataset.uid === uid);
+    });
+  },
+
+  closeDetail() {
+    this._activeId = null;
+    this._draftAvatar = null;
+    const panel = document.getElementById('roots-admin-employee-panel');
+    const empty = document.getElementById('roots-admin-employee-empty');
+    const wrap = document.getElementById('roots-admin-employee-form-wrap');
+    if (panel) panel.hidden = false;
+    if (empty) empty.hidden = false;
+    if (wrap) { wrap.hidden = true; wrap.innerHTML = ''; }
+    this.highlightRow(null);
+  },
+
+  openEmployee(uid) {
+    const u = window._adminUsers?.find(x => x.id === uid);
+    if (!u) return;
+    this._activeId = uid;
+    if (!window._adminUserEdits) window._adminUserEdits = {};
+    window._adminUserEdits[uid] = window.IntranetAccess.initialEditsFromUser(u);
+    const panel = document.getElementById('roots-admin-employee-panel');
+    const empty = document.getElementById('roots-admin-employee-empty');
+    const wrap = document.getElementById('roots-admin-employee-form-wrap');
+    if (panel) panel.hidden = false;
+    if (empty) empty.hidden = true;
+    if (wrap) {
+      wrap.hidden = false;
+      wrap.innerHTML = this.renderForm(u);
+      this.bindForm(u);
+    }
+    this.highlightRow(uid);
+    panel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  },
+
+  async saveEmployee(uid) {
+    const u = window._adminUsers?.find(x => x.id === uid);
+    const btn = document.getElementById('aec-save');
+    const msg = document.getElementById('aec-msg');
+    if (!u || !window.RootsUser?._sb) return;
+    const setMsg = (text, ok) => {
+      if (!msg) return;
+      msg.style.color = ok ? '#10b981' : '#dc2626';
+      msg.textContent = text;
+    };
+    const orig = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Speichern…'; }
+    setMsg('', true);
+    try {
+      const first = document.getElementById('aec-first-name')?.value.trim() || '';
+      const last = document.getElementById('aec-last-name')?.value.trim() || '';
+      const fullName = [first, last].filter(Boolean).join(' ') || document.getElementById('aec-email')?.value.trim() || u.full_name;
+      const checkedTools = [...document.querySelectorAll('#aec-tools .aec-tool:checked')].map(el => el.dataset.tool);
+      const allowedTools = window.IntranetAccess.toolsToSave(checkedTools);
+      const appSettings = { ...(u.app_settings && typeof u.app_settings === 'object' ? u.app_settings : {}) };
+      appSettings.allowed_tools = allowedTools;
+      const clientRates = this.collectClientRates();
+      if (clientRates.length) appSettings.client_hourly_rates = clientRates;
+      else delete appSettings.client_hourly_rates;
+      if (this._draftAvatar) {
+        appSettings.avatar_source = this._draftAvatar;
+      }
+      const payload = {
+        personal_id: document.getElementById('aec-personal-id')?.value.trim() || null,
+        salutation: document.getElementById('aec-salutation')?.value || null,
+        first_name: first || null,
+        last_name: last || null,
+        full_name: fullName || null,
+        kuerzel: document.getElementById('aec-kuerzel')?.value.trim().toUpperCase() || null,
+        birthday: document.getElementById('aec-birthday')?.value.trim() || null,
+        start_date: document.getElementById('aec-start-date')?.value || null,
+        weekly_hours: document.getElementById('aec-weekly-hours')?.value === '' ? null : Number(document.getElementById('aec-weekly-hours').value),
+        urlaubstage_jahr: document.getElementById('aec-urlaub-jahr')?.value === '' ? 30 : parseInt(document.getElementById('aec-urlaub-jahr').value, 10),
+        position: document.getElementById('aec-position')?.value || null,
+        hourly_rate: document.getElementById('aec-hourly-rate')?.value === '' ? null : Number(document.getElementById('aec-hourly-rate').value),
+        reporting_line_id: document.getElementById('aec-reporting')?.value || null,
+        email: document.getElementById('aec-email')?.value.trim() || u.email,
+        phone: document.getElementById('aec-phone')?.value.trim() || null,
+        linkedin_url: document.getElementById('aec-linkedin')?.value.trim() || null,
+        app_role: document.getElementById('aec-role')?.value || 'reader',
+        app_settings: appSettings,
+        avatar_url: this._draftAvatar || u.avatar_url || null,
+      };
+      const { error } = await window.RootsUser._sb.schema('users').from('profiles').update(payload).eq('id', uid);
+      if (error) throw error;
+      Object.assign(u, payload);
+      window._adminUserEdits[uid] = window.IntranetAccess.initialEditsFromUser(u);
+      if (uid === window.RootsUser._uid) {
+        Object.assign(window.RootsUser._p, payload);
+        window.RootsUser._mount();
+        window.RootsUser._syncAdminNav();
+        window.IntranetAccess.applyVisibility(window.RootsUser._p);
+        window.RootsUser._broadcastProfile();
+      }
+      await this.loadList('roots-admin-user-list-page');
+      this.openEmployee(uid);
+      setMsg('✓ Gespeichert', true);
+    } catch (e) {
+      setMsg('✗ ' + (e.message || 'Fehler beim Speichern'), false);
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = orig || 'Speichern'; }
+    }
   },
 };
 
@@ -2375,19 +2811,16 @@ window.RootsUser = {
 window.RootsAdmin = {
   async open() {
     if (!(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) return;
-    document.getElementById('roots-admin-modal').style.display = 'flex';
-    document.getElementById('roots-admin-msg').textContent = '';
-    const list = document.getElementById('roots-admin-user-list');
-    list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)"><i class="fa-solid fa-circle-notch fa-spin"></i> Lade Nutzer…</div>';
-    const { data } = await window.RootsUser._sb.schema('users').from('profiles')
-      .select('id,email,full_name,position,avatar_url,app_role,app_settings,kuerzel').order('full_name');
-    window._adminUsers = data || [];
-    window._adminUserEdits = {};
-    if (!window._adminUsers.length) {
-      list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Keine Nutzer gefunden.</div>';
+    if (window.intranetNavigateToView) {
+      window.intranetNavigateToView('admin');
       return;
     }
-    list.innerHTML = window._adminUsers.map(u => window.IntranetAccess.renderAdminUserCard(u)).join('');
+    document.getElementById('roots-admin-modal').style.display = 'flex';
+    document.getElementById('roots-admin-msg').textContent = '';
+    await window.RootsAdminEmployee.loadList('roots-admin-user-list');
+    const list = document.getElementById('roots-admin-user-list');
+    if (!list) return;
+    list.innerHTML = (window._adminUsers || []).map(u => window.IntranetAccess.renderAdminUserCard(u)).join('');
     window.IntranetAccess.bindAdminUserCards(list);
   },
 

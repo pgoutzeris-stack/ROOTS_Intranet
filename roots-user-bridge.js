@@ -199,6 +199,129 @@
   }
 
   const SYNC_INTERVAL_MS = 20000;
+  const SUPABASE_REF = 'csmguwcvzreefluhahyu';
+  const SB_LABEL = `Supabase · ${SUPABASE_REF}`;
+
+  /** @type {{ match: RegExp, tool: string, dbs: string[] }[]} */
+  const TOOL_DB_REGISTRY = [
+    {
+      match: /team-kalender|Team-Kalender/i,
+      tool: 'Team-Kalender',
+      dbs: [
+        `${SB_LABEL} · users.profiles (Auth)`,
+        `${SB_LABEL} · team_kalender.events, team_members, nrw_holidays`,
+        `${SB_LABEL} · Edge Function team-kalender`,
+      ],
+    },
+    {
+      match: /urlaubsplanung|vacation/i,
+      tool: 'Urlaubsplanung',
+      dbs: [
+        `${SB_LABEL} · users.profiles (Auth)`,
+        `${SB_LABEL} · team_kalender.urlaub_requests, roots_closure_days`,
+        `${SB_LABEL} · Edge Function urlaubsplanung`,
+      ],
+    },
+    {
+      match: /ROOTS_SOP|SOP_Tool|\bsop\b/i,
+      tool: 'SOP Tool',
+      dbs: [
+        `${SB_LABEL} · users.profiles (Auth)`,
+        'PythonAnywhere · PGoutzeris.pythonanywhere.com (SOP-Inhalte)',
+        'Browser · localStorage (Autosave)',
+      ],
+    },
+    {
+      match: /Zeiterfassung|zeiterfassung|ROOTS.?TIME/i,
+      tool: 'Zeiterfassung',
+      dbs: [
+        `${SB_LABEL} · users.profiles (Auth)`,
+        `${SB_LABEL} · zeiterfassung.profiles, categories, projects, tasks, time_entries`,
+      ],
+    },
+    {
+      match: /Notes-Tool|\bnotes\b/i,
+      tool: 'Notes',
+      dbs: [
+        `${SB_LABEL} · users.profiles (Auth)`,
+        `${SB_LABEL} · notes.folders, notes.documents`,
+      ],
+    },
+    {
+      match: /onboarding/i,
+      tool: 'Onboarding',
+      dbs: [
+        `${SB_LABEL} · users.profiles (Auth)`,
+        `${SB_LABEL} · onboarding.user_progress`,
+      ],
+    },
+    {
+      match: /image-generation|Image-Generation/i,
+      tool: 'Image Generator',
+      dbs: [
+        `${SB_LABEL} · users.profiles (Auth)`,
+        'Extern · Google Gemini API (Generierung, kein DB-Speicher)',
+      ],
+    },
+    {
+      match: /whiteboard/i,
+      tool: 'Whiteboard',
+      dbs: [
+        `${SB_LABEL} · users.profiles (Auth)`,
+        `${SB_LABEL} · public.wb_boards, wb_objects, wb_comments, wb_snapshots`,
+      ],
+    },
+    {
+      match: /RecruitingApp|recruiting/i,
+      tool: 'Recruiting',
+      dbs: [
+        `${SB_LABEL} · users.profiles (Auth)`,
+        `${SB_LABEL} · recruiting.applicants, interviews, notifications`,
+      ],
+    },
+  ];
+
+  function normalizeDatabaseList(list) {
+    if (!list) return [];
+    const arr = Array.isArray(list) ? list : [list];
+    return arr.map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (item && typeof item === 'object') {
+        const label = item.label || item.name || item.schema || 'Datenbank';
+        const detail = item.detail || item.tables || item.url || '';
+        return detail ? `${label} · ${detail}` : String(label);
+      }
+      return String(item);
+    }).filter(Boolean);
+  }
+
+  function resolveToolMeta() {
+    const cfg = window.RootsSyncStatusConfig || {};
+    if (cfg.toolName || cfg.databases) {
+      return {
+        tool: cfg.toolName || document.title?.split('–')[0]?.trim() || 'ROOTS Tool',
+        databases: normalizeDatabaseList(cfg.databases),
+      };
+    }
+    const path = `${window.location.pathname}${window.location.hash}${window.location.href}`;
+    for (const entry of TOOL_DB_REGISTRY) {
+      if (entry.match.test(path)) {
+        return { tool: entry.tool, databases: entry.dbs.slice() };
+      }
+    }
+    return {
+      tool: document.title?.split('–')[0]?.trim() || 'ROOTS Tool',
+      databases: [`${SB_LABEL} · users.profiles (Auth/Profil)`],
+    };
+  }
+
+  function databaseTermLines(meta) {
+    const lines = [`tool    ${meta.tool}`];
+    (meta.databases || []).forEach((db, i) => {
+      lines.push(`${i === 0 ? 'store   ' : '        '}${db}`);
+    });
+    return lines;
+  }
 
   function ensureSyncStyles() {
     if (document.getElementById('roots-sync-status-styles')) return;
@@ -226,20 +349,41 @@
       .roots-sync-pill.is-offline .roots-sync-dot { background: #ef4444; }
       .roots-sync-term {
         display: none; position: absolute; top: calc(100% + 8px); right: 0;
-        width: min(340px, calc(100vw - 24px)); padding: 10px 12px;
+        width: min(360px, calc(100vw - 24px)); padding: 10px 12px;
         border-radius: 10px; border: 1px solid #334155; background: #0f172a;
         box-shadow: 0 14px 36px rgba(0,0,0,.28); z-index: 99999;
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         font-size: 11px; line-height: 1.55; color: #94a3b8; text-align: left;
-        pointer-events: none;
+        pointer-events: auto;
       }
       .roots-sync-wrap:hover .roots-sync-term,
       .roots-sync-wrap:focus-within .roots-sync-term { display: block; }
+      .roots-sync-term-head {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 8px; margin-bottom: 6px;
+      }
+      .roots-sync-term-title {
+        font-size: 10px; letter-spacing: .04em; text-transform: lowercase;
+        color: #64748b; margin: 0;
+      }
+      .roots-sync-copy-btn {
+        flex-shrink: 0; border: 1px solid #334155; background: #1e293b; color: #cbd5e1;
+        font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px;
+        cursor: pointer; font-family: inherit; line-height: 1.2;
+        transition: background .15s, border-color .15s, color .15s;
+      }
+      .roots-sync-copy-btn:hover {
+        background: #334155; border-color: #475569; color: #f8fafc;
+      }
+      .roots-sync-copy-btn.is-done {
+        color: #4ade80; border-color: #166534; background: #052e16;
+      }
       .roots-sync-term-line { white-space: pre-wrap; word-break: break-word; margin: 0; }
       .roots-sync-term-line.is-ok { color: #4ade80; }
       .roots-sync-term-line.is-err { color: #f87171; }
       .roots-sync-term-line.is-warn { color: #fbbf24; }
       .roots-sync-term-line.is-dim { color: #64748b; }
+      .roots-sync-term-line.is-data { color: #7dd3fc; }
     `;
     document.head.appendChild(s);
   }
@@ -263,6 +407,7 @@
 
   function classifyTermLine(line) {
     const t = String(line || '').trim();
+    if (/^tool\s+/i.test(t) || /^store\s+/i.test(t)) return 'is-data';
     if (/^status\s+online/i.test(t)) return 'is-ok';
     if (/^status\s+offline/i.test(t) || /^error/i.test(t) || /^code/i.test(t)) return 'is-err';
     if (/^warn/i.test(t) || /^hint/i.test(t)) return 'is-warn';
@@ -270,10 +415,32 @@
     return 'is-dim';
   }
 
+  function termLineHtml(line) {
+    const kind = classifyTermLine(line);
+    return `<div class="roots-sync-term-line ${kind}">${escapeHtml(line)}</div>`;
+  }
+
+  async function copyTextToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+
   const SyncStatus = {
     _timer: null,
     _sb: null,
     _checking: false,
+    _copyTimer: null,
     _state: { online: null, lines: ['status  initializing…'], lastCheck: null, latencyMs: null },
 
     ensureSlot() {
@@ -287,21 +454,64 @@
         slot.setAttribute('aria-live', 'polite');
         headerRight.appendChild(slot);
       }
+      if (slot && !slot.dataset.copyBound) {
+        slot.dataset.copyBound = '1';
+        slot.addEventListener('click', (e) => {
+          const btn = e.target.closest('.roots-sync-copy-btn');
+          if (!btn) return;
+          e.preventDefault();
+          e.stopPropagation();
+          void SyncStatus.copyTerminal(btn);
+        });
+      }
       return slot;
+    },
+
+    getTerminalPlainText() {
+      const meta = resolveToolMeta();
+      const stamp = this._state.lastCheck
+        ? new Date(this._state.lastCheck).toLocaleTimeString('de-DE')
+        : '—';
+      return [
+        'roots sync monitor',
+        ...databaseTermLines(meta),
+        '',
+        ...(this._state.lines || []),
+        `checked  ${stamp}`,
+      ].join('\n');
+    },
+
+    async copyTerminal(btn) {
+      try {
+        await copyTextToClipboard(this.getTerminalPlainText());
+        const label = btn.textContent;
+        btn.classList.add('is-done');
+        btn.textContent = 'Kopiert';
+        if (this._copyTimer) clearTimeout(this._copyTimer);
+        this._copyTimer = setTimeout(() => {
+          btn.classList.remove('is-done');
+          btn.textContent = label;
+        }, 1400);
+      } catch (_) {
+        btn.textContent = 'Fehler';
+        if (this._copyTimer) clearTimeout(this._copyTimer);
+        this._copyTimer = setTimeout(() => {
+          btn.textContent = 'Kopieren';
+        }, 1400);
+      }
     },
 
     render() {
       const slot = this.ensureSlot();
       if (!slot) return;
       ensureSyncStyles();
+      const meta = resolveToolMeta();
       const online = this._state.online === true;
       const checking = this._checking;
       const label = checking ? 'Prüfe…' : (online ? 'Online' : 'Offline');
       const cls = checking ? 'is-checking' : (online ? 'is-online' : 'is-offline');
-      const lines = (this._state.lines || []).map((line) => {
-        const kind = classifyTermLine(line);
-        return `<div class="roots-sync-term-line ${kind}">${escapeHtml(line)}</div>`;
-      }).join('');
+      const dbLines = databaseTermLines(meta).map(termLineHtml).join('');
+      const lines = (this._state.lines || []).map(termLineHtml).join('');
       const stamp = this._state.lastCheck
         ? new Date(this._state.lastCheck).toLocaleTimeString('de-DE')
         : '—';
@@ -311,7 +521,12 @@
           <span class="roots-sync-label">${escapeHtml(label)}</span>
         </div>
         <div class="roots-sync-term" role="tooltip">
-          <div class="roots-sync-term-line is-dim">roots sync monitor</div>
+          <div class="roots-sync-term-head">
+            <div class="roots-sync-term-title">roots sync monitor</div>
+            <button type="button" class="roots-sync-copy-btn" title="Terminal-Inhalt kopieren">Kopieren</button>
+          </div>
+          ${dbLines}
+          <div class="roots-sync-term-line is-dim" aria-hidden="true">&nbsp;</div>
           ${lines}
           <div class="roots-sync-term-line is-dim">checked  ${escapeHtml(stamp)}</div>
         </div>`;
@@ -459,7 +674,6 @@
     document.addEventListener('touchstart', unlock, { passive: true, once: false });
   }
 
-  const SUPABASE_REF = 'csmguwcvzreefluhahyu';
   const AUTH_STORAGE_KEY = `sb-${SUPABASE_REF}-auth-token`;
   let _lastAuthFingerprint = null;
   let _hadSession = false;

@@ -850,6 +850,9 @@
           <a href="#whiteboard" class="nav-item" data-view="whiteboard" data-tool-id="whiteboard">
             <i class="fa-solid fa-chalkboard-user"></i><span class="nav-label-text"> Whiteboard</span>
           </a>
+          <a href="#livepoll" class="nav-item" data-view="livepoll" data-tool-id="livepoll">
+            <i class="fa-solid fa-signal"></i><span class="nav-label-text"> Live Poll</span>
+          </a>
           <a href="#admin" class="nav-item nav-item--admin" id="roots-admin-nav-item" data-view="admin" hidden aria-hidden="true">
             <i class="fa-solid fa-users-gear"></i><span class="nav-label-text"> Nutzerverwaltung</span>
           </a>
@@ -993,6 +996,19 @@
                 </a>
               </div>
             </article>
+
+            <article class="tool-launch-card" data-tool-id="livepoll">
+              <span class="card-chip"><i class="fa-solid fa-signal"></i> Interaktion</span>
+              <div class="tool-card-copy">
+                <h3>Live Poll</h3>
+                <p>Interaktive Präsentationen mit Live-Abstimmungen, Q&amp;A und mobiler Teilnahme per Code oder QR.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#livepoll" class="btn-primary" data-open-view="livepoll">
+                  <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Öffnen
+                </a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -1030,6 +1046,15 @@
           class="tool-iframe"
           title="ROOTS Whiteboard"
           data-src="https://pgoutzeris-stack.github.io/whiteboard/"
+          referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </section>
+
+      <section class="app-view" data-view-panel="livepoll">
+        <iframe
+          id="livepoll-iframe"
+          class="tool-iframe"
+          title="ROOTS Live Poll"
+          data-src="https://pgoutzeris-stack.github.io/roots-livepoll/"
           referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
 
@@ -1128,7 +1153,7 @@
       const upTitle    = document.getElementById('upcoming-feature-title');
       const upDesc     = document.getElementById('upcoming-feature-description');
 
-      const TOOL_VIEWS = new Set(['recruiting', 'sop', 'image', 'teamkalender', 'onboarding', 'notes', 'vacation', 'whiteboard']);
+      const TOOL_VIEWS = new Set(['recruiting', 'sop', 'image', 'teamkalender', 'onboarding', 'notes', 'vacation', 'whiteboard', 'livepoll']);
 
       function getGreeting() {
         const h = new Date().getHours();
@@ -1824,6 +1849,7 @@ window.INTRANET_TOOLS = [
   { id: 'onboarding', label: 'Onboarding' },
   { id: 'notes', label: 'Notes Tool' },
   { id: 'whiteboard', label: 'Whiteboard' },
+  { id: 'livepoll', label: 'Live Poll' },
 ];
 window.INTRANET_TOOL_IDS = window.INTRANET_TOOLS.map(t => t.id);
 

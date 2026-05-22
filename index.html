@@ -178,6 +178,9 @@
     .admin-page-head { margin-bottom: 1.5rem; }
     .admin-page-head h2 { font-size: 1.5rem; font-weight: 700; color: var(--ink); margin: 0 0 .25rem; }
     .admin-page-head p { margin: 0; font-size: .92rem; color: var(--muted); }
+    .admin-list-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: .85rem; flex-wrap: wrap; }
+    .admin-list-head .admin-panel-intro { margin: 0; flex: 1; min-width: 180px; }
+    .admin-btn--compact { height: 36px; padding: 0 1rem; font-size: .8rem; }
     .admin-panel-intro { font-size: .82rem; color: var(--muted); margin: 0 0 .85rem; line-height: 1.5; }
     .admin-state { text-align: center; padding: 2rem 1rem; color: var(--muted); font-size: .88rem; }
     .admin-state--error { color: #dc2626; }
@@ -1231,7 +1234,12 @@
           </div>
           <div class="admin-layout">
             <div class="admin-list-panel">
-              <p class="admin-panel-intro">Mitarbeiter auswählen, um Stammdaten zu bearbeiten.</p>
+              <div class="admin-list-head">
+                <p class="admin-panel-intro">Mitarbeiter auswählen oder neu anlegen.</p>
+                <button type="button" class="admin-btn admin-btn--primary admin-btn--compact" id="roots-admin-create-btn" onclick="window.RootsAdminEmployee?.openCreate()">
+                  <i class="fa-solid fa-user-plus"></i> Mitarbeiter anlegen
+                </button>
+              </div>
               <div id="roots-admin-user-list-page" class="admin-user-list">
                 <div class="admin-state"><i class="fa-solid fa-circle-notch fa-spin"></i> Lade Nutzer…</div>
               </div>
@@ -2015,6 +2023,7 @@ window.INTRANET_TOOLS = [
 window.INTRANET_TOOL_IDS = window.INTRANET_TOOLS.map(t => t.id);
 
 window.ADMIN_PROFILE_SELECT = 'id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,app_role,app_settings,reporting_line_id';
+window.ROOTS_EMPLOYEE_EMAIL_DOMAIN = '@roots-consultants.com';
 
 window.ROOTS_POSITIONS = ['Praktikant', 'Junior Consultant', 'Consultant', 'Senior Consultant', 'Director', 'Partner'];
 
@@ -2214,6 +2223,12 @@ window.IntranetAccess = {
 
 window.RootsAdminEmployee = {
   _activeId: null,
+  _mode: null,
+
+  isRootsEmail(email) {
+    const e = String(email || '').trim().toLowerCase();
+    return e.endsWith(window.ROOTS_EMPLOYEE_EMAIL_DOMAIN);
+  },
 
   hintHtml(text) {
     return `<p class="admin-field-hint"><i class="fa-solid fa-circle-info"></i><span>${escapeHtml(text)}</span></p>`;
@@ -2267,12 +2282,86 @@ window.RootsAdminEmployee = {
       .join('');
   },
 
-  toolChecksHtml(u) {
-    const edits = window._adminUserEdits?.[u.id] || window.IntranetAccess.initialEditsFromUser(u);
+  toolChecksHtml(u, emptyDefault) {
+    const edits = emptyDefault
+      ? { allowed_tools: [] }
+      : (window._adminUserEdits?.[u.id] || window.IntranetAccess.initialEditsFromUser(u));
     return window.INTRANET_TOOLS.map(t => {
       const on = edits.allowed_tools.includes(t.id);
       return `<label class="admin-tool-opt"><input type="checkbox" class="aec-tool" data-tool="${t.id}" ${on ? 'checked' : ''}><span class="roots-check-label">${t.label}</span></label>`;
     }).join('');
+  },
+
+  renderCreateForm() {
+    const users = window._adminUsers || [];
+    const rates = [{ client: '', rate: '' }];
+    return `
+      <div class="admin-detail-head">
+        <div>
+          <h3>Neuen Mitarbeiter anlegen</h3>
+          <p class="admin-detail-sub">Es wird ein Supabase-Auth-Konto erstellt und eine Einladungs-E-Mail zum Passwort setzen versendet.</p>
+        </div>
+        <button type="button" class="admin-icon-btn" id="aec-close" aria-label="Schließen"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="roots-admin-employee-form" autocomplete="off">
+        <div class="admin-section-title">Personal</div>
+        <div class="admin-form-grid">
+          <div class="admin-field"><label for="aec-salutation">Ansprache</label>
+            <select class="modern-select" id="aec-salutation">
+              <option value="" selected>—</option>
+              <option value="Herr">Herr</option>
+              <option value="Frau">Frau</option>
+            </select>
+          </div>
+          <div class="admin-field"><label for="aec-first-name">Vorname</label><input class="modern-input" id="aec-first-name" type="text" required></div>
+          <div class="admin-field"><label for="aec-last-name">Nachname</label><input class="modern-input" id="aec-last-name" type="text" required></div>
+          <div class="admin-field"><label for="aec-kuerzel">Kürzel</label><input class="modern-input" id="aec-kuerzel" type="text" maxlength="8" placeholder="z. B. PG"></div>
+          <div class="admin-field"><label for="aec-birthday">Geburtsdatum (TT.MM.)</label><input class="modern-input" id="aec-birthday" type="text" placeholder="15.03."></div>
+        </div>
+        <div class="admin-section-title">Arbeit</div>
+        <div class="admin-form-grid">
+          <div class="admin-field"><label for="aec-start-date">Einstiegsdatum</label><input class="modern-input" id="aec-start-date" type="date"></div>
+          <div class="admin-field"><label for="aec-weekly-hours">Arbeitsstunden / Woche</label><input class="modern-input" id="aec-weekly-hours" type="number" min="0" step="0.5"></div>
+          <div class="admin-field"><label for="aec-urlaubstage">Urlaubstage</label><input class="modern-input" id="aec-urlaubstage" type="number" min="0" step="1" value="30"></div>
+          <div class="admin-field"><label for="aec-position">Position / Rolle</label><select class="modern-select" id="aec-position">${this.positionOptions('')}</select></div>
+          <div class="admin-field"><label for="aec-hourly-rate">Stundensatz (allgemein)</label><input class="modern-input" id="aec-hourly-rate" type="number" min="0" step="0.01" placeholder="€/h"></div>
+          <div class="admin-field"><label for="aec-reporting">Reporting Line</label><select class="modern-select" id="aec-reporting">${this.reportingOptions(users, null, null)}</select></div>
+          <div class="admin-field span-2">
+            <label>Stundensatz pro Kunde</label>
+            ${this.clientRatesHtml(rates)}
+          </div>
+        </div>
+        <div class="admin-section-title">Kontakt</div>
+        <div class="admin-form-grid">
+          <div class="admin-field span-2">
+            <label for="aec-email">E-Mail (ROOTS)</label>
+            <input class="modern-input" id="aec-email" type="email" required placeholder="vorname.nachname${escapeHtml(window.ROOTS_EMPLOYEE_EMAIL_DOMAIN)}">
+            ${this.hintHtml('Pflicht: Nur Adressen mit ' + window.ROOTS_EMPLOYEE_EMAIL_DOMAIN + '. Der Nutzer erhält eine Einladung zum Passwort setzen.')}
+          </div>
+          <div class="admin-field"><label for="aec-phone">Telefon</label><input class="modern-input" id="aec-phone" type="tel"></div>
+          <div class="admin-field span-2"><label for="aec-linkedin">LinkedIn</label><input class="modern-input" id="aec-linkedin" type="url" placeholder="https://linkedin.com/in/…"></div>
+        </div>
+        <div class="admin-section-title">Rechte &amp; Tools</div>
+        <div class="admin-form-grid">
+          <div class="admin-field"><label for="aec-role">Rechte</label>
+            <select class="modern-select" id="aec-role">
+              <option value="admin">Admin</option>
+              <option value="editor">Bearbeiten</option>
+              <option value="reader" selected>Lesen</option>
+            </select>
+          </div>
+          <div class="admin-field span-2">
+            <span class="admin-tools-label">Sichtbare Intranet-Tools</span>
+            <div class="admin-tool-grid" id="aec-tools">${this.toolChecksHtml({}, true)}</div>
+            ${this.hintHtml('Ohne Auswahl sehen Nutzer standardmäßig alle Module.')}
+          </div>
+        </div>
+        <div class="admin-detail-actions">
+          <button type="submit" class="admin-btn admin-btn--primary" id="aec-save"><i class="fa-solid fa-paper-plane"></i> Anlegen &amp; Einladung senden</button>
+          <button type="button" class="admin-btn admin-btn--ghost" id="aec-cancel">Abbrechen</button>
+          <span id="aec-msg" class="admin-form-msg"></span>
+        </div>
+      </form>`;
   },
 
   renderForm(u) {
@@ -2360,8 +2449,19 @@ window.RootsAdminEmployee = {
     });
     this.bindClientRateRows();
     document.getElementById('aec-close')?.addEventListener('click', () => this.closeDetail());
-    document.getElementById('aec-cancel')?.addEventListener('click', () => this.openEmployee(u.id));
-    form?.addEventListener('submit', (e) => { e.preventDefault(); void this.saveEmployee(u.id); });
+    document.getElementById('aec-cancel')?.addEventListener('click', () => {
+      if (this._mode === 'create') this.closeDetail();
+      else this.openEmployee(u.id);
+    });
+    form?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (this._mode === 'create') void this.inviteEmployee();
+      else void this.saveEmployee(u.id);
+    });
+  },
+
+  bindCreateForm() {
+    this.bindForm({});
   },
 
   bindClientRateRows() {
@@ -2419,6 +2519,7 @@ window.RootsAdminEmployee = {
 
   closeDetail() {
     this._activeId = null;
+    this._mode = null;
     const panel = document.getElementById('roots-admin-employee-panel');
     const empty = document.getElementById('roots-admin-employee-empty');
     const wrap = document.getElementById('roots-admin-employee-form-wrap');
@@ -2428,10 +2529,28 @@ window.RootsAdminEmployee = {
     this.highlightRow(null);
   },
 
+  openCreate() {
+    this._activeId = null;
+    this._mode = 'create';
+    const panel = document.getElementById('roots-admin-employee-panel');
+    const empty = document.getElementById('roots-admin-employee-empty');
+    const wrap = document.getElementById('roots-admin-employee-form-wrap');
+    panel?.classList.add('has-selection');
+    if (empty) empty.hidden = true;
+    if (wrap) {
+      wrap.hidden = false;
+      wrap.innerHTML = this.renderCreateForm();
+      this.bindCreateForm();
+    }
+    this.highlightRow(null);
+    panel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  },
+
   openEmployee(uid) {
     const u = window._adminUsers?.find(x => x.id === uid);
     if (!u) return;
     this._activeId = uid;
+    this._mode = 'edit';
     if (!window._adminUserEdits) window._adminUserEdits = {};
     window._adminUserEdits[uid] = window.IntranetAccess.initialEditsFromUser(u);
     const panel = document.getElementById('roots-admin-employee-panel');
@@ -2509,6 +2628,83 @@ window.RootsAdminEmployee = {
       setMsg('✗ ' + (e.message || 'Fehler beim Speichern'), false);
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = orig || '<i class="fa-solid fa-floppy-disk"></i> Speichern'; }
+    }
+  },
+
+  collectFormPayload() {
+    const first = document.getElementById('aec-first-name')?.value.trim() || '';
+    const last = document.getElementById('aec-last-name')?.value.trim() || '';
+    const email = document.getElementById('aec-email')?.value.trim().toLowerCase() || '';
+    const fullName = [first, last].filter(Boolean).join(' ') || email.split('@')[0] || '';
+    const checkedTools = [...document.querySelectorAll('#aec-tools .aec-tool:checked')].map(el => el.dataset.tool);
+    const allowedTools = window.IntranetAccess.toolsToSave(checkedTools);
+    const appSettings = { allowed_tools: allowedTools };
+    const clientRates = this.collectClientRates();
+    if (clientRates.length) appSettings.client_hourly_rates = clientRates;
+    return {
+      email,
+      salutation: document.getElementById('aec-salutation')?.value || null,
+      first_name: first || null,
+      last_name: last || null,
+      full_name: fullName || null,
+      kuerzel: document.getElementById('aec-kuerzel')?.value.trim().toUpperCase() || null,
+      birthday: document.getElementById('aec-birthday')?.value.trim() || null,
+      start_date: document.getElementById('aec-start-date')?.value || null,
+      weekly_hours: document.getElementById('aec-weekly-hours')?.value === '' ? null : Number(document.getElementById('aec-weekly-hours').value),
+      urlaubstage: document.getElementById('aec-urlaubstage')?.value === '' ? 30 : parseInt(document.getElementById('aec-urlaubstage').value, 10),
+      position: document.getElementById('aec-position')?.value || null,
+      hourly_rate: document.getElementById('aec-hourly-rate')?.value === '' ? null : Number(document.getElementById('aec-hourly-rate').value),
+      reporting_line_id: document.getElementById('aec-reporting')?.value || null,
+      phone: document.getElementById('aec-phone')?.value.trim() || null,
+      linkedin_url: document.getElementById('aec-linkedin')?.value.trim() || null,
+      app_role: document.getElementById('aec-role')?.value || 'reader',
+      app_settings: appSettings,
+    };
+  },
+
+  async inviteEmployee() {
+    const btn = document.getElementById('aec-save');
+    const msg = document.getElementById('aec-msg');
+    if (!window.RootsUser?._sb) return;
+    const setMsg = (text, ok) => {
+      if (!msg) return;
+      msg.className = 'admin-form-msg' + (text ? (ok ? ' is-ok' : ' is-err') : '');
+      msg.textContent = text;
+    };
+    const payload = this.collectFormPayload();
+    if (!payload.first_name && !payload.last_name) {
+      setMsg('✗ Vor- oder Nachname ist erforderlich.', false);
+      return;
+    }
+    if (!this.isRootsEmail(payload.email)) {
+      setMsg('✗ E-Mail muss mit ' + window.ROOTS_EMPLOYEE_EMAIL_DOMAIN + ' enden.', false);
+      return;
+    }
+    const orig = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Wird angelegt…'; }
+    setMsg('', true);
+    try {
+      const { data, error } = await window.RootsUser._sb.functions.invoke('roots-admin-users', {
+        body: { action: 'invite_employee', ...payload },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const profile = data?.profile;
+      await this.loadList('roots-admin-user-list-page');
+      this._mode = 'edit';
+      if (profile?.id) {
+        if (!window._adminUsers?.find(u => u.id === profile.id)) {
+          window._adminUsers = [...(window._adminUsers || []), profile];
+        }
+        this.openEmployee(profile.id);
+      } else {
+        this.closeDetail();
+      }
+      setMsg('✓ ' + (data?.message || 'Einladung versendet.'), true);
+    } catch (e) {
+      setMsg('✗ ' + (e.message || 'Anlegen fehlgeschlagen'), false);
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = orig || '<i class="fa-solid fa-paper-plane"></i> Anlegen & Einladung senden'; }
     }
   },
 };

@@ -175,9 +175,25 @@
 
     /* ── Admin page shell ── */
     .admin-page { max-width: 1240px; }
-    .admin-page-head { margin-bottom: 1.5rem; }
+    .admin-topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .admin-page-head { flex: 1; min-width: 0; }
     .admin-page-head h2 { font-size: 1.5rem; font-weight: 700; color: var(--ink); margin: 0 0 .25rem; }
     .admin-page-head p { margin: 0; font-size: .92rem; color: var(--muted); }
+    .admin-topbar .header-right {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-shrink: 0;
+      margin-left: auto;
+      padding-top: .15rem;
+    }
     .admin-list-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: .85rem; flex-wrap: wrap; }
     .admin-list-head .admin-panel-intro { margin: 0; flex: 1; min-width: 180px; }
     .admin-btn--compact { height: 36px; padding: 0 1rem; font-size: .8rem; }
@@ -1228,10 +1244,13 @@
 
       <section class="app-view" data-view-panel="admin" data-scroll>
         <div class="admin-page">
-          <div class="admin-page-head">
-            <h2>Nutzerverwaltung</h2>
-            <p class="muted">Mitarbeiter-Stammdaten, Rollen und Zugriffsrechte</p>
-          </div>
+          <header class="admin-topbar" role="banner">
+            <div class="admin-page-head">
+              <h2>Nutzerverwaltung</h2>
+              <p class="muted">Mitarbeiter-Stammdaten, Rollen und Zugriffsrechte</p>
+            </div>
+            <div class="header-right" aria-label="Sync-Status"></div>
+          </header>
           <div class="admin-layout">
             <div class="admin-list-panel">
               <div class="admin-list-head">
@@ -1429,6 +1448,21 @@
         if (isTool) ensureToolIframe(viewName);
         else if (window.RootsUser?._broadcastAuthSession) window.RootsUser._broadcastAuthSession();
         applySidebarForView(viewName);
+        if (viewName === 'admin') mountAdminSyncStatus();
+      }
+
+      function mountAdminSyncStatus() {
+        window.RootsSyncStatusConfig = {
+          toolName: 'ROOTS Nutzerverwaltung',
+          databases: [{
+            id: 'users-profiles',
+            label: 'users.profiles',
+            href: 'https://supabase.com/dashboard/project/csmguwcvzreefluhahyu',
+          }],
+        };
+        queueMicrotask(() => {
+          window.RootsUserBridge?.mountSyncStatus?.(window.RootsUser?._sb || window.__rootsSupabaseClient);
+        });
       }
 
       function applySidebarForView(viewName) {
@@ -3097,6 +3131,8 @@ window.RootsAdmin = {
   }
 };
 </script>
+
+<script src="roots-user-bridge.js?v=20260522-hover"></script>
 
 <script>
 (function(){

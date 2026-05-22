@@ -684,12 +684,14 @@
       .sop-header:has(.roots-sync-wrap),
       .app-header:has(.roots-sync-wrap),
       .app-topbar:has(.roots-sync-wrap),
+      .admin-topbar:has(.roots-sync-wrap),
       header[role="banner"]:has(.roots-sync-wrap) {
         overflow: visible !important;
       }
       .sop-header .header-right:has(.roots-sync-wrap),
       .app-header .header-right:has(.roots-sync-wrap),
       .app-topbar .header-right:has(.roots-sync-wrap),
+      .admin-topbar .header-right:has(.roots-sync-wrap),
       header[role="banner"] .header-right:has(.roots-sync-wrap) {
         overflow: visible !important;
         position: relative;
@@ -788,8 +790,10 @@
   }
 
   function findToolHeaderRight() {
+    const adminHeader = document.querySelector('.app-view[data-view-panel="admin"].is-active .admin-topbar .header-right');
+    if (adminHeader) return adminHeader;
     return document.querySelector(
-      '.sop-header .header-right, .app-topbar .header-right, .app-header .header-right, header[role="banner"] .header-right'
+      '.sop-header .header-right, .app-topbar .header-right, .app-header .header-right, header[role="banner"] .header-right, .admin-topbar .header-right'
     );
   }
 
@@ -900,11 +904,14 @@
       hideLegacyProfileHeader();
       let slot = document.getElementById('roots-sync-status');
       const headerRight = findToolHeaderRight();
-      if (!slot && headerRight) {
+      if (!headerRight) return slot || null;
+      if (!slot) {
         slot = document.createElement('div');
         slot.id = 'roots-sync-status';
         slot.className = 'roots-sync-wrap';
         slot.setAttribute('aria-live', 'polite');
+        headerRight.appendChild(slot);
+      } else if (slot.parentElement !== headerRight) {
         headerRight.appendChild(slot);
       }
       if (slot && !slot.dataset.copyBound) {

@@ -310,12 +310,6 @@
       color: var(--muted); margin: 1.15rem 0 .7rem; padding-top: .9rem; border-top: 1px solid var(--line);
     }
     .admin-section-title:first-child { margin-top: 0; padding-top: 0; border-top: none; }
-    .admin-av-block { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-    .admin-av-block img, .admin-av-fallback {
-      width: 72px; height: 72px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
-      display: inline-flex; align-items: center; justify-content: center; font-weight: 700;
-      background: var(--brand-light); color: var(--brand); font-size: 1.35rem; border: 2px solid var(--line);
-    }
     .admin-client-rates { display: flex; flex-direction: column; gap: .55rem; }
     .admin-client-rate-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 38px; gap: .55rem; align-items: center; }
     @media (max-width: 560px) { .admin-client-rate-row { grid-template-columns: 1fr; } }
@@ -2218,7 +2212,6 @@ window.IntranetAccess = {
 
 window.RootsAdminEmployee = {
   _activeId: null,
-  _draftAvatar: null,
 
   hintHtml(text) {
     return `<p class="admin-field-hint"><i class="fa-solid fa-circle-info"></i><span>${escapeHtml(text)}</span></p>`;
@@ -2284,9 +2277,6 @@ window.RootsAdminEmployee = {
     const users = window._adminUsers || [];
     const role = window.IntranetAccess.normalizeRole(u.app_role);
     const rates = this.parseClientRates(u.app_settings);
-    const av = u.avatar_url
-      ? `<img src="${escapeHtml(u.avatar_url)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'admin-av-fallback',textContent:'${escapeHtml(window.RootsUser._initials(u.full_name || u.email))}'}))">`
-      : `<span class="admin-av-fallback">${escapeHtml(window.RootsUser._initials(u.full_name || u.email))}</span>`;
     return `
       <div class="admin-detail-head">
         <div>
@@ -2310,17 +2300,6 @@ window.RootsAdminEmployee = {
           <div class="admin-field"><label for="aec-last-name">Nachname</label><input class="modern-input" id="aec-last-name" type="text" value="${escapeHtml(u.last_name || '')}"></div>
           <div class="admin-field"><label for="aec-kuerzel">Kürzel</label><input class="modern-input" id="aec-kuerzel" type="text" maxlength="8" value="${escapeHtml(u.kuerzel || '')}" placeholder="z. B. PG"></div>
           <div class="admin-field"><label for="aec-birthday">Geburtsdatum (TT.MM.)</label><input class="modern-input" id="aec-birthday" type="text" value="${escapeHtml(u.birthday || '')}" placeholder="15.03."></div>
-          <div class="admin-field span-2">
-            <label>Profilbild</label>
-            <div class="admin-av-block">
-              <div id="aec-avatar-preview">${av}</div>
-              <div>
-                <input type="file" id="aec-avatar-file" accept="image/*" hidden>
-                <button type="button" id="aec-avatar-btn" class="admin-btn admin-btn--ghost">Bild wählen …</button>
-                ${this.hintHtml('Wird in der Nutzerdatenbank gespeichert.')}
-              </div>
-            </div>
-          </div>
         </div>
         <div class="admin-section-title">Arbeit</div>
         <div class="admin-form-grid">
@@ -2365,21 +2344,7 @@ window.RootsAdminEmployee = {
   },
 
   bindForm(u) {
-    this._draftAvatar = null;
     const form = document.getElementById('roots-admin-employee-form');
-    const fileInput = document.getElementById('aec-avatar-file');
-    document.getElementById('aec-avatar-btn')?.addEventListener('click', () => fileInput?.click());
-    fileInput?.addEventListener('change', () => {
-      const file = fileInput.files?.[0];
-      if (!file || !file.type.startsWith('image/')) return;
-      const r = new FileReader();
-      r.onload = () => {
-        this._draftAvatar = r.result;
-        const prev = document.getElementById('aec-avatar-preview');
-        if (prev) prev.innerHTML = `<img src="${r.result}" alt="">`;
-      };
-      r.readAsDataURL(file);
-    });
     document.getElementById('aec-add-client')?.addEventListener('click', () => {
       const wrap = document.getElementById('aec-client-rates');
       if (!wrap) return;
@@ -2452,7 +2417,6 @@ window.RootsAdminEmployee = {
 
   closeDetail() {
     this._activeId = null;
-    this._draftAvatar = null;
     const panel = document.getElementById('roots-admin-employee-panel');
     const empty = document.getElementById('roots-admin-employee-empty');
     const wrap = document.getElementById('roots-admin-employee-form-wrap');
@@ -2506,9 +2470,6 @@ window.RootsAdminEmployee = {
       const clientRates = this.collectClientRates();
       if (clientRates.length) appSettings.client_hourly_rates = clientRates;
       else delete appSettings.client_hourly_rates;
-      if (this._draftAvatar) {
-        appSettings.avatar_source = this._draftAvatar;
-      }
       const payload = {
         salutation: document.getElementById('aec-salutation')?.value || null,
         first_name: first || null,
@@ -2527,7 +2488,6 @@ window.RootsAdminEmployee = {
         linkedin_url: document.getElementById('aec-linkedin')?.value.trim() || null,
         app_role: document.getElementById('aec-role')?.value || 'reader',
         app_settings: appSettings,
-        avatar_url: this._draftAvatar || u.avatar_url || null,
       };
       const { error } = await window.RootsUser._sb.schema('users').from('profiles').update(payload).eq('id', uid);
       if (error) throw error;

@@ -1322,6 +1322,7 @@
       const upDesc     = document.getElementById('upcoming-feature-description');
 
       const TOOL_VIEWS = new Set(['recruiting', 'sop', 'image', 'teamkalender', 'onboarding', 'notes', 'vacation', 'whiteboard', 'livepoll']);
+      const SIDEBAR_AUTO_VIEWS = new Set([...TOOL_VIEWS, 'admin']);
 
       function getGreeting() {
         const h = new Date().getHours();
@@ -1386,6 +1387,7 @@
           viewName = 'dashboard';
         }
         const isTool = TOOL_VIEWS.has(viewName);
+        const isSidebarAuto = SIDEBAR_AUTO_VIEWS.has(viewName);
 
         // Panels umschalten
         panels.forEach(p => {
@@ -1393,8 +1395,8 @@
           p.classList.toggle('is-active', active);
         });
 
-        // Header: bei Tool-Views komplett ausblenden
-        header.classList.toggle('hidden', isTool);
+        // Header: bei Tool-Views und Nutzerverwaltung ausblenden
+        header.classList.toggle('hidden', isSidebarAuto);
 
         if (!isTool) {
           const cfg = views[viewName] || views.dashboard;
@@ -1423,11 +1425,11 @@
 
       function applySidebarForView(viewName) {
         if (!layout) return;
-        const isTool = TOOL_VIEWS.has(viewName);
-        sidebarAutoCollapse = isTool;
-        layout.classList.toggle('sidebar-auto-collapse', isTool);
+        const isSidebarAuto = SIDEBAR_AUTO_VIEWS.has(viewName);
+        sidebarAutoCollapse = isSidebarAuto;
+        layout.classList.toggle('sidebar-auto-collapse', isSidebarAuto);
         layout.classList.remove('sidebar-peek');
-        if (isTool) {
+        if (isSidebarAuto) {
           layout.classList.add('sidebar-collapsed');
         } else {
           layout.classList.remove('sidebar-collapsed');

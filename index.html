@@ -295,6 +295,10 @@
 
     .intranet-layout.sidebar-collapsed .sidebar-toggle i { transform: rotate(180deg); width: auto; }
 
+    .intranet-layout.sidebar-auto-collapse .intranet-sidebar {
+      z-index: 40;
+    }
+
     /* ── Main ── */
     .intranet-main {
       flex: 1;
@@ -1107,6 +1111,12 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      const layout        = document.querySelector('.intranet-layout');
+      const sidebar       = document.querySelector('.intranet-sidebar');
+      const main          = document.querySelector('.intranet-main');
+      const sidebarToggle = document.getElementById('sidebar-toggle');
+      let sidebarAutoCollapse = false;
+
       const navItems   = Array.from(document.querySelectorAll('.nav-item[data-view]'));
       const panels     = Array.from(document.querySelectorAll('.app-view'));
       const header     = document.getElementById('intranet-header');
@@ -1215,6 +1225,32 @@
         if (viewName === 'notes') refreshNotesIframe();
         if (isTool) ensureToolIframe(viewName);
         else if (window.RootsUser?._broadcastAuthSession) window.RootsUser._broadcastAuthSession();
+        applySidebarForView(viewName);
+      }
+
+      function applySidebarForView(viewName) {
+        if (!layout) return;
+        const isTool = TOOL_VIEWS.has(viewName);
+        sidebarAutoCollapse = isTool;
+        layout.classList.toggle('sidebar-auto-collapse', isTool);
+        layout.classList.remove('sidebar-peek');
+        if (isTool) {
+          layout.classList.add('sidebar-collapsed');
+        } else {
+          layout.classList.remove('sidebar-collapsed');
+        }
+      }
+
+      function collapseSidebarForTool() {
+        if (!sidebarAutoCollapse || !layout) return;
+        layout.classList.remove('sidebar-peek');
+        layout.classList.add('sidebar-collapsed');
+      }
+
+      function expandSidebarPeek() {
+        if (!sidebarAutoCollapse || !layout) return;
+        layout.classList.add('sidebar-peek');
+        layout.classList.remove('sidebar-collapsed');
       }
 
       function refreshNotesIframe() {
@@ -1337,12 +1373,19 @@
         if (v) navigateToView(v);
       });
 
-      // Sidebar-Toggle
-      const layout        = document.querySelector('.intranet-layout');
-      const sidebarToggle = document.getElementById('sidebar-toggle');
-      sidebarToggle.addEventListener('click', () => {
-        layout.classList.toggle('sidebar-collapsed');
+      sidebarToggle?.addEventListener('click', () => {
+        layout?.classList.toggle('sidebar-collapsed');
+        if (sidebarAutoCollapse && !layout?.classList.contains('sidebar-collapsed')) {
+          layout?.classList.add('sidebar-peek');
+        } else {
+          layout?.classList.remove('sidebar-peek');
+        }
       });
+
+      sidebar?.addEventListener('mouseenter', expandSidebarPeek);
+      sidebar?.addEventListener('mouseleave', collapseSidebarForTool);
+      main?.addEventListener('mouseenter', collapseSidebarForTool);
+      main?.addEventListener('focusin', collapseSidebarForTool);
     });
   </script>
 <!-- ===== ROOTS USER MODULE ===== -->

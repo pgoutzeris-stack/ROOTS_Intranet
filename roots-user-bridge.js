@@ -673,9 +673,12 @@
   }
 
   function ensureSyncStyles() {
-    if (document.getElementById('roots-sync-status-styles')) return;
-    const s = document.createElement('style');
-    s.id = 'roots-sync-status-styles';
+    let s = document.getElementById('roots-sync-status-styles');
+    if (!s) {
+      s = document.createElement('style');
+      s.id = 'roots-sync-status-styles';
+      document.head.appendChild(s);
+    }
     s.textContent = `
       .roots-sync-wrap { position: relative; flex-shrink: 0; }
       .roots-sync-pill {
@@ -697,16 +700,27 @@
       }
       .roots-sync-pill.is-offline .roots-sync-dot { background: #ef4444; }
       .roots-sync-term {
-        display: none; position: absolute; top: calc(100% + 8px); right: 0;
-        width: min(360px, calc(100vw - 24px)); padding: 10px 12px;
+        position: absolute; top: 100%; right: 0;
+        width: min(360px, calc(100vw - 24px));
+        padding-top: 10px;
+        opacity: 0; visibility: hidden; pointer-events: none;
+        transform: translateY(2px);
+        transition: opacity .16s ease, visibility .16s ease, transform .16s ease;
+        z-index: 99999;
+      }
+      .roots-sync-term-box {
+        padding: 10px 12px;
         border-radius: 10px; border: 1px solid #334155; background: #0f172a;
-        box-shadow: 0 14px 36px rgba(0,0,0,.28); z-index: 99999;
+        box-shadow: 0 14px 36px rgba(0,0,0,.28);
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         font-size: 11px; line-height: 1.55; color: #94a3b8; text-align: left;
         pointer-events: auto;
       }
       .roots-sync-wrap:hover .roots-sync-term,
-      .roots-sync-wrap:focus-within .roots-sync-term { display: block; }
+      .roots-sync-wrap.is-open .roots-sync-term,
+      .roots-sync-wrap:focus-within .roots-sync-term {
+        opacity: 1; visibility: visible; pointer-events: auto; transform: none;
+      }
       .roots-sync-term-head {
         display: flex; align-items: center; justify-content: space-between;
         gap: 8px; margin-bottom: 6px;
@@ -809,7 +823,37 @@
     _sb: null,
     _checking: false,
     _copyTimer: null,
+    _panelOpen: false,
+    _panelCloseTimer: null,
     _state: { online: null, lines: ['status  initializing…'], lastCheck: null, latencyMs: null },
+
+    bindPanelHover(slot) {
+      if (!slot || slot.dataset.panelBound) return;
+      slot.dataset.panelBound = '1';
+      const open = () => {
+        if (this._panelCloseTimer) {
+          clearTimeout(this._panelCloseTimer);
+          this._panelCloseTimer = null;
+        }
+        this._panelOpen = true;
+        slot.classList.add('is-open');
+      };
+      const scheduleClose = () => {
+        if (this._panelCloseTimer) clearTimeout(this._panelCloseTimer);
+        this._panelCloseTimer = setTimeout(() => {
+          this._panelOpen = false;
+          slot.classList.remove('is-open');
+          this._panelCloseTimer = null;
+        }, 420);
+      };
+      slot.addEventListener('mouseenter', open);
+      slot.addEventListener('mouseleave', scheduleClose);
+      slot.addEventListener('focusin', open);
+      slot.addEventListener('focusout', (e) => {
+        if (slot.contains(e.relatedTarget)) return;
+        scheduleClose();
+      });
+    },
 
     ensureSlot() {
       hideLegacyProfileHeader();
@@ -832,6 +876,7 @@
           void SyncStatus.copyTerminal(btn);
         });
       }
+      this.bindPanelHover(slot);
       return slot;
     },
 
@@ -889,15 +934,18 @@
           <span class="roots-sync-label">${escapeHtml(label)}</span>
         </div>
         <div class="roots-sync-term" role="tooltip">
-          <div class="roots-sync-term-head">
-            <div class="roots-sync-term-title">roots sync monitor</div>
-            <button type="button" class="roots-sync-copy-btn" title="Terminal-Inhalt kopieren">Kopieren</button>
+          <div class="roots-sync-term-box">
+            <div class="roots-sync-term-head">
+              <div class="roots-sync-term-title">roots sync monitor</div>
+              <button type="button" class="roots-sync-copy-btn" title="Terminal-Inhalt kopieren">Kopieren</button>
+            </div>
+            ${dbLines}
+            <div class="roots-sync-term-line is-dim" aria-hidden="true">&nbsp;</div>
+            ${lines}
+            <div class="roots-sync-term-line is-dim">checked  ${escapeHtml(stamp)}</div>
           </div>
-          ${dbLines}
-          <div class="roots-sync-term-line is-dim" aria-hidden="true">&nbsp;</div>
-          ${lines}
-          <div class="roots-sync-term-line is-dim">checked  ${escapeHtml(stamp)}</div>
         </div>`;
+      if (this._panelOpen) slot.classList.add('is-open');
     },
 
     async ping(sb) {

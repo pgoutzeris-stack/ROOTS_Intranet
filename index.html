@@ -1886,7 +1886,6 @@ window.RootsNotifications = {
   knownIds: new Set(),
   toastShownIds: new Set(),
   activeToastIds: new Set(),
-  initialized: false,
   dashboardExpanded: false,
   items: [],
   _userId: null,
@@ -2175,14 +2174,44 @@ window.RootsNotifications = {
     }
   },
 
+  _storageKey() {
+    return this._userId ? `roots_notif_seen_${this._userId}` : null;
+  },
+
+  _loadSeenFromStorage() {
+    const key = this._storageKey();
+    if (!key) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || '[]');
+      saved.forEach(id => this.knownIds.add(id));
+    } catch (_) {}
+  },
+
+  _persistSeen(id) {
+    const key = this._storageKey();
+    if (!key) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!saved.includes(id)) {
+        saved.push(id);
+        /* keep max 200 entries to avoid unbounded growth */
+        const trimmed = saved.slice(-200);
+        localStorage.setItem(key, JSON.stringify(trimmed));
+      }
+    } catch (_) {}
+  },
+
   detectNew(items) {
-    if (!this.initialized) {
-      items.forEach(item => this.knownIds.add(item.id));
-      this.initialized = true;
-      return items.length ? [items[0]] : [];
-    }
+    /* knownIds is pre-populated from localStorage before the first poll,
+       so items already seen in a previous session are silently skipped.
+       Only IDs genuinely absent from knownIds trigger a toast. */
     const fresh = items.filter(item => !this.knownIds.has(item.id));
-    fresh.forEach(item => this.knownIds.add(item.id));
+    items.forEach(item => {
+      if (!this.knownIds.has(item.id)) {
+        this.knownIds.add(item.id);
+        this._persistSeen(item.id);
+      }
+    });
     return fresh;
   },
 
@@ -2222,6 +2251,8 @@ window.RootsNotifications = {
   },
 
   start() {
+    this._userId = window.RootsUser?._uid || null;
+    this._loadSeenFromStorage(); /* pre-populate knownIds from previous sessions */
     this.bindAudioUnlock();
     void this.poll();
     if (!this._pollTimer) {
@@ -2233,7 +2264,6 @@ window.RootsNotifications = {
     this.knownIds.clear();
     this.toastShownIds.clear();
     this.activeToastIds.clear();
-    this.initialized = false;
     this.items = [];
     this.dashboardExpanded = false;
     this._userId = null;

@@ -1899,32 +1899,34 @@ window.RootsNotifications = {
 
   beepDataUri() {
     if (this._beepUri) return this._beepUri;
+    /* Two-note chime WAV: A5 (880 Hz) → C#6 (1109 Hz), soft amplitude */
     const sampleRate = 44100;
-    const duration = 0.18;
-    const numSamples = Math.floor(sampleRate * duration);
+    const note1 = { freq: 880,  start: 0,     dur: 0.20 };
+    const note2 = { freq: 1109, start: 0.105, dur: 0.28 };
+    const totalDur   = note2.start + note2.dur + 0.02;
+    const numSamples = Math.floor(sampleRate * totalDur);
     const buffer = new ArrayBuffer(44 + numSamples * 2);
-    const view = new DataView(buffer);
-    const writeStr = (offset, str) => {
-      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-    };
-    writeStr(0, 'RIFF');
-    view.setUint32(4, 36 + numSamples * 2, true);
-    writeStr(8, 'WAVE');
-    writeStr(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true);
-    view.setUint16(32, 2, true);
-    view.setUint16(34, 16, true);
-    writeStr(36, 'data');
+    const view   = new DataView(buffer);
+    const ws = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+    ws(0,  'RIFF'); view.setUint32(4, 36 + numSamples * 2, true);
+    ws(8,  'WAVE'); ws(12, 'fmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);  view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true); ws(36, 'data');
     view.setUint32(40, numSamples * 2, true);
+    const noteAmp = 0.17; /* quieter than before */
     for (let i = 0; i < numSamples; i++) {
       const t = i / sampleRate;
-      const fade = Math.min(1, t * 40) * Math.min(1, (duration - t) * 40);
-      const sample = Math.sin(2 * Math.PI * 880 * t) * 0.35 * fade;
-      view.setInt16(44 + i * 2, sample * 32767, true);
+      let s = 0;
+      for (const n of [note1, note2]) {
+        const rel = t - n.start;
+        if (rel < 0 || rel > n.dur) continue;
+        const attack = Math.min(1, rel * 120);           /* ~8 ms attack */
+        const decay  = Math.min(1, (n.dur - rel) * 18); /* smooth tail  */
+        s += Math.sin(2 * Math.PI * n.freq * rel) * noteAmp * attack * decay;
+      }
+      view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, s)) * 32767, true);
     }
     const bytes = new Uint8Array(buffer);
     let binary = '';
@@ -1938,7 +1940,7 @@ window.RootsNotifications = {
     try {
       if (!this._beep) {
         this._beep = new Audio(this.beepDataUri());
-        this._beep.volume = 0.45;
+        this._beep.volume = 0.22;
       }
       this._beep.currentTime = 0;
       await this._beep.play();
@@ -1993,18 +1995,24 @@ window.RootsNotifications = {
       if (ctx) {
         if (ctx.state === 'suspended') await ctx.resume();
         if (ctx.state === 'running') {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(740, ctx.currentTime);
-          osc.frequency.exponentialRampToValueAtTime(980, ctx.currentTime + 0.08);
-          gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.32);
-          osc.start(ctx.currentTime);
-          osc.stop(ctx.currentTime + 0.34);
+          /* Apple-style two-note chime: A5 880 Hz → C#6 1109 Hz */
+          const t   = ctx.currentTime;
+          const vol = 0.045; /* ~−27 dB */
+          const note = (freq, start, dur) => {
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, start);
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(vol, start + 0.008); /* 8 ms attack */
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(start);
+            osc.stop(start + dur + 0.02);
+          };
+          note(880,  t,        0.20);
+          note(1109, t + 0.11, 0.28);
           return;
         }
       }
@@ -2012,7 +2020,7 @@ window.RootsNotifications = {
     try {
       if (!this._beep) {
         this._beep = new Audio(this.beepDataUri());
-        this._beep.volume = 0.45;
+        this._beep.volume = 0.22;
       }
       this._beep.currentTime = 0;
       await this._beep.play();

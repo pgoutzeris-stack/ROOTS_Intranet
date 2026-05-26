@@ -1962,12 +1962,15 @@ window.RootsNotifications = {
   },
 
   notifMeta(n) {
-    const isUrlaub = String(n.type || '').startsWith('urlaub');
+    const type = String(n.type || '');
+    const isUrlaub = type.startsWith('urlaub');
+    const isOnboarding = type.startsWith('onboarding');
     return {
       isUrlaub,
-      runde: isUrlaub ? 'Urlaubsplanung' : (n.runde === 'zweit' ? 'Zweitgespräch' : 'Erstgespräch'),
+      isOnboarding,
+      runde: isUrlaub ? 'Urlaubsplanung' : isOnboarding ? 'Onboarding' : (n.runde === 'zweit' ? 'Zweitgespräch' : 'Erstgespräch'),
       date: n.created_at ? new Date(n.created_at).toLocaleString('de-DE') : '',
-      icon: isUrlaub ? 'fa-umbrella-beach' : 'fa-bell',
+      icon: isUrlaub ? 'fa-umbrella-beach' : isOnboarding ? 'fa-list-check' : 'fa-bell',
     };
   },
 
@@ -2100,8 +2103,13 @@ window.RootsNotifications = {
   },
 
   async navigateForNotification(n) {
-    if (String(n.type || '').startsWith('urlaub')) {
+    const type = String(n.type || '');
+    if (type.startsWith('urlaub')) {
       if (window.intranetNavigateToView) window.intranetNavigateToView('vacation');
+      return;
+    }
+    if (type.startsWith('onboarding')) {
+      if (window.intranetNavigateToView) window.intranetNavigateToView('onboarding');
       return;
     }
     const recNav = document.querySelector('.nav-item[data-view="recruiting"]');

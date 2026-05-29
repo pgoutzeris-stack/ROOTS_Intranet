@@ -812,9 +812,13 @@
     const t = String(line || '').trim();
     if (/^tool\s+/i.test(t) || /^store\s+/i.test(t)) return 'is-data';
     if (/^status\s+online/i.test(t)) return 'is-ok';
+    if (/^status\s+operating/i.test(t)) return 'is-ok';
+    if (/^status\s+issues/i.test(t)) return 'is-err';
     if (/^status\s+offline/i.test(t) || /^error/i.test(t) || /^code/i.test(t)) return 'is-err';
     if (/^warn/i.test(t) || /^hint/i.test(t)) return 'is-warn';
     if (/^db\s+synced/i.test(t) || /^auth\s+session ok/i.test(t)) return 'is-ok';
+    if (/^check\s+.+\s+operating/i.test(t)) return 'is-ok';
+    if (/^check\s+.+\s+issues/i.test(t)) return 'is-err';
     return 'is-dim';
   }
 

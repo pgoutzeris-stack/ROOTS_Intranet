@@ -3,109 +3,14 @@
   const IN_IFRAME = window.parent !== window;
 
   /**
-   * Reliable macOS Tauri app detection:
-   * webkit-ui-fix.js (the Tauri initialization script baked into the binary)
-   * sets window.__rootsWebkitUiFix = true at document start — ONLY in the
-   * native app. Never set in a regular browser, regardless of origin.
-   *
-   * IN_TAURI is true only in the Tauri macOS app (main frame OR iframes,
-   * since webkit-ui-fix.js injects into all frames).
+   * Tauri macOS app detection.
+   * withGlobalTauri:true (set in tauri.conf.json) causes Tauri to inject
+   * window.__TAURI_INTERNALS__ into ALL frames. This is the authoritative
+   * signal that we're running inside the native app.
+   * Fallback: webkit-ui-fix.js initialization script sets __rootsWebkitUiFix.
    */
-  const IN_TAURI = window.__rootsWebkitUiFix === true;
-
-  // Legacy — kept for potential future use
-  const IN_MAC_APP = IN_IFRAME && /ROOTS-MacApp/.test(navigator.userAgent);
-
-  /* ── Visuelles Debug-Overlay (nur in der Tauri macOS App) ───────────────
-   * Fängt console.log/warn/error ab und zeigt sie als Overlay-Panel.
-   * Erscheint automatisch beim ersten Log-Aufruf.
-   * Schließen: × Button. Wird nach 60s automatisch entfernt.
-   * ─────────────────────────────────────────────────────────────────────── */
-  (function installDebugOverlay() {
-    // In iframe: logs per postMessage an den Parent (Intranet) schicken
-    // Im Parent (IN_TAURI): Panel anzeigen + iframe-Logs empfangen
-    const isParent = IN_TAURI && !IN_IFRAME;
-    const isChild  = IN_IFRAME;
-    if (!isParent && !isChild) return;
-
-    let panel = null, logList = null, closeTimer = null;
-
-    function ensurePanel() {
-      if (panel || !isParent) return;
-      panel = document.createElement('div');
-      panel.id = 'roots-debug-panel';
-      panel.style.cssText = [
-        'position:fixed','bottom:12px','right:12px','z-index:2147483647',
-        'width:460px','max-height:380px',
-        'background:#0f172a','color:#e2e8f0',
-        'border-radius:10px','border:1.5px solid #206efb',
-        'box-shadow:0 8px 32px rgba(0,0,0,.6)',
-        'font-family:ui-monospace,monospace','font-size:11px','line-height:1.4',
-        'display:flex','flex-direction:column','overflow:hidden'
-      ].join(';');
-      const hdr = document.createElement('div');
-      hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#1e3a5f;border-bottom:1px solid #206efb;flex-shrink:0';
-      hdr.innerHTML = '<span style="color:#60a5fa;font-weight:700;font-size:12px">🔍 ROOTS Debug <span style="color:#475569;font-weight:400">v20260601-D</span></span>';
-      const x = document.createElement('button');
-      x.textContent = '×';
-      x.style.cssText = 'background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:0 4px';
-      x.onclick = () => { panel.remove(); panel = null; logList = null; };
-      hdr.appendChild(x);
-      panel.appendChild(hdr);
-      logList = document.createElement('div');
-      logList.style.cssText = 'overflow-y:auto;flex:1;padding:6px 10px';
-      panel.appendChild(logList);
-      document.body.appendChild(panel);
-      clearTimeout(closeTimer);
-      closeTimer = setTimeout(() => { panel?.remove(); panel = null; logList = null; }, 180000);
-    }
-
-    function addLog(level, source, text) {
-      if (!isParent) return;
-      ensurePanel();
-      if (!logList) return;
-      const colors = { log:'#94a3b8', warn:'#fbbf24', error:'#f87171', info:'#60a5fa' };
-      const icons  = { log:'›', warn:'⚠', error:'✕', info:'ℹ' };
-      const tag = source === 'iframe' ? '<span style="color:#f59e0b;font-size:9px">[iframe]</span> ' : '';
-      const line = document.createElement('div');
-      line.style.cssText = `color:${colors[level]||'#94a3b8'};padding:2px 0;border-bottom:1px solid #1e293b;word-break:break-all`;
-      line.innerHTML = `${icons[level]||'›'} ${tag}${text.replace(/</g,'&lt;')}`;
-      logList.appendChild(line);
-      logList.scrollTop = logList.scrollHeight;
-    }
-
-    if (isParent) {
-      // Empfange Logs von iframes
-      window.addEventListener('message', (e) => {
-        if (e.data?.type === 'roots-debug-log') {
-          addLog(e.data.level, 'iframe', e.data.text);
-        }
-      });
-      // Eigene Logs abfangen
-      ['log','warn','error','info'].forEach(lvl => {
-        const orig = console[lvl].bind(console);
-        console[lvl] = (...args) => {
-          orig(...args);
-          const txt = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-          if (txt.includes('[ROOTS')) addLog(lvl, 'main', txt);
-        };
-      });
-    }
-
-    if (isChild) {
-      // Logs an Parent schicken
-      ['log','warn','error','info'].forEach(lvl => {
-        const orig = console[lvl].bind(console);
-        console[lvl] = (...args) => {
-          orig(...args);
-          const txt = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-          if (txt.includes('[ROOTS')) {
-            try { window.parent.postMessage({ type:'roots-debug-log', level:lvl, text:txt }, ORIGIN); } catch(_) {}
-          }
-        };
-      });
-    }
-  })();
+  const IN_TAURI = typeof window.__TAURI_INTERNALS__ !== 'undefined'
+                || window.__rootsWebkitUiFix === true;
 
   const TOAST_MS = 9000;
   const visibleToastIds = new Set();
@@ -1337,33 +1242,43 @@
    * Covers: https:// http:// mailto: tel: links and any target="_blank".
    * Skips:  #anchors, javascript:, internal-same-page navigation.
    */
+  /**
+   * Link interceptor for the Tauri macOS app.
+   *
+   * With withGlobalTauri:true, __TAURI_INTERNALS__ is available in ALL frames.
+   * The opener-plugin init script (baked into the binary) handles target="_blank"
+   * clicks via invoke('plugin:opener|open_url') → open::that(url) → system browser.
+   *
+   * We only ensure every external link has target="_blank" so the opener-plugin
+   * catches it. Nothing else needed — no stopPropagation, no window.open.
+   */
   function installLinkInterceptor() {
     if (!IN_TAURI && !IN_IFRAME) return;
 
-    const ctx = IN_TAURI ? '[Tauri-App]' : '[Browser-iframe]';
-    console.log(`%c[ROOTS Bridge] ${ctx} Link-Interceptor aktiv`, 'color:#206efb;font-weight:bold');
-    console.log(`[ROOTS Bridge] IN_TAURI=${IN_TAURI} | IN_IFRAME=${IN_IFRAME} | __rootsWebkitUiFix=${!!window.__rootsWebkitUiFix}`);
-
-    document.addEventListener('click', (e) => {
-      const link = e.target.closest('a[href]');
-      if (!link) return;
+    function ensureBlank(link) {
       const href = link.getAttribute('href') || '';
       if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
       if (!/^(https?:\/\/|mailto:|tel:)/.test(href)) return;
+      if (link.target !== '_blank') { link.target = '_blank'; link.rel = link.rel || 'noopener noreferrer'; }
+    }
 
-      e.stopPropagation();
-      e.preventDefault();
-
-      const result = window.open(href, '_blank', 'noopener,noreferrer');
-      const verdict = result === null
-        ? '✅ null → WKWebView createWebViewWith → wry → Standard-Browser'
-        : result === undefined
-          ? '⚠️ undefined → window.open geblockt (kein User-Gesture?)'
-          : '⚠️ Fenster-Objekt → neues Fenster, kein WKWebView-Intercept';
-
-      console.log(`[ROOTS Bridge] 🔗 Link: ${href}`);
-      console.log(`[ROOTS Bridge] window.open result: ${result} — ${verdict}`);
+    // Synchronous in capture phase — runs before opener-plugin bubble listener
+    document.addEventListener('click', (e) => {
+      const link = e.target.closest('a[href]');
+      if (link) ensureBlank(link);
     }, { capture: true });
+
+    // Fix existing links + dynamically added ones
+    function fixAll() { document.querySelectorAll('a[href]').forEach(ensureBlank); }
+    if (document.body) {
+      fixAll();
+      new MutationObserver(fixAll).observe(document.body, { childList: true, subtree: true });
+    } else {
+      document.addEventListener('DOMContentLoaded', () => {
+        fixAll();
+        new MutationObserver(fixAll).observe(document.body, { childList: true, subtree: true });
+      });
+    }
   }
 
   /**
@@ -1407,7 +1322,7 @@
   window.RootsUserBridge = {
     IN_IFRAME,
     IN_TAURI,
-    IN_MAC_APP,
+
     patch,
     ORIGIN,
     showBridgeToast,

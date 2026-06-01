@@ -10,7 +10,6 @@ const DEFAULT_CORS = [
 ];
 
 const ROOTS_EMAIL_DOMAIN = "@roots-consultants.com";
-const DEFAULT_WORKSPACE_ID = "a0000000-0000-4000-8000-000000000001";
 const INTRANET_REDIRECT = "https://pgoutzeris-stack.github.io/ROOTS_Intranet/";
 
 function corsHeaders(req: Request) {
@@ -47,10 +46,6 @@ function normalizeRole(raw: unknown): "admin" | "editor" | "reader" {
   if (role === "admin") return "admin";
   if (role === "editor" || role === "member") return "editor";
   return "reader";
-}
-
-function workspaceMemberRole(appRole: "admin" | "editor" | "reader"): string {
-  return appRole === "admin" ? "admin" : "reader";
 }
 
 type InvitePayload = {
@@ -190,17 +185,6 @@ Deno.serve(async (req) => {
   if (upsertErr) {
     console.error("[roots-admin-users] profile upsert", upsertErr.message);
     return json({ error: "Profil konnte nicht angelegt werden: " + upsertErr.message }, 500, c);
-  }
-
-  const memberRole = workspaceMemberRole(appRole);
-  const { error: memberErr } = await usersDb
-    .from("workspace_members")
-    .upsert(
-      { workspace_id: DEFAULT_WORKSPACE_ID, user_id: newUserId, member_role: memberRole },
-      { onConflict: "workspace_id,user_id" },
-    );
-  if (memberErr) {
-    console.error("[roots-admin-users] workspace member", memberErr.message);
   }
 
   return json({

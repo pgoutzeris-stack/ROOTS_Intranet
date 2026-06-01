@@ -1218,11 +1218,50 @@
     SyncStatus.mount(getSupabaseClient());
   });
 
+  /**
+   * Universal file-download helper that works both in a normal browser tab
+   * and inside an iframe embedded in a macOS web app (WKWebView).
+   *
+   * In a plain browser tab:  uses the standard <a download> approach.
+   * In an iframe (macOS app): blob downloads are blocked by WKWebView; instead
+   *   the blob is sent as a transferable ArrayBuffer via postMessage to the
+   *   Intranet parent, which triggers the download in the top-level context.
+   *
+   * Usage (in any ROOTS tool):
+   *   window.RootsUserBridge.downloadBlob(blob, 'MyFile.pdf');
+   */
+  function downloadBlob(blob, filename) {
+    if (IN_IFRAME && typeof blob.arrayBuffer === 'function') {
+      blob.arrayBuffer().then(buf => {
+        window.parent.postMessage(
+          { type: 'roots-download-file', filename, mimeType: blob.type || 'application/octet-stream', buffer: buf },
+          ORIGIN,
+          [buf]   // transfer ownership — zero-copy
+        );
+      }).catch(() => _directDownload(blob, filename));
+      return;
+    }
+    _directDownload(blob, filename);
+  }
+
+  function _directDownload(blob, filename) {
+    try {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+    } catch (_) {}
+  }
+
   window.RootsUserBridge = {
     IN_IFRAME,
     patch,
     ORIGIN,
     showBridgeToast,
+    downloadBlob,
     syncAuthFromParentStorage,
     applyAuthSignOut,
     SyncStatus,

@@ -3485,6 +3485,20 @@ window.addEventListener('message', (e) => {
   if (e.data?.type === 'roots-notification-click' && e.data.id) {
     void window.RootsNotifications?.handleClickById(e.data.id);
   }
+  // File download proxy: iframe tools can't trigger blob-downloads in WKWebView;
+  // they forward the file as an ArrayBuffer and we download from the top-level page.
+  if (e.data?.type === 'roots-download-file' && e.data.buffer && e.data.filename) {
+    try {
+      const blob = new Blob([e.data.buffer], { type: e.data.mimeType || 'application/octet-stream' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = e.data.filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+    } catch (_) {}
+  }
 });
 </script>
 

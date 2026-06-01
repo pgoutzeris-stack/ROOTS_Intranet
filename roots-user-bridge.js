@@ -1291,25 +1291,35 @@
    * Skips:  #anchors, javascript:, internal-same-page navigation.
    */
   function installLinkInterceptor() {
-    // Works in both browser (IN_IFRAME) and Tauri app (IN_TAURI or IN_IFRAME).
-    // Plain browser standalone tab: skip — native behaviour is correct.
     if (!IN_TAURI && !IN_IFRAME) return;
 
-    // Strategy: do NOT preventDefault. Instead, ensure all external links
-    // carry target="_blank" so WKWebView routes them through createWebViewWith.
-    // Tauri's wry implementation opens external URLs in the system browser there.
-    // The App Store link already proves this works: itms-apps:// bypasses JS
-    // entirely and opens natively — same mechanism, just for https:// URLs.
+    // The Tauri binary's opener-plugin init-script registers a BUBBLE listener
+    // on window that intercepts target="_blank" https:// clicks, calls
+    // e.preventDefault(), then tries __TAURI_INTERNALS__.invoke() — which
+    // silently fails on GitHub Pages pages → link goes nowhere.
+    //
+    // The App Store link works because it has NO target="_blank" so the opener
+    // plugin ignores it → normal navigation → WKWebView/OS handles it.
+    //
+    // Strategy:
+    // 1. CAPTURE phase on document (fires before the element and before bubble)
+    // 2. Set target="_blank" on external links
+    // 3. Call e.stopPropagation() → opener-plugin bubble listener NEVER fires
+    // 4. Do NOT call e.preventDefault() → browser default action preserved
+    // 5. Browser follows the link with target="_blank"
+    // 6. WKWebView fires createWebViewWith → wry opens URL in system browser ✅
     document.addEventListener('click', (e) => {
       const link = e.target.closest('a[href]');
       if (!link) return;
       const href = link.getAttribute('href') || '';
       if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
       if (!/^(https?:\/\/|mailto:|tel:)/.test(href)) return;
-      // Ensure target="_blank" so createWebViewWith fires → Safari
-      if (link.target !== '_blank') link.target = '_blank';
-      // Let the click propagate naturally — no preventDefault
-    }, { capture: false });
+      // Ensure _blank so WKWebView fires createWebViewWith
+      link.target = '_blank';
+      // Stop opener-plugin bubble listener from calling preventDefault+invoke
+      e.stopPropagation();
+      // No preventDefault — browser follows the link naturally
+    }, { capture: true });
   }
 
   /**

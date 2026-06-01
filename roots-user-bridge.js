@@ -10,76 +10,6 @@
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  function beepDataUri() {
-    const sampleRate = 44100;
-    const duration = 0.18;
-    const numSamples = Math.floor(sampleRate * duration);
-    const buffer = new ArrayBuffer(44 + numSamples * 2);
-    const view = new DataView(buffer);
-    const writeStr = (offset, str) => {
-      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-    };
-    writeStr(0, 'RIFF');
-    view.setUint32(4, 36 + numSamples * 2, true);
-    writeStr(8, 'WAVE');
-    writeStr(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 2, true);
-    view.setUint16(32, 2, true);
-    view.setUint16(34, 16, true);
-    writeStr(36, 'data');
-    view.setUint32(40, numSamples * 2, true);
-    for (let i = 0; i < numSamples; i++) {
-      const t = i / sampleRate;
-      const fade = Math.min(1, t * 40) * Math.min(1, (duration - t) * 40);
-      const sample = Math.sin(2 * Math.PI * 880 * t) * 0.35 * fade;
-      view.setInt16(44 + i * 2, sample * 32767, true);
-    }
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    return 'data:audio/wav;base64,' + btoa(binary);
-  }
-
-  let _beep = null;
-  let _audioUnlocked = false;
-
-  function unlockBridgeAudio() {
-    if (_audioUnlocked) return Promise.resolve();
-    return new Promise((resolve) => {
-      try {
-        if (!_beep) {
-          _beep = new Audio(beepDataUri());
-          _beep.volume = 0.45;
-        }
-        _beep.currentTime = 0;
-        _beep.play().then(() => {
-          _beep.pause();
-          _audioUnlocked = true;
-          resolve();
-        }).catch(() => resolve());
-      } catch (_) {
-        resolve();
-      }
-    });
-  }
-
-  function playBridgeTone() {
-    void unlockBridgeAudio().then(() => {
-      try {
-        if (!_beep) {
-          _beep = new Audio(beepDataUri());
-          _beep.volume = 0.45;
-        }
-        _beep.currentTime = 0;
-        void _beep.play();
-      } catch (_) {}
-    });
-  }
-
   function ensureNotifStyles() {
     if (document.getElementById('roots-bridge-notif-styles')) return;
     const link = document.createElement('link');
@@ -1151,13 +1081,6 @@
     if (typeof window.onRootsTeamRefresh === 'function') window.onRootsTeamRefresh();
   }
 
-  if (IN_IFRAME) {
-    const unlock = () => { void unlockBridgeAudio(); };
-    document.addEventListener('click', unlock, { passive: true, once: false });
-    document.addEventListener('keydown', unlock, { passive: true, once: false });
-    document.addEventListener('touchstart', unlock, { passive: true, once: false });
-  }
-
   const AUTH_STORAGE_KEY = `sb-${SUPABASE_REF}-auth-token`;
   let _lastAuthFingerprint = null;
   let _hadSession = false;
@@ -1257,7 +1180,6 @@
     }
     if (e.data?.type === 'roots-notification-toast') {
       showBridgeToast(e.data.notification);
-      playBridgeTone();
     }
     if (e.data?.type === 'roots-auth-sync') {
       if (e.data.signOut) void applyAuthSignOut();
@@ -1301,7 +1223,6 @@
     patch,
     ORIGIN,
     showBridgeToast,
-    playBridgeTone,
     syncAuthFromParentStorage,
     applyAuthSignOut,
     SyncStatus,

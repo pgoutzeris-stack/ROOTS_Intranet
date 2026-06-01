@@ -1245,7 +1245,7 @@
    * Skips:  #anchors, javascript:, internal-same-page navigation.
    */
   function installLinkInterceptor() {
-    if (!IN_MAC_APP) return;
+    if (!IN_IFRAME) return;
     document.addEventListener('click', (e) => {
       const link = e.target.closest('a[href]');
       if (!link) return;
@@ -1272,7 +1272,7 @@
    *   window.RootsUserBridge.downloadBlob(blob, 'MyFile.pdf');
    */
   function downloadBlob(blob, filename) {
-    if (IN_MAC_APP && typeof blob.arrayBuffer === 'function') {
+    if (IN_IFRAME && typeof blob.arrayBuffer === 'function') {
       blob.arrayBuffer().then(buf => {
         window.parent.postMessage(
           { type: 'roots-download-file', filename, mimeType: blob.type || 'application/octet-stream', buffer: buf },

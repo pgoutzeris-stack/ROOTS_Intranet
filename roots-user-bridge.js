@@ -45,7 +45,7 @@
       ].join(';');
       const hdr = document.createElement('div');
       hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#1e3a5f;border-bottom:1px solid #206efb;flex-shrink:0';
-      hdr.innerHTML = '<span style="color:#60a5fa;font-weight:700;font-size:12px">🔍 ROOTS Debug <span style="color:#475569;font-weight:400">v20260601-C</span></span>';
+      hdr.innerHTML = '<span style="color:#60a5fa;font-weight:700;font-size:12px">🔍 ROOTS Debug <span style="color:#475569;font-weight:400">v20260601-D</span></span>';
       const x = document.createElement('button');
       x.textContent = '×';
       x.style.cssText = 'background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:0 4px';
@@ -1351,25 +1351,18 @@
       if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
       if (!/^(https?:\/\/|mailto:|tel:)/.test(href)) return;
 
-      console.log(`%c[ROOTS Bridge] 🔗 Link-Klick erkannt`, 'color:#206efb;font-weight:bold');
-      console.log(`  URL: ${href}`);
-      console.log(`  IN_TAURI: ${IN_TAURI} | IN_IFRAME: ${IN_IFRAME}`);
-
-      // stopPropagation: verhindert Opener-Plugin (bubble auf window)
       e.stopPropagation();
-      // preventDefault: verhindert Browser-Default (die nach stopPropagation
-      // in WKWebView sowieso nicht mehr feuert)
       e.preventDefault();
 
-      // window.open() aus User-Gesture-Kontext (synchron im click handler):
-      // → triggert WKWebView createWebViewWith → wry öffnet in Safari ✅
       const result = window.open(href, '_blank', 'noopener,noreferrer');
-      console.log(`  window.open() aufgerufen → result: ${result} (null = WKWebView hat übernommen → Safari)`);
-      if (result === null) {
-        console.log(`  ✅ WKWebView hat createWebViewWith gefeuert → wry öffnet in Safari`);
-      } else {
-        console.log(`  ⚠️ Neues Fenster geöffnet (result nicht null) — kein WKWebView-Intercept`);
-      }
+      const verdict = result === null
+        ? '✅ null → WKWebView createWebViewWith → wry → Standard-Browser'
+        : result === undefined
+          ? '⚠️ undefined → window.open geblockt (kein User-Gesture?)'
+          : '⚠️ Fenster-Objekt → neues Fenster, kein WKWebView-Intercept';
+
+      console.log(`[ROOTS Bridge] 🔗 Link: ${href}`);
+      console.log(`[ROOTS Bridge] window.open result: ${result} — ${verdict}`);
     }, { capture: true });
   }
 

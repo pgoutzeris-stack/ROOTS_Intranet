@@ -3486,11 +3486,21 @@ window.addEventListener('message', (e) => {
     void window.RootsNotifications?.handleClickById(e.data.id);
   }
   // External-link proxy: iframe tools can't open system browser directly.
-  // They postMessage the URL here; we use Tauri's opener plugin which
-  // calls open::that(url) on the Rust side — no user-gesture required.
+  // They postMessage the URL here; we call __TAURI_INTERNALS__.invoke()
+  // directly — this works even with withGlobalTauri:false because
+  // __TAURI_INTERNALS__ is always available to the main frame.
+  // No user-gesture restriction applies to invoke() unlike a.click().
   if (e.data?.type === 'roots-open-url' && e.data.url) {
     try {
-      window.RootsUserBridge?.openUrl?.(String(e.data.url));
+      const url = String(e.data.url);
+      if (/^(https?:\/\/|mailto:|tel:)/.test(url)) {
+        if (typeof window.__TAURI_INTERNALS__ !== 'undefined') {
+          window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url });
+        } else {
+          // Plain browser fallback
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }
+      }
     } catch (_) {}
   }
   // Print proxy: window.print() is blocked inside WKWebView iframes.

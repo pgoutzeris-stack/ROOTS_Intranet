@@ -15,6 +15,14 @@
    * 1. Tauri opener plugin  → opens in default system browser (no user-gesture needed)
    * 2. window.open fallback → for plain browser context
    */
+  /**
+   * __TAURI_INTERNALS__ is available in the main Tauri frame even with
+   * withGlobalTauri:false (it only hides window.__TAURI__, not the internals).
+   * plugin:opener|open_url is registered (allow-open-url permission is set).
+   * invoke() has no user-gesture restriction unlike a.click().
+   */
+  const IN_TAURI = typeof window.__TAURI_INTERNALS__ !== 'undefined';
+
   async function openUrl(url) {
     if (!url || !/^(https?:\/\/|mailto:|tel:)/.test(url)) return;
     if (IN_TAURI) {
@@ -25,11 +33,7 @@
         console.warn('[ROOTS] Tauri opener failed, falling back:', e);
       }
     }
-    // Plain browser / Tauri IPC not available: click a real <a> element
-    const a = document.createElement('a');
-    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
-    document.body.appendChild(a); a.click();
-    setTimeout(() => document.body.removeChild(a), 500);
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   // Keep for future UA-based precision detection (no app rebuild available yet)

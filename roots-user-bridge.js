@@ -1,6 +1,19 @@
 (function () {
   const ORIGIN = 'https://pgoutzeris-stack.github.io';
   const IN_IFRAME = window.parent !== window;
+
+  /**
+   * True when running inside the ROOTS native macOS app.
+   * The app must add the following one line in Swift when creating the WKWebView:
+   *
+   *   let existing = WKWebView().value(forKey: "userAgent") as? String ?? ""
+   *   webView.customUserAgent = existing + " ROOTS-MacApp/1.0"
+   *
+   * Once set, all iframe proxies (links, downloads, print) activate only for
+   * the native app and leave normal browser behaviour untouched.
+   */
+  const IN_MAC_APP = IN_IFRAME && /ROOTS-MacApp/.test(navigator.userAgent);
+
   const TOAST_MS = 9000;
   const visibleToastIds = new Set();
   const toastShownIds = new Set();
@@ -1232,7 +1245,7 @@
    * Skips:  #anchors, javascript:, internal-same-page navigation.
    */
   function installLinkInterceptor() {
-    if (!IN_IFRAME) return;
+    if (!IN_MAC_APP) return;
     document.addEventListener('click', (e) => {
       const link = e.target.closest('a[href]');
       if (!link) return;
@@ -1259,7 +1272,7 @@
    *   window.RootsUserBridge.downloadBlob(blob, 'MyFile.pdf');
    */
   function downloadBlob(blob, filename) {
-    if (IN_IFRAME && typeof blob.arrayBuffer === 'function') {
+    if (IN_MAC_APP && typeof blob.arrayBuffer === 'function') {
       blob.arrayBuffer().then(buf => {
         window.parent.postMessage(
           { type: 'roots-download-file', filename, mimeType: blob.type || 'application/octet-stream', buffer: buf },
@@ -1286,6 +1299,7 @@
 
   window.RootsUserBridge = {
     IN_IFRAME,
+    IN_MAC_APP,
     patch,
     ORIGIN,
     showBridgeToast,

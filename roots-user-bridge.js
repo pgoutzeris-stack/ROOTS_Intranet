@@ -3,61 +3,17 @@
   const IN_IFRAME = window.parent !== window;
 
   /**
-   * The Tauri binary's opener-plugin initialization script intercepts
-   * target="_blank" clicks, calls e.preventDefault(), then calls:
-   *   window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url })
+   * Reliable macOS Tauri app detection:
+   * webkit-ui-fix.js (the Tauri initialization script baked into the binary)
+   * sets window.__rootsWebkitUiFix = true at document start — ONLY in the
+   * native app. Never set in a regular browser, regardless of origin.
    *
-   * On GitHub-Pages-hosted pages __TAURI_INTERNALS__ is NOT injected by
-   * Tauri (only on tauri://localhost pages). The invoke() call throws,
-   * the link is prevented but never opened — nothing happens.
-   *
-   * Fix: define __TAURI_INTERNALS__ as a polyfill HERE (bridge runs before
-   * any user click, so it's available when the opener plugin's listener
-   * fires). The polyfill's invoke() uses window.open(_blank) which triggers
-   * WKWebView's createWebViewWith delegate — wry opens it in Safari.
+   * IN_TAURI is true only in the Tauri macOS app (main frame OR iframes,
+   * since webkit-ui-fix.js injects into all frames).
    */
-  (function patchTauriInternals() {
-    const fakeInvoke = async (cmd, args) => {
-      if (cmd === 'plugin:opener|open_url' && args?.url) {
-        window.open(String(args.url), '_blank', 'noopener,noreferrer');
-      }
-    };
-    if (!window.__TAURI_INTERNALS__) {
-      window.__TAURI_INTERNALS__ = { invoke: fakeInvoke };
-    } else if (typeof window.__TAURI_INTERNALS__.invoke !== 'function') {
-      window.__TAURI_INTERNALS__.invoke = fakeInvoke;
-    }
-  })();
+  const IN_TAURI = window.__rootsWebkitUiFix === true;
 
-  const IN_TAURI = typeof window.__TAURI_INTERNALS__ !== 'undefined';
-
-  /**
-   * Opens a URL using the best available method:
-   * 1. Tauri opener plugin  → opens in default system browser (no user-gesture needed)
-   * 2. window.open fallback → for plain browser context
-   */
-  /**
-   * __TAURI_INTERNALS__ is available in the main Tauri frame even with
-   * withGlobalTauri:false (it only hides window.__TAURI__, not the internals).
-   * plugin:opener|open_url is registered (allow-open-url permission is set).
-   * invoke() has no user-gesture restriction unlike a.click().
-   */
-  const IN_TAURI = typeof window.__TAURI_INTERNALS__ !== 'undefined';
-
-  async function openUrl(url) {
-    if (!url || !/^(https?:\/\/|mailto:|tel:)/.test(url)) return;
-    if (IN_TAURI) {
-      try {
-        await window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url });
-        return;
-      } catch (e) {
-        console.warn('[ROOTS] Tauri opener failed, falling back:', e);
-      }
-    }
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }
-
-  // Keep for future UA-based precision detection (no app rebuild available yet)
+  // Legacy — kept for potential future use
   const IN_MAC_APP = IN_IFRAME && /ROOTS-MacApp/.test(navigator.userAgent);
 
   const TOAST_MS = 9000;
@@ -1364,7 +1320,6 @@
     IN_IFRAME,
     IN_TAURI,
     IN_MAC_APP,
-    openUrl,
     patch,
     ORIGIN,
     showBridgeToast,

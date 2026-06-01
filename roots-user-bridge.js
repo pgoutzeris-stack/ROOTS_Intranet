@@ -45,7 +45,7 @@
       ].join(';');
       const hdr = document.createElement('div');
       hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#1e3a5f;border-bottom:1px solid #206efb;flex-shrink:0';
-      hdr.innerHTML = '<span style="color:#60a5fa;font-weight:700;font-size:12px">🔍 ROOTS Debug – Link-Prüfung</span>';
+      hdr.innerHTML = '<span style="color:#60a5fa;font-weight:700;font-size:12px">🔍 ROOTS Debug <span style="color:#475569;font-weight:400">v20260601-C</span></span>';
       const x = document.createElement('button');
       x.textContent = '×';
       x.style.cssText = 'background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:0 4px';

@@ -1290,6 +1290,8 @@
         openUrl(href);
       } else {
         // iframe: proxy to parent which has Tauri access
+        // DEBUG: show alert so we know this code runs — remove after confirming
+        console.log('[ROOTS bridge] sending roots-open-url to parent:', href);
         window.parent.postMessage({ type: 'roots-open-url', url: href }, ORIGIN);
       }
     }, { capture: true });

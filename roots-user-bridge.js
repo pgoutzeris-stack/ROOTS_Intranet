@@ -1219,6 +1219,34 @@
   });
 
   /**
+   * External-link interceptor for iframe context (macOS WKWebView app).
+   *
+   * Problem: in a WKWebView iframe, clicking target="_blank" links either
+   * does nothing or navigates the iframe itself, breaking the app.
+   * Solution: capture every external-link click in the iframe, prevent
+   * the default, and postMessage the URL to the Intranet parent which opens
+   * it via window.open() from the top-level browsing context — which most
+   * native macOS apps are configured to forward to the system browser.
+   *
+   * Covers: https:// http:// mailto: tel: links and any target="_blank".
+   * Skips:  #anchors, javascript:, internal-same-page navigation.
+   */
+  function installLinkInterceptor() {
+    if (!IN_IFRAME) return;
+    document.addEventListener('click', (e) => {
+      const link = e.target.closest('a[href]');
+      if (!link) return;
+      const href = link.getAttribute('href') || '';
+      if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+      const isExternal = /^(https?:\/\/|mailto:|tel:)/.test(href);
+      const isNewTab   = link.target === '_blank' || link.target === '_top';
+      if (!isExternal && !isNewTab) return;
+      e.preventDefault();
+      window.parent.postMessage({ type: 'roots-open-url', url: href }, ORIGIN);
+    }, { capture: true });
+  }
+
+  /**
    * Universal file-download helper that works both in a normal browser tab
    * and inside an iframe embedded in a macOS web app (WKWebView).
    *
@@ -1271,6 +1299,7 @@
   };
 
   DataSourceTracker.install();
+  installLinkInterceptor();  // proxy external links to parent in WKWebView iframe
 
   const bootSync = (n) => {
     if (window.RootsUser) patch(window.RootsUser);

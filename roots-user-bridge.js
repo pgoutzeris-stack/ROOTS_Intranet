@@ -16,6 +16,76 @@
   // Legacy — kept for potential future use
   const IN_MAC_APP = IN_IFRAME && /ROOTS-MacApp/.test(navigator.userAgent);
 
+  /* ── Visuelles Debug-Overlay (nur in der Tauri macOS App) ───────────────
+   * Fängt console.log/warn/error ab und zeigt sie als Overlay-Panel.
+   * Erscheint automatisch beim ersten Log-Aufruf.
+   * Schließen: × Button. Wird nach 60s automatisch entfernt.
+   * ─────────────────────────────────────────────────────────────────────── */
+  (function installDebugOverlay() {
+    if (!IN_TAURI) return; // Nur in der echten App
+
+    let panel = null;
+    let logList = null;
+    let closeTimer = null;
+
+    function ensurePanel() {
+      if (panel) return;
+      panel = document.createElement('div');
+      panel.id = 'roots-debug-panel';
+      panel.style.cssText = [
+        'position:fixed', 'bottom:12px', 'right:12px', 'z-index:2147483647',
+        'width:420px', 'max-height:340px',
+        'background:#0f172a', 'color:#e2e8f0',
+        'border-radius:10px', 'border:1.5px solid #206efb',
+        'box-shadow:0 8px 32px rgba(0,0,0,.5)',
+        'font-family:monospace', 'font-size:11px', 'line-height:1.4',
+        'display:flex', 'flex-direction:column', 'overflow:hidden'
+      ].join(';');
+
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#1e3a5f;border-bottom:1px solid #206efb;flex-shrink:0';
+      header.innerHTML = '<span style="color:#60a5fa;font-weight:700;font-size:12px">🔍 ROOTS Debug – Link-Prüfung</span>';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '×';
+      closeBtn.style.cssText = 'background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:0 4px;line-height:1';
+      closeBtn.onclick = () => { panel.remove(); panel = null; logList = null; };
+      header.appendChild(closeBtn);
+      panel.appendChild(header);
+
+      logList = document.createElement('div');
+      logList.style.cssText = 'overflow-y:auto;flex:1;padding:6px 10px;';
+      panel.appendChild(logList);
+
+      document.body.appendChild(panel);
+
+      // Auto-remove nach 120 Sekunden
+      clearTimeout(closeTimer);
+      closeTimer = setTimeout(() => { panel?.remove(); panel = null; logList = null; }, 120000);
+    }
+
+    function addLog(level, args) {
+      ensurePanel();
+      const line = document.createElement('div');
+      const colors = { log: '#94a3b8', warn: '#fbbf24', error: '#f87171', info: '#60a5fa' };
+      const icons = { log: '›', warn: '⚠', error: '✕', info: 'ℹ' };
+      const text = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+      line.style.cssText = `color:${colors[level]||'#94a3b8'};padding:1px 0;border-bottom:1px solid #1e293b;word-break:break-all`;
+      line.textContent = `${icons[level]||'›'} ${text}`;
+      logList.appendChild(line);
+      logList.scrollTop = logList.scrollHeight;
+    }
+
+    // console.log/warn/error abfangen
+    ['log', 'warn', 'error', 'info'].forEach(lvl => {
+      const orig = console[lvl].bind(console);
+      console[lvl] = (...args) => {
+        orig(...args);
+        if (args.some(a => String(a).includes('[ROOTS'))) addLog(lvl, args);
+      };
+    });
+  })();
+
   const TOAST_MS = 9000;
   const visibleToastIds = new Set();
   const toastShownIds = new Set();

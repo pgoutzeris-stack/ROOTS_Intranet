@@ -22,68 +22,89 @@
    * Schließen: × Button. Wird nach 60s automatisch entfernt.
    * ─────────────────────────────────────────────────────────────────────── */
   (function installDebugOverlay() {
-    if (!IN_TAURI) return; // Nur in der echten App
+    // In iframe: logs per postMessage an den Parent (Intranet) schicken
+    // Im Parent (IN_TAURI): Panel anzeigen + iframe-Logs empfangen
+    const isParent = IN_TAURI && !IN_IFRAME;
+    const isChild  = IN_IFRAME;
+    if (!isParent && !isChild) return;
 
-    let panel = null;
-    let logList = null;
-    let closeTimer = null;
+    let panel = null, logList = null, closeTimer = null;
 
     function ensurePanel() {
-      if (panel) return;
+      if (panel || !isParent) return;
       panel = document.createElement('div');
       panel.id = 'roots-debug-panel';
       panel.style.cssText = [
-        'position:fixed', 'bottom:12px', 'right:12px', 'z-index:2147483647',
-        'width:420px', 'max-height:340px',
-        'background:#0f172a', 'color:#e2e8f0',
-        'border-radius:10px', 'border:1.5px solid #206efb',
-        'box-shadow:0 8px 32px rgba(0,0,0,.5)',
-        'font-family:monospace', 'font-size:11px', 'line-height:1.4',
-        'display:flex', 'flex-direction:column', 'overflow:hidden'
+        'position:fixed','bottom:12px','right:12px','z-index:2147483647',
+        'width:460px','max-height:380px',
+        'background:#0f172a','color:#e2e8f0',
+        'border-radius:10px','border:1.5px solid #206efb',
+        'box-shadow:0 8px 32px rgba(0,0,0,.6)',
+        'font-family:ui-monospace,monospace','font-size:11px','line-height:1.4',
+        'display:flex','flex-direction:column','overflow:hidden'
       ].join(';');
-
-      const header = document.createElement('div');
-      header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#1e3a5f;border-bottom:1px solid #206efb;flex-shrink:0';
-      header.innerHTML = '<span style="color:#60a5fa;font-weight:700;font-size:12px">🔍 ROOTS Debug – Link-Prüfung</span>';
-
-      const closeBtn = document.createElement('button');
-      closeBtn.textContent = '×';
-      closeBtn.style.cssText = 'background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:0 4px;line-height:1';
-      closeBtn.onclick = () => { panel.remove(); panel = null; logList = null; };
-      header.appendChild(closeBtn);
-      panel.appendChild(header);
-
+      const hdr = document.createElement('div');
+      hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#1e3a5f;border-bottom:1px solid #206efb;flex-shrink:0';
+      hdr.innerHTML = '<span style="color:#60a5fa;font-weight:700;font-size:12px">🔍 ROOTS Debug – Link-Prüfung</span>';
+      const x = document.createElement('button');
+      x.textContent = '×';
+      x.style.cssText = 'background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;padding:0 4px';
+      x.onclick = () => { panel.remove(); panel = null; logList = null; };
+      hdr.appendChild(x);
+      panel.appendChild(hdr);
       logList = document.createElement('div');
-      logList.style.cssText = 'overflow-y:auto;flex:1;padding:6px 10px;';
+      logList.style.cssText = 'overflow-y:auto;flex:1;padding:6px 10px';
       panel.appendChild(logList);
-
       document.body.appendChild(panel);
-
-      // Auto-remove nach 120 Sekunden
       clearTimeout(closeTimer);
-      closeTimer = setTimeout(() => { panel?.remove(); panel = null; logList = null; }, 120000);
+      closeTimer = setTimeout(() => { panel?.remove(); panel = null; logList = null; }, 180000);
     }
 
-    function addLog(level, args) {
+    function addLog(level, source, text) {
+      if (!isParent) return;
       ensurePanel();
+      if (!logList) return;
+      const colors = { log:'#94a3b8', warn:'#fbbf24', error:'#f87171', info:'#60a5fa' };
+      const icons  = { log:'›', warn:'⚠', error:'✕', info:'ℹ' };
+      const tag = source === 'iframe' ? '<span style="color:#f59e0b;font-size:9px">[iframe]</span> ' : '';
       const line = document.createElement('div');
-      const colors = { log: '#94a3b8', warn: '#fbbf24', error: '#f87171', info: '#60a5fa' };
-      const icons = { log: '›', warn: '⚠', error: '✕', info: 'ℹ' };
-      const text = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-      line.style.cssText = `color:${colors[level]||'#94a3b8'};padding:1px 0;border-bottom:1px solid #1e293b;word-break:break-all`;
-      line.textContent = `${icons[level]||'›'} ${text}`;
+      line.style.cssText = `color:${colors[level]||'#94a3b8'};padding:2px 0;border-bottom:1px solid #1e293b;word-break:break-all`;
+      line.innerHTML = `${icons[level]||'›'} ${tag}${text.replace(/</g,'&lt;')}`;
       logList.appendChild(line);
       logList.scrollTop = logList.scrollHeight;
     }
 
-    // console.log/warn/error abfangen
-    ['log', 'warn', 'error', 'info'].forEach(lvl => {
-      const orig = console[lvl].bind(console);
-      console[lvl] = (...args) => {
-        orig(...args);
-        if (args.some(a => String(a).includes('[ROOTS'))) addLog(lvl, args);
-      };
-    });
+    if (isParent) {
+      // Empfange Logs von iframes
+      window.addEventListener('message', (e) => {
+        if (e.data?.type === 'roots-debug-log') {
+          addLog(e.data.level, 'iframe', e.data.text);
+        }
+      });
+      // Eigene Logs abfangen
+      ['log','warn','error','info'].forEach(lvl => {
+        const orig = console[lvl].bind(console);
+        console[lvl] = (...args) => {
+          orig(...args);
+          const txt = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+          if (txt.includes('[ROOTS')) addLog(lvl, 'main', txt);
+        };
+      });
+    }
+
+    if (isChild) {
+      // Logs an Parent schicken
+      ['log','warn','error','info'].forEach(lvl => {
+        const orig = console[lvl].bind(console);
+        console[lvl] = (...args) => {
+          orig(...args);
+          const txt = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+          if (txt.includes('[ROOTS')) {
+            try { window.parent.postMessage({ type:'roots-debug-log', level:lvl, text:txt }, ORIGIN); } catch(_) {}
+          }
+        };
+      });
+    }
   })();
 
   const TOAST_MS = 9000;

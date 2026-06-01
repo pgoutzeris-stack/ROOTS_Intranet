@@ -3494,18 +3494,13 @@ window.addEventListener('message', (e) => {
     try {
       const url = String(e.data.url);
       if (/^(https?:\/\/|mailto:|tel:)/.test(url)) {
-        const hasTauri = typeof window.__TAURI_INTERNALS__ !== 'undefined';
-        // DEBUG toast — remove after confirming
-        if (window.showToast) window.showToast('🔗 Link: ' + (hasTauri ? 'Tauri invoke' : 'window.open') + ' → ' + url.slice(0, 40), 'info');
-        if (hasTauri) {
+        if (typeof window.__TAURI_INTERNALS__ !== 'undefined') {
           window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url });
         } else {
           window.open(url, '_blank', 'noopener,noreferrer');
         }
       }
-    } catch (err) {
-      if (window.showToast) window.showToast('❌ Link-Fehler: ' + err.message, 'error');
-    }
+    } catch (_) {}
   }
   // Print proxy: window.print() is blocked inside WKWebView iframes.
   // iframe sends roots-print-iframe; we call iframe.contentWindow.print()

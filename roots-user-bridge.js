@@ -1270,31 +1270,25 @@
    * Skips:  #anchors, javascript:, internal-same-page navigation.
    */
   function installLinkInterceptor() {
-    // In Tauri: intercept at top level too (not just iframes)
-    // In plain browser without iframe: skip — native behaviour is correct
+    // Works in both browser (IN_IFRAME) and Tauri app (IN_TAURI or IN_IFRAME).
+    // Plain browser standalone tab: skip — native behaviour is correct.
     if (!IN_TAURI && !IN_IFRAME) return;
 
+    // Strategy: do NOT preventDefault. Instead, ensure all external links
+    // carry target="_blank" so WKWebView routes them through createWebViewWith.
+    // Tauri's wry implementation opens external URLs in the system browser there.
+    // The App Store link already proves this works: itms-apps:// bypasses JS
+    // entirely and opens natively — same mechanism, just for https:// URLs.
     document.addEventListener('click', (e) => {
       const link = e.target.closest('a[href]');
       if (!link) return;
       const href = link.getAttribute('href') || '';
       if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
-      const isExternal = /^(https?:\/\/|mailto:|tel:)/.test(href);
-      const isNewTab   = link.target === '_blank' || link.target === '_top';
-      if (!isExternal && !isNewTab) return;
-
-      e.preventDefault();
-
-      if (IN_TAURI) {
-        // Top-level Tauri page: call opener directly
-        openUrl(href);
-      } else {
-        // iframe: proxy to parent which has Tauri access
-        // DEBUG: show alert so we know this code runs — remove after confirming
-        console.log('[ROOTS bridge] sending roots-open-url to parent:', href);
-        window.parent.postMessage({ type: 'roots-open-url', url: href }, ORIGIN);
-      }
-    }, { capture: true });
+      if (!/^(https?:\/\/|mailto:|tel:)/.test(href)) return;
+      // Ensure target="_blank" so createWebViewWith fires → Safari
+      if (link.target !== '_blank') link.target = '_blank';
+      // Let the click propagate naturally — no preventDefault
+    }, { capture: false });
   }
 
   /**

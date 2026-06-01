@@ -3485,6 +3485,16 @@ window.addEventListener('message', (e) => {
   if (e.data?.type === 'roots-notification-click' && e.data.id) {
     void window.RootsNotifications?.handleClickById(e.data.id);
   }
+  // Print proxy: window.print() is blocked inside WKWebView iframes.
+  // iframe sends roots-print-iframe; we call iframe.contentWindow.print()
+  // from the top-level context where it IS allowed.
+  if (e.data?.type === 'roots-print-iframe') {
+    try {
+      const iframe = window.RootsNotifications?.getActiveToolIframe?.()
+        || document.querySelector('.app-view.is-active iframe.tool-iframe');
+      if (iframe?.contentWindow) iframe.contentWindow.print();
+    } catch (_) {}
+  }
   // File download proxy: iframe tools can't trigger blob-downloads in WKWebView;
   // they forward the file as an ArrayBuffer and we download from the top-level page.
   if (e.data?.type === 'roots-download-file' && e.data.buffer && e.data.filename) {

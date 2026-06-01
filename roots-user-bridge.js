@@ -3,15 +3,36 @@
   const IN_IFRAME = window.parent !== window;
 
   /**
-   * True when running inside the ROOTS native macOS app.
-   * The app must add the following one line in Swift when creating the WKWebView:
-   *
-   *   let existing = WKWebView().value(forKey: "userAgent") as? String ?? ""
-   *   webView.customUserAgent = existing + " ROOTS-MacApp/1.0"
-   *
-   * Once set, all iframe proxies (links, downloads, print) activate only for
-   * the native app and leave normal browser behaviour untouched.
+   * Detected: the app is built with Tauri v2.
+   * Tauri injects window.__TAURI_INTERNALS__ into pages it controls.
+   * The binary has allow-open-url permission → plugin:opener|open_url
+   * is the correct way to open external URLs in the system browser.
    */
+  const IN_TAURI = typeof window.__TAURI_INTERNALS__ !== 'undefined';
+
+  /**
+   * Opens a URL using the best available method:
+   * 1. Tauri opener plugin  → opens in default system browser (no user-gesture needed)
+   * 2. window.open fallback → for plain browser context
+   */
+  async function openUrl(url) {
+    if (!url || !/^(https?:\/\/|mailto:|tel:)/.test(url)) return;
+    if (IN_TAURI) {
+      try {
+        await window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url });
+        return;
+      } catch (e) {
+        console.warn('[ROOTS] Tauri opener failed, falling back:', e);
+      }
+    }
+    // Plain browser / Tauri IPC not available: click a real <a> element
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => document.body.removeChild(a), 500);
+  }
+
+  // Keep for future UA-based precision detection (no app rebuild available yet)
   const IN_MAC_APP = IN_IFRAME && /ROOTS-MacApp/.test(navigator.userAgent);
 
   const TOAST_MS = 9000;
@@ -1245,7 +1266,10 @@
    * Skips:  #anchors, javascript:, internal-same-page navigation.
    */
   function installLinkInterceptor() {
-    if (!IN_IFRAME) return;
+    // In Tauri: intercept at top level too (not just iframes)
+    // In plain browser without iframe: skip — native behaviour is correct
+    if (!IN_TAURI && !IN_IFRAME) return;
+
     document.addEventListener('click', (e) => {
       const link = e.target.closest('a[href]');
       if (!link) return;
@@ -1254,8 +1278,16 @@
       const isExternal = /^(https?:\/\/|mailto:|tel:)/.test(href);
       const isNewTab   = link.target === '_blank' || link.target === '_top';
       if (!isExternal && !isNewTab) return;
+
       e.preventDefault();
-      window.parent.postMessage({ type: 'roots-open-url', url: href }, ORIGIN);
+
+      if (IN_TAURI) {
+        // Top-level Tauri page: call opener directly
+        openUrl(href);
+      } else {
+        // iframe: proxy to parent which has Tauri access
+        window.parent.postMessage({ type: 'roots-open-url', url: href }, ORIGIN);
+      }
     }, { capture: true });
   }
 
@@ -1299,7 +1331,9 @@
 
   window.RootsUserBridge = {
     IN_IFRAME,
+    IN_TAURI,
     IN_MAC_APP,
+    openUrl,
     patch,
     ORIGIN,
     showBridgeToast,

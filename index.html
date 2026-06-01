@@ -3485,22 +3485,12 @@ window.addEventListener('message', (e) => {
   if (e.data?.type === 'roots-notification-click' && e.data.id) {
     void window.RootsNotifications?.handleClickById(e.data.id);
   }
-  // External-link proxy: iframe tools forward external links via postMessage
-  // because target="_blank" in WKWebView iframes doesn't open the system browser.
-  // We open them from the top-level page where the native app can intercept and
-  // route to Safari / the system default browser.
+  // External-link proxy: iframe tools can't open system browser directly.
+  // They postMessage the URL here; we use Tauri's opener plugin which
+  // calls open::that(url) on the Rust side — no user-gesture required.
   if (e.data?.type === 'roots-open-url' && e.data.url) {
     try {
-      const url = String(e.data.url);
-      if (/^(https?:\/\/|mailto:|tel:)/.test(url)) {
-        const a = document.createElement('a');
-        a.href = url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => document.body.removeChild(a), 500);
-      }
+      window.RootsUserBridge?.openUrl?.(String(e.data.url));
     } catch (_) {}
   }
   // Print proxy: window.print() is blocked inside WKWebView iframes.

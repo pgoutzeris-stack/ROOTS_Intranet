@@ -5,9 +5,17 @@ drop view if exists public.workspace_members;
 drop view if exists public.workspaces;
 
 drop policy if exists profiles_select_workspace on users.profiles;
+drop policy if exists profile_images_select_workspace on users.profile_images;
+drop policy if exists wm_select on users.workspace_members;
+drop policy if exists workspaces_read_members on users.workspaces;
 
 create policy profiles_select_authenticated
   on users.profiles
+  for select
+  using (auth.role() = 'authenticated');
+
+create policy profile_images_select_authenticated
+  on users.profile_images
   for select
   using (auth.role() = 'authenticated');
 
@@ -63,7 +71,7 @@ create or replace function users.upsert_roots_team_member(
   p_position text,
   p_linkedin_url text,
   p_avatar_url text,
-  p_app_role text
+  p_app_role text default 'reader'
 )
 returns uuid
 language plpgsql

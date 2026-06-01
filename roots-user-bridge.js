@@ -1351,25 +1351,25 @@
       if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
       if (!/^(https?:\/\/|mailto:|tel:)/.test(href)) return;
 
-      const wasBlank = link.target === '_blank';
-      link.target = '_blank';
-
       console.log(`%c[ROOTS Bridge] 🔗 Link-Klick erkannt`, 'color:#206efb;font-weight:bold');
       console.log(`  URL: ${href}`);
-      console.log(`  target vorher: ${wasBlank ? '_blank' : link.getAttribute('target') || '(keins)'} → jetzt: _blank`);
       console.log(`  IN_TAURI: ${IN_TAURI} | IN_IFRAME: ${IN_IFRAME}`);
-      console.log(`  Strategy: stopPropagation() → Opener-Plugin blockiert → Browser navigiert → WKWebView createWebViewWith → wry → Safari`);
-      console.log(`  e.defaultPrevented vor stopPropagation: ${e.defaultPrevented}`);
 
+      // stopPropagation: verhindert Opener-Plugin (bubble auf window)
       e.stopPropagation();
+      // preventDefault: verhindert Browser-Default (die nach stopPropagation
+      // in WKWebView sowieso nicht mehr feuert)
+      e.preventDefault();
 
-      console.log(`  stopPropagation() gesetzt ✅ — Opener-Plugin bubble listener wird nicht feuern`);
-      console.log(`  Browser-Default-Action läuft → Link wird gefolgt → erwarte Safari-Öffnung`);
-
-      // Verify after a tick if the navigation actually started
-      setTimeout(() => {
-        console.log(`[ROOTS Bridge] 📋 Nach-Klick-Check (50ms): Wenn Safari sich nicht geöffnet hat, blockiert WKWebView createWebViewWith`);
-      }, 50);
+      // window.open() aus User-Gesture-Kontext (synchron im click handler):
+      // → triggert WKWebView createWebViewWith → wry öffnet in Safari ✅
+      const result = window.open(href, '_blank', 'noopener,noreferrer');
+      console.log(`  window.open() aufgerufen → result: ${result} (null = WKWebView hat übernommen → Safari)`);
+      if (result === null) {
+        console.log(`  ✅ WKWebView hat createWebViewWith gefeuert → wry öffnet in Safari`);
+      } else {
+        console.log(`  ⚠️ Neues Fenster geöffnet (result nicht null) — kein WKWebView-Intercept`);
+      }
     }, { capture: true });
   }
 

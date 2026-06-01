@@ -1249,32 +1249,36 @@
   function installLinkInterceptor() {
     if (!IN_TAURI && !IN_IFRAME) return;
 
-    // The Tauri binary's opener-plugin init-script registers a BUBBLE listener
-    // on window that intercepts target="_blank" https:// clicks, calls
-    // e.preventDefault(), then tries __TAURI_INTERNALS__.invoke() — which
-    // silently fails on GitHub Pages pages → link goes nowhere.
-    //
-    // The App Store link works because it has NO target="_blank" so the opener
-    // plugin ignores it → normal navigation → WKWebView/OS handles it.
-    //
-    // Strategy:
-    // 1. CAPTURE phase on document (fires before the element and before bubble)
-    // 2. Set target="_blank" on external links
-    // 3. Call e.stopPropagation() → opener-plugin bubble listener NEVER fires
-    // 4. Do NOT call e.preventDefault() → browser default action preserved
-    // 5. Browser follows the link with target="_blank"
-    // 6. WKWebView fires createWebViewWith → wry opens URL in system browser ✅
+    const ctx = IN_TAURI ? '[Tauri-App]' : '[Browser-iframe]';
+    console.log(`%c[ROOTS Bridge] ${ctx} Link-Interceptor aktiv`, 'color:#206efb;font-weight:bold');
+    console.log(`[ROOTS Bridge] IN_TAURI=${IN_TAURI} | IN_IFRAME=${IN_IFRAME} | __rootsWebkitUiFix=${!!window.__rootsWebkitUiFix}`);
+
     document.addEventListener('click', (e) => {
       const link = e.target.closest('a[href]');
       if (!link) return;
       const href = link.getAttribute('href') || '';
       if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
       if (!/^(https?:\/\/|mailto:|tel:)/.test(href)) return;
-      // Ensure _blank so WKWebView fires createWebViewWith
+
+      const wasBlank = link.target === '_blank';
       link.target = '_blank';
-      // Stop opener-plugin bubble listener from calling preventDefault+invoke
+
+      console.log(`%c[ROOTS Bridge] 🔗 Link-Klick erkannt`, 'color:#206efb;font-weight:bold');
+      console.log(`  URL: ${href}`);
+      console.log(`  target vorher: ${wasBlank ? '_blank' : link.getAttribute('target') || '(keins)'} → jetzt: _blank`);
+      console.log(`  IN_TAURI: ${IN_TAURI} | IN_IFRAME: ${IN_IFRAME}`);
+      console.log(`  Strategy: stopPropagation() → Opener-Plugin blockiert → Browser navigiert → WKWebView createWebViewWith → wry → Safari`);
+      console.log(`  e.defaultPrevented vor stopPropagation: ${e.defaultPrevented}`);
+
       e.stopPropagation();
-      // No preventDefault — browser follows the link naturally
+
+      console.log(`  stopPropagation() gesetzt ✅ — Opener-Plugin bubble listener wird nicht feuern`);
+      console.log(`  Browser-Default-Action läuft → Link wird gefolgt → erwarte Safari-Öffnung`);
+
+      // Verify after a tick if the navigation actually started
+      setTimeout(() => {
+        console.log(`[ROOTS Bridge] 📋 Nach-Klick-Check (50ms): Wenn Safari sich nicht geöffnet hat, blockiert WKWebView createWebViewWith`);
+      }, 50);
     }, { capture: true });
   }
 

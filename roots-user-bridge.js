@@ -3,11 +3,32 @@
   const IN_IFRAME = window.parent !== window;
 
   /**
-   * Detected: the app is built with Tauri v2.
-   * Tauri injects window.__TAURI_INTERNALS__ into pages it controls.
-   * The binary has allow-open-url permission → plugin:opener|open_url
-   * is the correct way to open external URLs in the system browser.
+   * The Tauri binary's opener-plugin initialization script intercepts
+   * target="_blank" clicks, calls e.preventDefault(), then calls:
+   *   window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url })
+   *
+   * On GitHub-Pages-hosted pages __TAURI_INTERNALS__ is NOT injected by
+   * Tauri (only on tauri://localhost pages). The invoke() call throws,
+   * the link is prevented but never opened — nothing happens.
+   *
+   * Fix: define __TAURI_INTERNALS__ as a polyfill HERE (bridge runs before
+   * any user click, so it's available when the opener plugin's listener
+   * fires). The polyfill's invoke() uses window.open(_blank) which triggers
+   * WKWebView's createWebViewWith delegate — wry opens it in Safari.
    */
+  (function patchTauriInternals() {
+    const fakeInvoke = async (cmd, args) => {
+      if (cmd === 'plugin:opener|open_url' && args?.url) {
+        window.open(String(args.url), '_blank', 'noopener,noreferrer');
+      }
+    };
+    if (!window.__TAURI_INTERNALS__) {
+      window.__TAURI_INTERNALS__ = { invoke: fakeInvoke };
+    } else if (typeof window.__TAURI_INTERNALS__.invoke !== 'function') {
+      window.__TAURI_INTERNALS__.invoke = fakeInvoke;
+    }
+  })();
+
   const IN_TAURI = typeof window.__TAURI_INTERNALS__ !== 'undefined';
 
   /**

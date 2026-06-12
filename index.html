@@ -1113,6 +1113,9 @@
 
         <div class="nav-group">
           <span class="nav-label">Tools</span>
+          <a href="#slide-writing" class="nav-item" data-view="slide-writing" data-tool-id="slide-writing">
+            <i class="fa-solid fa-file-powerpoint"></i><span class="nav-label-text"> Slide Writing</span>
+          </a>
           <a href="#recruiting" class="nav-item" data-view="recruiting" data-tool-id="recruiting">
             <i class="fa-solid fa-user-tie"></i><span class="nav-label-text"> Recruiting Tool</span>
           </a>
@@ -1184,6 +1187,19 @@
           </div>
 
           <div class="tools-grid">
+            <article class="tool-launch-card tool-launch-card--accent" data-tool-id="slide-writing">
+              <span class="card-chip"><i class="fa-solid fa-file-powerpoint"></i> Consulting Automation</span>
+              <div class="tool-card-copy">
+                <h3>Slide Writing</h3>
+                <p>PowerPoint-Master auslesen, Designstruktur verstehen und neue Consulting-Folien im selben Stil erzeugen.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#slide-writing" class="btn-primary" data-open-view="slide-writing">
+                  <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Öffnen
+                </a>
+              </div>
+            </article>
+
             <article class="tool-launch-card" data-tool-id="recruiting">
               <span class="card-chip"><i class="fa-solid fa-user-tie"></i> Recruiting</span>
               <div class="tool-card-copy">
@@ -1289,6 +1305,14 @@
             </article>
           </div>
         </div>
+      </section>
+
+      <section class="app-view" data-view-panel="slide-writing">
+        <iframe
+          class="tool-iframe"
+          title="Slide Writing"
+          data-src="https://pgoutzeris-stack.github.io/slide-writing/"
+          referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="recruiting">
@@ -1450,7 +1474,7 @@
       const upTitle    = document.getElementById('upcoming-feature-title');
       const upDesc     = document.getElementById('upcoming-feature-description');
 
-      const TOOL_VIEWS = new Set(['recruiting', 'sop', 'image', 'teamkalender', 'onboarding', 'notes', 'vacation', 'whiteboard', 'livepoll', 'wissenshub']);
+      const TOOL_VIEWS = new Set(['slide-writing', 'recruiting', 'sop', 'image', 'teamkalender', 'onboarding', 'notes', 'vacation', 'whiteboard', 'livepoll', 'wissenshub']);
       const SIDEBAR_AUTO_VIEWS = new Set([...TOOL_VIEWS, 'admin']);
 
       function getGreeting() {
@@ -1466,8 +1490,8 @@
         dashboard: {
           eyebrow: 'ROOTS Intranet',
           title: getGreeting,
+          primary: { label: '<i class="fa-solid fa-file-powerpoint"></i> Slide Writing', target: 'slide-writing' },
           description: 'Willkommen im ROOTS Intranet. Hier ist deine aktuelle Tagesübersicht und der direkte Einstieg in die integrierten Tools.',
-          primary: null,
           secondary: null
         },
         upcoming: {
@@ -2172,6 +2196,7 @@ window.RootsNotifications = {
 
 // ===== Intranet tool access =====
 window.INTRANET_TOOLS = [
+  { id: 'slide-writing', label: 'Slide Writing' },
   { id: 'recruiting', label: 'Recruiting Tool' },
   { id: 'sop', label: 'SOP Dashboard' },
   { id: 'image', label: 'Bildgenerierung (KI)' },

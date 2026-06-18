@@ -39,6 +39,7 @@
       --shadow-lg: 0 12px 40px rgba(15,23,42,.14);
       --shadow-dash: 0 4px 16px rgba(15,23,42,.08);
       --intranet-shell-pad: clamp(16px, 1.6vw, 28px);
+      --intranet-shell-max: min(2280px, 100%);
     }
 
     @media (prefers-color-scheme: dark) {
@@ -81,8 +82,8 @@
       font-family: 'Circular Std', system-ui, sans-serif;
       color: var(--ink);
       width: 100%;
-      max-width: none;
-      margin: 0;
+      max-width: var(--intranet-shell-max);
+      margin: 0 auto;
       background: var(--bg);
       border-radius: var(--radius);
       box-shadow: var(--shadow);

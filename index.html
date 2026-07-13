@@ -1068,6 +1068,35 @@
         </button>
       </div>
     </div>
+    <div id="roots-view-reset" style="display:none">
+      <h1 class="roots-card-title">Neues Passwort setzen</h1>
+      <p class="roots-card-sub">Wähle ein neues Passwort für dein ROOTS-Konto.</p>
+      <div id="roots-password-error" class="roots-alert roots-alert-error">
+        <i class="fa-solid fa-circle-exclamation"></i><span id="roots-password-error-text"></span>
+      </div>
+      <div id="roots-password-success" class="roots-alert roots-alert-success">
+        <i class="fa-solid fa-circle-check"></i><span>Passwort geändert. Du kannst dich jetzt anmelden.</span>
+      </div>
+      <form id="roots-password-form" novalidate>
+        <div class="roots-form-group">
+          <label for="roots-new-password">Neues Passwort</label>
+          <div class="roots-input-wrap">
+            <i class="fa-solid fa-lock roots-icon"></i>
+            <input type="password" id="roots-new-password" autocomplete="new-password" minlength="8" required />
+          </div>
+        </div>
+        <div class="roots-form-group">
+          <label for="roots-confirm-password">Passwort bestätigen</label>
+          <div class="roots-input-wrap">
+            <i class="fa-solid fa-lock roots-icon"></i>
+            <input type="password" id="roots-confirm-password" autocomplete="new-password" minlength="8" required />
+          </div>
+        </div>
+        <button type="submit" class="roots-btn-primary" id="roots-password-btn">
+          <i class="fa-solid fa-key"></i> Passwort speichern
+        </button>
+      </form>
+    </div>
   </div>
 </div>
   <div class="wrapper intranet-layout">
@@ -3459,13 +3488,14 @@ window.RootsAdmin = {
   const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNzbWd1d2N2enJlZWZsdWhhaHl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjM0ODcsImV4cCI6MjA5MjUzOTQ4N30.Fiafx7XBaQZXUX3bKQIBH7znBHx3B51yL-bftOHsL4Q';
   const {createClient}=window.supabase;
   const sb=createClient(SB_URL,SB_ANON,{
-    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,storage:window.localStorage}
+    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage}
   });
   window.__rootsSupabaseClient=sb;
   window.rootsSupabase=sb;
   const overlay=document.getElementById('roots-auth-overlay');
   const vLogin=document.getElementById('roots-view-login');
   const vForgot=document.getElementById('roots-view-forgot');
+  const vReset=document.getElementById('roots-view-reset');
   const LOGIN_BTN_HTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
   const RESET_BTN_HTML='<i class="fa-solid fa-paper-plane"></i> Link senden';
   function resetLoginUi(){
@@ -3473,22 +3503,38 @@ window.RootsAdmin = {
     if(btn){btn.disabled=false;btn.innerHTML=LOGIN_BTN_HTML;}
     const rb=document.getElementById('roots-reset-btn');
     if(rb){rb.disabled=false;rb.innerHTML=RESET_BTN_HTML;}
+    const pb=document.getElementById('roots-password-btn');
+    if(pb){pb.disabled=false;pb.innerHTML='<i class="fa-solid fa-key"></i> Passwort speichern';}
   }
   function showAuthOverlay(){
     if(!overlay)return;
     overlay.style.display='flex';
     if(vLogin)vLogin.style.display='block';
     if(vForgot)vForgot.style.display='none';
+    if(vReset)vReset.style.display='none';
     resetLoginUi();
   }
   function hideAuthOverlay(){
     if(overlay)overlay.style.display='none';
+  }
+  function showPasswordReset(){
+    if(!overlay)return;
+    overlay.style.display='flex';
+    if(vLogin)vLogin.style.display='none';
+    if(vForgot)vForgot.style.display='none';
+    if(vReset)vReset.style.display='block';
+    document.getElementById('roots-password-error')?.classList.remove('visible');
+    document.getElementById('roots-password-success')?.classList.remove('visible');
   }
   sb.auth.getSession().then(({data:{session}})=>{
     if(session){hideAuthOverlay();window.RootsUser&&void RootsUser._loadAndMount(sb,session);}
     else{resetLoginUi();}
   });
   sb.auth.onAuthStateChange((event,session)=>{
+    if(event==='PASSWORD_RECOVERY'){
+      showPasswordReset();
+      return;
+    }
     if(session){
       hideAuthOverlay();
       resetLoginUi();
@@ -3528,6 +3574,24 @@ window.RootsAdmin = {
     const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});
     if(error){errEl.classList.add('visible');document.getElementById('roots-reset-error-text').textContent=error.message;btn.disabled=false;}
     else{okEl.classList.add('visible');btn.disabled=false;}
+  });
+  document.getElementById('roots-password-form').addEventListener('submit',async(e)=>{
+    e.preventDefault();
+    const password=document.getElementById('roots-new-password').value;
+    const confirmation=document.getElementById('roots-confirm-password').value;
+    const btn=document.getElementById('roots-password-btn');
+    const errEl=document.getElementById('roots-password-error');
+    const errText=document.getElementById('roots-password-error-text');
+    const okEl=document.getElementById('roots-password-success');
+    errEl.classList.remove('visible'); okEl.classList.remove('visible');
+    if(password.length<8){errText.textContent='Das Passwort muss mindestens 8 Zeichen enthalten.';errEl.classList.add('visible');return;}
+    if(password!==confirmation){errText.textContent='Die Passwörter stimmen nicht überein.';errEl.classList.add('visible');return;}
+    btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-circle-notch roots-spin"></i> Speichern...';
+    const {error}=await sb.auth.updateUser({password});
+    if(error){errText.textContent=error.message;errEl.classList.add('visible');btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-key"></i> Passwort speichern';return;}
+    okEl.classList.add('visible');
+    await sb.auth.signOut();
+    setTimeout(()=>{showAuthOverlay();document.getElementById('roots-password-form').reset();},1200);
   });
   document.getElementById('roots-go-forgot').addEventListener('click',()=>{vLogin.style.display='none';vForgot.style.display='block';});
   document.getElementById('roots-go-login').addEventListener('click',()=>{vForgot.style.display='none';vLogin.style.display='block';resetLoginUi();});

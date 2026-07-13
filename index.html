@@ -1138,6 +1138,9 @@
           <a href="#livepoll" class="nav-item" data-view="livepoll" data-tool-id="livepoll">
             <i class="fa-solid fa-signal"></i><span class="nav-label-text"> Live Poll</span>
           </a>
+          <a href="#signal-layer" class="nav-item" data-view="signal-layer" data-tool-id="signal-layer">
+            <i class="fa-solid fa-broadcast-tower"></i><span class="nav-label-text"> Signal Layer</span>
+          </a>
           <a href="#admin" class="nav-item nav-item--admin" id="roots-admin-nav-item" data-view="admin" hidden aria-hidden="true">
             <i class="fa-solid fa-users-gear"></i><span class="nav-label-text"> Nutzerverwaltung</span>
           </a>
@@ -1307,6 +1310,19 @@
                 </a>
               </div>
             </article>
+
+            <article class="tool-launch-card" data-tool-id="signal-layer">
+              <span class="card-chip"><i class="fa-solid fa-broadcast-tower"></i> In Aufbau</span>
+              <div class="tool-card-copy">
+                <h3>Signal Layer</h3>
+                <p>Neues Tool im Aufbau — Inhalt folgt.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#signal-layer" class="btn-primary" data-open-view="signal-layer">
+                  <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Öffnen
+                </a>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -1361,6 +1377,15 @@
           class="tool-iframe"
           title="ROOTS Live Poll"
           data-src="https://pgoutzeris-stack.github.io/roots-livepoll/"
+          referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </section>
+
+      <section class="app-view" data-view-panel="signal-layer">
+        <iframe
+          id="signal-layer-iframe"
+          class="tool-iframe"
+          title="Signal Layer"
+          data-src="https://pgoutzeris-stack.github.io/Signal-Layer/"
           referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
 
@@ -1478,7 +1503,7 @@
       const upTitle    = document.getElementById('upcoming-feature-title');
       const upDesc     = document.getElementById('upcoming-feature-description');
 
-      const TOOL_VIEWS = new Set(['slide-writing', 'recruiting', 'sop', 'image', 'teamkalender', 'onboarding', 'notes', 'vacation', 'whiteboard', 'livepoll', 'wissenshub']);
+      const TOOL_VIEWS = new Set(['slide-writing', 'recruiting', 'sop', 'image', 'teamkalender', 'onboarding', 'notes', 'vacation', 'whiteboard', 'livepoll', 'wissenshub', 'signal-layer']);
       const SIDEBAR_AUTO_VIEWS = new Set([...TOOL_VIEWS, 'admin']);
 
       function getGreeting() {
@@ -2210,6 +2235,7 @@ window.INTRANET_TOOLS = [
   { id: 'notes', label: 'Notes Tool' },
   { id: 'whiteboard', label: 'Whiteboard' },
   { id: 'livepoll', label: 'Live Poll' },
+  { id: 'signal-layer', label: 'Signal Layer' },
 ];
 window.INTRANET_TOOL_IDS = window.INTRANET_TOOLS.map(t => t.id);
 

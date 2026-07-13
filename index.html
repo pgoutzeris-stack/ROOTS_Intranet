@@ -1450,7 +1450,6 @@
               <section style="margin:0 0 1rem;padding:1rem;border:1px solid var(--line,#e2e8f0);border-radius:12px;background:rgba(32,110,251,.035)">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.75rem;flex-wrap:wrap">
                   <div><h3 style="font-size:.95rem;margin:0 0 .2rem;color:var(--ink,#0f172a)">Offene Zugangsanfragen</h3><p style="font-size:.78rem;margin:0;color:var(--muted,#475569)">Anfragen von ROOTS-E-Mail-Adressen prüfen.</p></div>
-                  <button id="roots-access-request-refresh-page" type="button" class="admin-btn admin-btn--ghost admin-btn--compact" onclick="window.RootsAdminEmployee?.loadAccessRequests()"><i class="fa-solid fa-rotate"></i> Aktualisieren</button>
                 </div>
                 <div id="roots-access-request-list-page"><div class="admin-state">Lade Anfragen…</div></div>
               </section>
@@ -1969,7 +1968,6 @@
     <section style="margin-bottom:1.25rem;padding:1rem;border:1px solid var(--line,#e2e8f0);border-radius:12px;background:rgba(32,110,251,.035)">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.75rem">
         <div><h3 style="font-size:.95rem;margin:0 0 .2rem;color:var(--ink,#0f172a)">Offene Zugangsanfragen</h3><p style="font-size:.78rem;margin:0;color:var(--muted,#475569)">Nur ROOTS-E-Mail-Adressen werden angenommen.</p></div>
-        <button id="roots-access-request-refresh" type="button" class="admin-btn admin-btn--ghost admin-btn--compact" onclick="window.RootsAdminEmployee?.loadAccessRequests()"><i class="fa-solid fa-rotate"></i> Aktualisieren</button>
       </div>
       <div id="roots-access-request-list"><div class="admin-state">Lade Anfragen…</div></div>
     </section>
@@ -2526,7 +2524,7 @@ window.RootsAdminEmployee = {
       const pending = requests.filter(r => r.status === 'pending');
       list.innerHTML = pending.length ? pending.map(r => `<div style="display:flex;align-items:center;justify-content:space-between;gap:.7rem;padding:.7rem 0;border-top:1px solid var(--line,#e2e8f0);flex-wrap:wrap">
         <div><strong style="font-size:.84rem;color:var(--ink,#0f172a)">${escapeHtml(r.full_name || 'Unbekannte Person')}</strong><div style="font-size:.76rem;color:var(--muted,#475569)">${escapeHtml(r.email)} · ${escapeHtml(new Date(r.requested_at).toLocaleString('de-DE'))}</div></div>
-        <div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end"><button type="button" class="admin-btn admin-btn--primary admin-btn--compact" data-access-action="invite" data-request-id="${escapeHtml(r.id)}">Anlegen &amp; E-Mail senden</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" data-access-action="create" data-request-id="${escapeHtml(r.id)}">Ohne E-Mail anlegen</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" data-access-action="reject" data-request-id="${escapeHtml(r.id)}">Ablehnen</button></div>
+        <div style="display:flex;gap:.45rem;flex:1;min-width:100%;align-items:stretch"><button type="button" class="admin-btn admin-btn--primary admin-btn--compact" style="flex:1;justify-content:center;white-space:nowrap" data-access-action="invite" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-user-check"></i> Einladung senden</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" style="flex:1;justify-content:center;white-space:nowrap" data-access-action="create" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-user-plus"></i> Ohne E-Mail</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" style="flex:1;justify-content:center;white-space:nowrap" data-access-action="reject" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-user-xmark"></i> Ablehnen</button></div>
       </div>`).join('') : '<div class="admin-state">Keine offenen Anfragen.</div>';
       list.querySelectorAll('[data-access-action]').forEach(btn => btn.addEventListener('click', async () => {
         btn.disabled = true;

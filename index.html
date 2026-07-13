@@ -3486,6 +3486,7 @@ window.RootsAdmin = {
 (function(){
   const SB_URL='https://csmguwcvzreefluhahyu.supabase.co';
   const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNzbWd1d2N2enJlZWZsdWhhaHl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjM0ODcsImV4cCI6MjA5MjUzOTQ4N30.Fiafx7XBaQZXUX3bKQIBH7znBHx3B51yL-bftOHsL4Q';
+  const INTRANET_REDIRECT='https://pgoutzeris-stack.github.io/ROOTS_Intranet/';
   const {createClient}=window.supabase;
   const sb=createClient(SB_URL,SB_ANON,{
     auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage}
@@ -3571,7 +3572,7 @@ window.RootsAdmin = {
     const errEl=document.getElementById('roots-reset-error');
     const okEl=document.getElementById('roots-reset-success');
     btn.disabled=true;errEl.classList.remove('visible');okEl.classList.remove('visible');
-    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});
+    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:INTRANET_REDIRECT});
     if(error){errEl.classList.add('visible');document.getElementById('roots-reset-error-text').textContent=error.message;btn.disabled=false;}
     else{okEl.classList.add('visible');btn.disabled=false;}
   });

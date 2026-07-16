@@ -1426,7 +1426,7 @@
           id="signal-layer-iframe"
           class="tool-iframe"
           title="Signal Layer"
-          data-src="https://pgoutzeris-stack.github.io/Signal-Layer/?v=20260715-0500"
+          data-src="https://pgoutzeris-stack.github.io/Signal-Layer/?v=20260715-0600"
           referrerpolicy="no-referrer-when-downgrade"></iframe>
       </section>
 
@@ -3717,12 +3717,20 @@ window.addEventListener('message', (e) => {
   if (e.data?.type === 'roots-open-url' && e.data.url) {
     try {
       const url = String(e.data.url);
-      if (/^(https?:\/\/|mailto:|tel:)/.test(url)) {
-        if (typeof window.__TAURI_INTERNALS__ !== 'undefined') {
-          window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url });
-        } else {
-          window.open(url, '_blank', 'noopener,noreferrer');
-        }
+      if (!/^(https?:\/\/|mailto:|tel:)/.test(url)) return;
+      const T = window.__TAURI_INTERNALS__;
+      const openInBrowser = () => { try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (_) {} };
+      if (T && typeof T.invoke === 'function') {
+        // invoke() rejects (async) when a plugin/command isn't registered, so
+        // chain fallbacks across the common plugin variants before giving up
+        // to window.open. A plain try/catch would miss the async rejection.
+        Promise.resolve()
+          .then(() => T.invoke('plugin:opener|open_url', { url }))
+          .catch(() => T.invoke('plugin:shell|open', { path: url }))
+          .catch(() => T.invoke('plugin:opener|open_url', { path: url }))
+          .catch(() => openInBrowser());
+      } else {
+        openInBrowser();
       }
     } catch (_) {}
   }

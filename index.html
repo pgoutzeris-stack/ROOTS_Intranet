@@ -1595,8 +1595,14 @@
         const panel = document.querySelector(`.app-view[data-view-panel="${viewName}"]`);
         const iframe = panel?.querySelector('iframe.tool-iframe');
         if (!iframe) return;
-        const url = iframe.dataset.src;
-        if (!url) return;
+        const base = iframe.dataset.src;
+        if (!base) return;
+        // Per-app-launch cache-bust: the native Tauri WKWebView caches iframe
+        // content aggressively, so a static ?v= could pin a tool to a stale
+        // build. Appending a fresh token each launch guarantees the current
+        // tool frontend loads, without having to bump versions by hand.
+        window.__rootsCacheBust = window.__rootsCacheBust || Date.now().toString(36);
+        const url = base + (base.includes('?') ? '&' : '?') + 'cb=' + window.__rootsCacheBust;
         const syncAuth = () => window.RootsUser?._broadcastAuthSession?.();
         if (!iframe.dataset.loaded) {
           iframe.dataset.loaded = '1';

@@ -255,10 +255,16 @@
     }
     .admin-field textarea { height: auto; min-height: 72px; padding: .6rem 12px; resize: vertical; }
     .admin-field-hint {
-      margin: .6rem 0 0; font-size: .72rem; color: #94a3b8; font-style: italic; line-height: 1.45;
+      margin: .5rem 0 0; font-size: .72rem; color: #94a3b8; font-style: italic; line-height: 1.45;
       display: flex; align-items: flex-start; gap: .4rem;
     }
     .admin-field-hint i { font-size: .68rem; margin-top: .12rem; flex-shrink: 0; font-style: normal; opacity: .9; color: #94a3b8; }
+    .admin-field-hint--notice {
+      margin-top: .75rem; padding: .65rem .75rem; align-items: center; gap: .6rem;
+      border: 1px solid rgba(32, 110, 251, .14); border-radius: 9px;
+      background: var(--brand-light); color: var(--muted); font-style: normal; line-height: 1.4;
+    }
+    .admin-field-hint--notice i { margin: 0; color: var(--brand); font-size: .76rem; opacity: 1; }
     .admin-readonly {
       background: var(--status-bg) !important; color: var(--muted) !important;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; cursor: default;
@@ -282,7 +288,7 @@
     .admin-tools-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .55rem; display: block; }
     .admin-tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .5rem; }
     .admin-tool-opt {
-      display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: .6rem;
+      display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: .8rem;
       font-size: .82rem; font-weight: 500; color: var(--ink);
       cursor: pointer; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: 10px;
       background: var(--bg); user-select: none; transition: border-color .15s, background .15s, color .15s;
@@ -301,7 +307,7 @@
     }
     .admin-tool-opt:hover { border-color: #c7dbfa; background: var(--brand-light); }
     .admin-tool-opt:has(input:checked) { border-color: var(--brand); background: var(--brand-light); color: var(--brand-dark); box-shadow: inset 0 0 0 1px rgba(32,110,251,.08); }
-    .admin-tool-opt .roots-check-label { line-height: 1.35; min-width: 0; word-break: break-word; }
+    .admin-tool-opt .roots-check-label { display: flex; align-items: center; min-width: 0; min-height: 18px; line-height: 1.25; word-break: break-word; }
 
     .admin-layout { display: grid; grid-template-columns: minmax(280px, 320px) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
     @media (max-width: 960px) { .admin-layout { grid-template-columns: 1fr; } }
@@ -2575,8 +2581,8 @@ window.RootsAdminEmployee = {
     catch (e) { alert(e.message || 'Passwort-Reset konnte nicht angefordert werden.'); }
   },
 
-  hintHtml(text) {
-    return `<p class="admin-field-hint"><i class="fa-solid fa-circle-info"></i><span>${escapeHtml(text)}</span></p>`;
+  hintHtml(text, notice = false) {
+    return `<p class="admin-field-hint${notice ? ' admin-field-hint--notice' : ''}"><i class="fa-solid fa-circle-info"></i><span>${escapeHtml(text)}</span></p>`;
   },
 
   fmtDateInput(val) {
@@ -2682,7 +2688,7 @@ window.RootsAdminEmployee = {
           <div class="admin-field span-2">
             <label for="aec-email">E-Mail (ROOTS)</label>
             <input class="modern-input" id="aec-email" type="email" required pattern=".+@roots-consultants\\.com" placeholder="vorname.nachname${escapeHtml(window.ROOTS_EMPLOYEE_EMAIL_DOMAIN)}">
-            ${this.hintHtml('Pflichtfeld: Nur ' + window.ROOTS_EMPLOYEE_EMAIL_DOMAIN + '. Nach dem Anlegen wird der Einladungslink automatisch versendet.')}
+            ${this.hintHtml('Pflichtfeld: Nur ' + window.ROOTS_EMPLOYEE_EMAIL_DOMAIN + '. Nach dem Anlegen wird der Einladungslink automatisch versendet.', true)}
           </div>
           <div class="admin-field"><label for="aec-phone">Telefon</label><input class="modern-input" id="aec-phone" type="tel"></div>
           <div class="admin-field span-2"><label for="aec-linkedin">LinkedIn</label><input class="modern-input" id="aec-linkedin" type="url" placeholder="https://linkedin.com/in/…"></div>

@@ -200,7 +200,20 @@
     }
     .admin-list-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: .85rem; flex-wrap: wrap; }
     .admin-list-head .admin-panel-intro { margin: 0; flex: 1; min-width: 180px; }
-    .admin-btn--compact { height: 36px; padding: 0 1rem; font-size: .8rem; }
+    .admin-btn--compact { height: 32px; padding: 0 .75rem; font-size: .76rem; }
+    #roots-admin-create-btn { flex: 0 0 auto; white-space: nowrap; }
+    .admin-access-section { margin: 0 0 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: rgba(32, 110, 251, .035); }
+    .admin-access-heading { margin-bottom: .75rem; }
+    .admin-access-heading h3 { margin: 0 0 .2rem; color: var(--ink); font-size: .95rem; }
+    .admin-access-heading p { margin: 0; color: var(--muted); font-size: .78rem; }
+    .admin-access-request { display: grid; grid-template-columns: minmax(0, 1fr); gap: .65rem; padding: .8rem 0; border-top: 1px solid var(--line); }
+    .admin-access-request:first-child { border-top: 0; }
+    .admin-access-request-copy { min-width: 0; }
+    .admin-access-request-name { display: block; color: var(--ink); font-size: .84rem; }
+    .admin-access-request-meta { margin-top: .12rem; color: var(--muted); font-size: .76rem; overflow-wrap: anywhere; }
+    .admin-access-request-actions { display: flex; align-items: center; gap: .4rem; min-width: 0; flex-wrap: wrap; }
+    .admin-access-request-actions .admin-btn { flex: 0 1 auto; min-width: 0; justify-content: center; white-space: nowrap; box-shadow: none; }
+    .admin-access-request-actions .admin-btn:last-child { color: #b42318; }
     .admin-panel-intro { font-size: .82rem; color: var(--muted); margin: 0 0 .85rem; line-height: 1.5; }
     .admin-state { text-align: center; padding: 2rem 1rem; color: var(--muted); font-size: .88rem; }
     .admin-state--error { color: #dc2626; }
@@ -1447,9 +1460,10 @@
                   <i class="fa-solid fa-user-plus"></i> Mitarbeiter anlegen
                 </button>
               </div>
-              <section style="margin:0 0 1rem;padding:1rem;border:1px solid var(--line,#e2e8f0);border-radius:12px;background:rgba(32,110,251,.035)">
-                <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.75rem;flex-wrap:wrap">
-                  <div><h3 style="font-size:.95rem;margin:0 0 .2rem;color:var(--ink,#0f172a)">Offene Zugangsanfragen</h3><p style="font-size:.78rem;margin:0;color:var(--muted,#475569)">Anfragen von ROOTS-E-Mail-Adressen prüfen.</p></div>
+              <section class="admin-access-section">
+                <div class="admin-access-heading">
+                  <h3>Offene Zugangsanfragen</h3>
+                  <p>Anfragen von ROOTS-E-Mail-Adressen prüfen.</p>
                 </div>
                 <div id="roots-access-request-list-page"><div class="admin-state">Lade Anfragen…</div></div>
               </section>
@@ -2528,9 +2542,9 @@ window.RootsAdminEmployee = {
     try {
       const { requests = [] } = await this.callAccess('list_requests');
       const pending = requests.filter(r => r.status === 'pending');
-      list.innerHTML = pending.length ? pending.map(r => `<div style="display:flex;align-items:center;justify-content:space-between;gap:.7rem;padding:.7rem 0;border-top:1px solid var(--line,#e2e8f0);flex-wrap:wrap">
-        <div><strong style="font-size:.84rem;color:var(--ink,#0f172a)">${escapeHtml(r.full_name || 'Unbekannte Person')}</strong><div style="font-size:.76rem;color:var(--muted,#475569)">${escapeHtml(r.email)} · ${escapeHtml(new Date(r.requested_at).toLocaleString('de-DE'))}</div></div>
-        <div style="display:flex;gap:.45rem;flex:1;min-width:100%;align-items:stretch"><button type="button" class="admin-btn admin-btn--primary admin-btn--compact" style="flex:1;justify-content:center;white-space:nowrap" data-access-action="invite" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-user-check"></i> Einladung senden</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" style="flex:1;justify-content:center;white-space:nowrap" data-access-action="create" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-user-plus"></i> Ohne E-Mail</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" style="flex:1;justify-content:center;white-space:nowrap" data-access-action="reject" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-user-xmark"></i> Ablehnen</button></div>
+      list.innerHTML = pending.length ? pending.map(r => `<div class="admin-access-request">
+        <div class="admin-access-request-copy"><strong class="admin-access-request-name">${escapeHtml(r.full_name || 'Unbekannte Person')}</strong><div class="admin-access-request-meta">${escapeHtml(r.email)} · ${escapeHtml(new Date(r.requested_at).toLocaleString('de-DE'))}</div></div>
+        <div class="admin-access-request-actions"><button type="button" class="admin-btn admin-btn--primary admin-btn--compact" data-access-action="invite" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-user-check"></i> Einladung senden</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" data-access-action="create" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-user-plus"></i> Ohne E-Mail</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" data-access-action="reject" data-request-id="${escapeHtml(r.id)}" aria-label="Zugangsanfrage ablehnen"><i class="fa-solid fa-user-xmark"></i> Ablehnen</button></div>
       </div>`).join('') : '<div class="admin-state">Keine offenen Anfragen.</div>';
       list.querySelectorAll('[data-access-action]').forEach(btn => btn.addEventListener('click', async () => {
         btn.disabled = true;

@@ -202,21 +202,23 @@
     .admin-list-head .admin-panel-intro { margin: 0; flex: 1; min-width: 180px; }
     .admin-btn--compact { height: 32px; padding: 0 .75rem; font-size: .76rem; }
     #roots-admin-create-btn { flex: 0 0 auto; white-space: nowrap; }
-    .admin-access-section { margin: 0 0 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: rgba(32, 110, 251, .035); }
-    .admin-access-heading { margin-bottom: .75rem; }
-    .admin-access-heading h3 { margin: 0 0 .2rem; color: var(--ink); font-size: .95rem; }
-    .admin-access-heading p { margin: 0; color: var(--muted); font-size: .78rem; }
-    .admin-access-request { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .75rem; padding: .8rem 0; border-top: 1px solid var(--line); }
-    .admin-access-request:first-child { border-top: 0; }
-    .admin-access-request-copy { min-width: 0; }
-    .admin-access-request-name { display: block; color: var(--ink); font-size: .84rem; }
-    .admin-access-request-meta { margin-top: .12rem; color: var(--muted); font-size: .76rem; overflow-wrap: anywhere; }
+    .admin-access-section { margin: .15rem 0 1rem; }
+    .admin-access-heading { display: inline-flex; align-items: center; gap: .4rem; min-height: 26px; margin: 0 0 .55rem; padding: 0 .7rem; border-radius: var(--radius-pill); background: var(--surface); color: var(--muted); }
+    .admin-access-heading::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; }
+    .admin-access-heading h3 { margin: 0; color: inherit; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .admin-access-heading p { display: none; }
+    .admin-access-request { display: flex; align-items: center; gap: .75rem; width: 100%; padding: .72rem .75rem; border: 1px solid var(--line); border-radius: 10px; background: var(--status-bg); }
+    .admin-access-request-avatar { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; border-radius: 50%; background: var(--brand-light); color: var(--brand); font-size: .8rem; }
+    .admin-access-request-copy { flex: 1; min-width: 0; }
+    .admin-access-request-name { display: block; color: var(--ink); font-size: .88rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .admin-access-request-meta { margin-top: .12rem; color: var(--muted); font-size: .72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .admin-access-request-actions { display: flex; align-items: center; justify-content: flex-end; gap: .35rem; min-width: 0; }
-    .admin-access-request-actions .admin-btn { flex: 0 0 auto; min-width: 0; height: 30px; padding: 0 .65rem; justify-content: center; white-space: nowrap; box-shadow: none; font-size: .73rem; }
-    .admin-access-request-actions .admin-btn--icon { width: 30px; padding: 0; color: #b42318; border-color: transparent; background: transparent; }
-    .admin-access-request-actions .admin-btn--icon:hover { border-color: rgba(180, 35, 24, .16); background: rgba(180, 35, 24, .07); }
+    .admin-access-request-actions .admin-btn { flex: 0 0 auto; width: 30px; min-width: 30px; height: 30px; padding: 0; justify-content: center; border: 1px solid transparent; border-radius: 50%; box-shadow: none; font-size: .76rem; }
+    .admin-access-request-actions .admin-btn--approve { background: #ecfdf5; color: #15803d; }
+    .admin-access-request-actions .admin-btn--approve:hover { border-color: rgba(21, 128, 61, .22); background: #dcfce7; }
+    .admin-access-request-actions .admin-btn--reject { background: transparent; color: #b42318; }
+    .admin-access-request-actions .admin-btn--reject:hover { border-color: rgba(180, 35, 24, .16); background: rgba(180, 35, 24, .07); }
     @media (max-width: 520px) {
-      .admin-access-request { grid-template-columns: 1fr; }
       .admin-access-request-actions { justify-content: flex-end; }
     }
     .admin-panel-intro { font-size: .82rem; color: var(--muted); margin: 0 0 .85rem; line-height: 1.5; }
@@ -253,7 +255,7 @@
     }
     .admin-field textarea { height: auto; min-height: 72px; padding: .6rem 12px; resize: vertical; }
     .admin-field-hint {
-      margin: .35rem 0 0; font-size: .72rem; color: #94a3b8; font-style: italic; line-height: 1.45;
+      margin: .6rem 0 0; font-size: .72rem; color: #94a3b8; font-style: italic; line-height: 1.45;
       display: flex; align-items: flex-start; gap: .4rem;
     }
     .admin-field-hint i { font-size: .68rem; margin-top: .12rem; flex-shrink: 0; font-style: normal; opacity: .9; color: #94a3b8; }
@@ -280,13 +282,13 @@
     .admin-tools-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .55rem; display: block; }
     .admin-tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .5rem; }
     .admin-tool-opt {
-      display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: .6rem;
+      display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: .6rem;
       font-size: .82rem; font-weight: 500; color: var(--ink);
       cursor: pointer; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: 10px;
       background: var(--bg); user-select: none; transition: border-color .15s, background .15s, color .15s;
     }
     .admin-tool-opt input[type="checkbox"] {
-      -webkit-appearance: none; appearance: none; width: 18px; height: 18px; margin: 1px 0 0;
+      -webkit-appearance: none; appearance: none; width: 18px; height: 18px; margin: 0;
       border: 1.5px solid var(--line); border-radius: 5px; background: var(--bg); cursor: pointer;
       transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
     }
@@ -2548,8 +2550,9 @@ window.RootsAdminEmployee = {
       const { requests = [] } = await this.callAccess('list_requests');
       const pending = requests.filter(r => r.status === 'pending');
       list.innerHTML = pending.length ? pending.map(r => `<div class="admin-access-request">
-        <div class="admin-access-request-copy"><strong class="admin-access-request-name">${escapeHtml(r.full_name || 'Unbekannte Person')}</strong><div class="admin-access-request-meta">${escapeHtml(r.email)} · ${escapeHtml(new Date(r.requested_at).toLocaleString('de-DE'))}</div></div>
-        <div class="admin-access-request-actions"><button type="button" class="admin-btn admin-btn--primary admin-btn--compact" data-access-action="invite" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-paper-plane"></i> Einladen</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact admin-btn--icon" data-access-action="reject" data-request-id="${escapeHtml(r.id)}" aria-label="Zugangsanfrage ablehnen" title="Anfrage ablehnen"><i class="fa-solid fa-xmark"></i></button></div>
+        <span class="admin-access-request-avatar" aria-hidden="true"><i class="fa-solid fa-user"></i></span>
+        <div class="admin-access-request-copy"><strong class="admin-access-request-name">${escapeHtml(r.full_name || 'Unbekannte Person')}</strong><div class="admin-access-request-meta">${escapeHtml(r.email)}</div></div>
+        <div class="admin-access-request-actions"><button type="button" class="admin-btn admin-btn--approve" data-access-action="invite" data-request-id="${escapeHtml(r.id)}" aria-label="Zugang bestätigen und Einladung senden" title="Bestätigen &amp; Einladung senden"><i class="fa-solid fa-check"></i></button><button type="button" class="admin-btn admin-btn--reject" data-access-action="reject" data-request-id="${escapeHtml(r.id)}" aria-label="Zugangsanfrage ablehnen" title="Anfrage ablehnen"><i class="fa-solid fa-xmark"></i></button></div>
       </div>`).join('') : '<div class="admin-state">Keine offenen Anfragen.</div>';
       list.querySelectorAll('[data-access-action]').forEach(btn => btn.addEventListener('click', async () => {
         btn.disabled = true;
@@ -2678,8 +2681,8 @@ window.RootsAdminEmployee = {
         <div class="admin-form-grid">
           <div class="admin-field span-2">
             <label for="aec-email">E-Mail (ROOTS)</label>
-            <input class="modern-input" id="aec-email" type="email" required placeholder="vorname.nachname${escapeHtml(window.ROOTS_EMPLOYEE_EMAIL_DOMAIN)}">
-            ${this.hintHtml('Pflicht: Nur Adressen mit ' + window.ROOTS_EMPLOYEE_EMAIL_DOMAIN + '. Der Nutzer erhält eine Einladung zum Passwort setzen.')}
+            <input class="modern-input" id="aec-email" type="email" required pattern=".+@roots-consultants\\.com" placeholder="vorname.nachname${escapeHtml(window.ROOTS_EMPLOYEE_EMAIL_DOMAIN)}">
+            ${this.hintHtml('Pflichtfeld: Nur ' + window.ROOTS_EMPLOYEE_EMAIL_DOMAIN + '. Nach dem Anlegen wird der Einladungslink automatisch versendet.')}
           </div>
           <div class="admin-field"><label for="aec-phone">Telefon</label><input class="modern-input" id="aec-phone" type="tel"></div>
           <div class="admin-field span-2"><label for="aec-linkedin">LinkedIn</label><input class="modern-input" id="aec-linkedin" type="url" placeholder="https://linkedin.com/in/…"></div>

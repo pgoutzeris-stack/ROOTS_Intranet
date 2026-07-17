@@ -206,14 +206,19 @@
     .admin-access-heading { margin-bottom: .75rem; }
     .admin-access-heading h3 { margin: 0 0 .2rem; color: var(--ink); font-size: .95rem; }
     .admin-access-heading p { margin: 0; color: var(--muted); font-size: .78rem; }
-    .admin-access-request { display: grid; grid-template-columns: minmax(0, 1fr); gap: .65rem; padding: .8rem 0; border-top: 1px solid var(--line); }
+    .admin-access-request { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .75rem; padding: .8rem 0; border-top: 1px solid var(--line); }
     .admin-access-request:first-child { border-top: 0; }
     .admin-access-request-copy { min-width: 0; }
     .admin-access-request-name { display: block; color: var(--ink); font-size: .84rem; }
     .admin-access-request-meta { margin-top: .12rem; color: var(--muted); font-size: .76rem; overflow-wrap: anywhere; }
-    .admin-access-request-actions { display: flex; align-items: center; gap: .4rem; min-width: 0; flex-wrap: wrap; }
-    .admin-access-request-actions .admin-btn { flex: 0 1 auto; min-width: 0; justify-content: center; white-space: nowrap; box-shadow: none; }
-    .admin-access-request-actions .admin-btn:last-child { color: #b42318; }
+    .admin-access-request-actions { display: flex; align-items: center; justify-content: flex-end; gap: .35rem; min-width: 0; }
+    .admin-access-request-actions .admin-btn { flex: 0 0 auto; min-width: 0; height: 30px; padding: 0 .65rem; justify-content: center; white-space: nowrap; box-shadow: none; font-size: .73rem; }
+    .admin-access-request-actions .admin-btn--icon { width: 30px; padding: 0; color: #b42318; border-color: transparent; background: transparent; }
+    .admin-access-request-actions .admin-btn--icon:hover { border-color: rgba(180, 35, 24, .16); background: rgba(180, 35, 24, .07); }
+    @media (max-width: 520px) {
+      .admin-access-request { grid-template-columns: 1fr; }
+      .admin-access-request-actions { justify-content: flex-end; }
+    }
     .admin-panel-intro { font-size: .82rem; color: var(--muted); margin: 0 0 .85rem; line-height: 1.5; }
     .admin-state { text-align: center; padding: 2rem 1rem; color: var(--muted); font-size: .88rem; }
     .admin-state--error { color: #dc2626; }
@@ -2544,7 +2549,7 @@ window.RootsAdminEmployee = {
       const pending = requests.filter(r => r.status === 'pending');
       list.innerHTML = pending.length ? pending.map(r => `<div class="admin-access-request">
         <div class="admin-access-request-copy"><strong class="admin-access-request-name">${escapeHtml(r.full_name || 'Unbekannte Person')}</strong><div class="admin-access-request-meta">${escapeHtml(r.email)} · ${escapeHtml(new Date(r.requested_at).toLocaleString('de-DE'))}</div></div>
-        <div class="admin-access-request-actions"><button type="button" class="admin-btn admin-btn--primary admin-btn--compact" data-access-action="invite" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-user-check"></i> Einladung senden</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" data-access-action="create" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-user-plus"></i> Ohne E-Mail</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" data-access-action="reject" data-request-id="${escapeHtml(r.id)}" aria-label="Zugangsanfrage ablehnen"><i class="fa-solid fa-user-xmark"></i> Ablehnen</button></div>
+        <div class="admin-access-request-actions"><button type="button" class="admin-btn admin-btn--primary admin-btn--compact" data-access-action="invite" data-request-id="${escapeHtml(r.id)}"><i class="fa-solid fa-paper-plane"></i> Einladen</button><button type="button" class="admin-btn admin-btn--ghost admin-btn--compact admin-btn--icon" data-access-action="reject" data-request-id="${escapeHtml(r.id)}" aria-label="Zugangsanfrage ablehnen" title="Anfrage ablehnen"><i class="fa-solid fa-xmark"></i></button></div>
       </div>`).join('') : '<div class="admin-state">Keine offenen Anfragen.</div>';
       list.querySelectorAll('[data-access-action]').forEach(btn => btn.addEventListener('click', async () => {
         btn.disabled = true;

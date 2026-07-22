@@ -1,6 +1,7 @@
 (function () {
   const ORIGIN = 'https://pgoutzeris-stack.github.io';
   const IN_IFRAME = window.parent !== window;
+  const TOKENLESS_EMBED = IN_IFRAME && window.ROOTS_TOKENLESS_EMBED === true;
 
   /**
    * Tauri macOS app detection.
@@ -141,7 +142,7 @@
 
   const SYNC_INTERVAL_MS = 20000;
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
-  const BRIDGE_VERSION = '20260522-hover';
+  const BRIDGE_VERSION = 'tokenless-broker-v1-20260522-hover';
 
   function escapeAttr(s) {
     return escapeHtml(s).replace(/"/g, '&quot;');
@@ -962,6 +963,24 @@
           latencyMs: Date.now() - started,
         };
       }
+      if (TOKENLESS_EMBED) {
+        try {
+          const context = await brokerRequest('user-context', {}, 15000);
+          const ms = Date.now() - started;
+          const userId = context?.user?.id || '';
+          return {
+            online: true,
+            lines: [`auth    parent broker ok (${userId.slice(0, 8)}…)`, `db      brokered (${ms}ms)`, 'status  online'],
+            latencyMs: ms,
+          };
+        } catch (error) {
+          return {
+            online: false,
+            lines: ['status  offline', `error   ${error.message || 'broker_unavailable'}`],
+            latencyMs: Date.now() - started,
+          };
+        }
+      }
       if (!sb) {
         return {
           online: false,
@@ -1096,6 +1115,26 @@
   let _lastAuthFingerprint = null;
   let _hadSession = false;
   let _syncInFlight = null;
+  const _brokerPending = new Map();
+
+  function brokerRequest(action, payload = {}, timeoutMs = 180000) {
+    if (!IN_IFRAME) return Promise.reject(new Error('Broker ist nur im Intranet verfügbar'));
+    const requestId = globalThis.crypto?.randomUUID?.().replace(/-/g, '')
+      || (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        _brokerPending.delete(requestId);
+        reject(new Error('Broker-Anfrage hat zu lange gedauert'));
+      }, Math.max(1000, Math.min(Number(timeoutMs) || 180000, 300000)));
+      _brokerPending.set(requestId, { resolve, reject, timer });
+      window.parent.postMessage({
+        type: 'roots-broker-request',
+        requestId,
+        action,
+        payload,
+      }, ORIGIN);
+    });
+  }
 
   function dispatchAuthReady(session) {
     window.dispatchEvent(new CustomEvent('roots-auth-ready', { detail: { session } }));
@@ -1160,6 +1199,7 @@
   }
 
   async function syncAuthFromParentStorage() {
+    if (TOKENLESS_EMBED) return null;
     if (_syncInFlight) return _syncInFlight;
     _syncInFlight = (async () => {
       const raw = readAuthStorageRaw();
@@ -1185,7 +1225,17 @@
   }
 
   window.addEventListener('message', (e) => {
-    if (e.origin !== ORIGIN) return;
+    if (e.origin !== ORIGIN || e.source !== window.parent) return;
+    if (!e.data || typeof e.data !== 'object' || Array.isArray(e.data)) return;
+    if (e.data.type === 'roots-broker-response') {
+      const pending = _brokerPending.get(e.data.requestId);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      _brokerPending.delete(e.data.requestId);
+      if (e.data.ok) pending.resolve(e.data.result);
+      else pending.reject(new Error(e.data.error || 'Broker-Anfrage fehlgeschlagen'));
+      return;
+    }
     if (e.data?.type === 'roots-profile-updated') {
       onProfileUpdate(window.RootsUser, e.data.profile);
     }
@@ -1193,15 +1243,22 @@
       showBridgeToast(e.data.notification);
     }
     if (e.data?.type === 'roots-auth-sync') {
-      if (e.data.signOut) void applyAuthSignOut();
-      else void syncAuthFromParentStorage();
+      if (e.data.signOut) {
+        void applyAuthSignOut();
+      } else if (TOKENLESS_EMBED) {
+        void brokerRequest('user-context').then((context) => {
+          window.dispatchEvent(new CustomEvent('roots-broker-context-ready', { detail: context }));
+        }).catch(() => applyAuthSignOut());
+      } else {
+        void syncAuthFromParentStorage();
+      }
     }
     if (e.data?.type === 'roots-notes-refresh') {
       void syncAuthFromParentStorage();
     }
   });
 
-  if (IN_IFRAME) {
+  if (IN_IFRAME && !TOKENLESS_EMBED) {
     window.addEventListener('storage', (e) => {
       if (e.key === AUTH_STORAGE_KEY) void syncAuthFromParentStorage();
     });
@@ -1327,6 +1384,8 @@
     ORIGIN,
     showBridgeToast,
     downloadBlob,
+    request: brokerRequest,
+    TOKENLESS_EMBED,
     syncAuthFromParentStorage,
     applyAuthSignOut,
     SyncStatus,

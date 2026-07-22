@@ -1429,8 +1429,9 @@
           id="notes-iframe"
           class="tool-iframe"
           title="ROOTS Notes Tool"
-          data-src="https://pgoutzeris-stack.github.io/Notes-Tool/"
+          data-src="https://pgoutzeris-stack.github.io/Notes-Tool/?authBroker=v1"
           referrerpolicy="no-referrer"
+          sandbox="allow-scripts allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
@@ -3879,6 +3880,148 @@ function rootsValidateImageRequest(input) {
   };
 }
 
+function rootsUuid(value) {
+  const id = typeof value === 'string' ? value : '';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('Ungültige ID');
+  }
+  return id;
+}
+
+function rootsNotesText(value, max, fallback = '') {
+  const text = value == null ? fallback : String(value).trim();
+  if (text.length > max) throw new Error('Text ist zu lang');
+  return text;
+}
+
+function rootsNotesTags(value) {
+  if (!Array.isArray(value) || value.length > 30) throw new Error('Ungültige Tags');
+  return value.map((tag) => rootsNotesText(tag, 80)).filter(Boolean);
+}
+
+function rootsValidateNotesRequest(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Ungültige Anfrage');
+  const action = String(input.action || '');
+  const allowed = new Set([
+    'list', 'get-document', 'create-folder', 'update-folder', 'delete-folder',
+    'create-document', 'update-document', 'delete-document',
+  ]);
+  if (!allowed.has(action)) throw new Error('Notes-Aktion nicht erlaubt');
+  if (action === 'list') return { action };
+  if (action === 'get-document' || action === 'delete-folder' || action === 'delete-document') {
+    return { action, id: rootsUuid(input.id) };
+  }
+  if (action === 'create-folder') {
+    return {
+      action,
+      name: rootsNotesText(input.name, 120),
+      color: /^#[0-9a-f]{6}$/i.test(String(input.color || '')) ? String(input.color) : '#206efb',
+    };
+  }
+  if (action === 'update-folder') {
+    const patch = input.patch && typeof input.patch === 'object' && !Array.isArray(input.patch) ? input.patch : {};
+    const clean = {};
+    if ('name' in patch) clean.name = rootsNotesText(patch.name, 120);
+    if ('color' in patch && /^#[0-9a-f]{6}$/i.test(String(patch.color))) clean.color = String(patch.color);
+    if ('sort_order' in patch) clean.sort_order = Math.max(0, Math.min(100000, Number(patch.sort_order) || 0));
+    if ('parent_id' in patch) clean.parent_id = patch.parent_id == null ? null : rootsUuid(patch.parent_id);
+    if (!Object.keys(clean).length) throw new Error('Keine gültige Änderung');
+    return { action, id: rootsUuid(input.id), patch: clean };
+  }
+  if (action === 'create-document') {
+    return {
+      action,
+      title: rootsNotesText(input.title, 240, 'Unbenanntes Dokument') || 'Unbenanntes Dokument',
+      folder_id: input.folder_id == null ? null : rootsUuid(input.folder_id),
+      tags: rootsNotesTags(input.tags || []),
+      cluster_label: input.cluster_label == null ? null : rootsNotesText(input.cluster_label, 120),
+      content: input.content,
+    };
+  }
+  if (action === 'update-document') {
+    const patch = input.patch && typeof input.patch === 'object' && !Array.isArray(input.patch) ? input.patch : {};
+    const clean = {};
+    if ('title' in patch) clean.title = rootsNotesText(patch.title, 240) || 'Unbenanntes Dokument';
+    if ('folder_id' in patch) clean.folder_id = patch.folder_id == null ? null : rootsUuid(patch.folder_id);
+    if ('tags' in patch) clean.tags = rootsNotesTags(patch.tags);
+    if ('cluster_label' in patch) clean.cluster_label = patch.cluster_label == null ? null : rootsNotesText(patch.cluster_label, 120);
+    if ('is_favorite' in patch) clean.is_favorite = patch.is_favorite === true;
+    if ('thumbnail' in patch) clean.thumbnail = patch.thumbnail == null ? null : rootsNotesText(patch.thumbnail, 500000);
+    if ('content' in patch) clean.content = patch.content;
+    if (!Object.keys(clean).length) throw new Error('Keine gültige Änderung');
+    return { action, id: rootsUuid(input.id), patch: clean };
+  }
+  throw new Error('Ungültige Notes-Anfrage');
+}
+
+function rootsValidateNotesJsonSize(value) {
+  let json;
+  try { json = JSON.stringify(value); } catch (_) { throw new Error('Dokument ist ungültig'); }
+  if (!json || json.length > 2 * 1024 * 1024) throw new Error('Dokument ist zu groß');
+}
+
+async function rootsHandleNotesRequest(sb, user, input) {
+  const body = rootsValidateNotesRequest(input);
+  const notes = sb.schema('notes');
+  const ensureOwnFolder = async (folderId) => {
+    if (!folderId) return;
+    const { data, error } = await notes.from('folders').select('id')
+      .eq('id', folderId).eq('user_id', user.id).maybeSingle();
+    if (error || !data) throw new Error('Ordner ist nicht verfügbar');
+  };
+  if (body.action === 'list') {
+    const [foldersResult, documentsResult] = await Promise.all([
+      notes.from('folders').select('*').eq('user_id', user.id).order('sort_order', { ascending: true }),
+      notes.from('documents').select('id,title,folder_id,tags,cluster_label,is_favorite,thumbnail,content,created_at,updated_at')
+        .eq('user_id', user.id).order('updated_at', { ascending: false }),
+    ]);
+    if (foldersResult.error) throw foldersResult.error;
+    if (documentsResult.error) throw documentsResult.error;
+    return { folders: foldersResult.data || [], documents: documentsResult.data || [] };
+  }
+  if (body.action === 'get-document') {
+    const { data, error } = await notes.from('documents').select('*').eq('id', body.id).eq('user_id', user.id).single();
+    if (error) throw error;
+    return data;
+  }
+  if (body.action === 'create-folder') {
+    const { data, error } = await notes.from('folders').insert({ user_id: user.id, name: body.name, color: body.color }).select('*').single();
+    if (error) throw error;
+    return data;
+  }
+  if (body.action === 'update-folder') {
+    const { data, error } = await notes.from('folders').update(body.patch).eq('id', body.id).eq('user_id', user.id).select('*').single();
+    if (error) throw error;
+    return data;
+  }
+  if (body.action === 'delete-folder') {
+    const { error } = await notes.from('folders').delete().eq('id', body.id).eq('user_id', user.id);
+    if (error) throw error;
+    return { ok: true };
+  }
+  if (body.action === 'create-document') {
+    rootsValidateNotesJsonSize(body.content);
+    await ensureOwnFolder(body.folder_id);
+    const { data, error } = await notes.from('documents').insert({
+      user_id: user.id, title: body.title, folder_id: body.folder_id,
+      tags: body.tags, cluster_label: body.cluster_label, content: body.content,
+    }).select('*').single();
+    if (error) throw error;
+    return data;
+  }
+  if (body.action === 'update-document') {
+    if ('content' in body.patch) rootsValidateNotesJsonSize(body.patch.content);
+    if ('folder_id' in body.patch) await ensureOwnFolder(body.patch.folder_id);
+    const { data, error } = await notes.from('documents').update(body.patch)
+      .eq('id', body.id).eq('user_id', user.id).select('*').single();
+    if (error) throw error;
+    return data;
+  }
+  const { error } = await notes.from('documents').delete().eq('id', body.id).eq('user_id', user.id);
+  if (error) throw error;
+  return { ok: true };
+}
+
 async function rootsHandleBrokerRequest(frame, message) {
   const requestId = typeof message.requestId === 'string' ? message.requestId : '';
   if (!/^[a-z0-9_-]{8,80}$/i.test(requestId)) return;
@@ -3903,6 +4046,11 @@ async function rootsHandleBrokerRequest(frame, message) {
     }
 
     const frameUrl = String(frame.dataset.src || frame.src || '');
+    if (message.action === 'notes' && frameUrl.includes('/Notes-Tool/')) {
+      const result = await rootsHandleNotesRequest(sb, user, message.payload);
+      rootsBrokerReply(frame, requestId, result);
+      return;
+    }
     if (message.action !== 'image-generation' || !frameUrl.includes('/Image-Generation-Tool/')) {
       throw new Error('Broker-Aktion für dieses Tool nicht erlaubt');
     }

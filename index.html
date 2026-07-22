@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.cdnfonts.com; font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.cdnfonts.com; img-src 'self' data: blob: https:; connect-src 'self' https://csmguwcvzreefluhahyu.supabase.co wss://csmguwcvzreefluhahyu.supabase.co; frame-src 'self' https://pgoutzeris-stack.github.io; form-action 'self' https://csmguwcvzreefluhahyu.supabase.co; media-src 'self' blob: data: https:; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests">
+  <meta name="referrer" content="no-referrer">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -1027,7 +1029,7 @@
       #roots-profile-setup-modal .position-grid { grid-template-columns: 1fr; }
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"></script>
 </head>
 <body>
 <div id="roots-auth-overlay" class="roots-auth-overlay">
@@ -1399,7 +1401,8 @@
           class="tool-iframe"
           title="Slide Writing"
           data-src="https://pgoutzeris-stack.github.io/slide-writing/"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="recruiting">
@@ -1407,8 +1410,8 @@
           class="tool-iframe"
           title="ROOTS Recruiting Tool"
           data-src="https://pgoutzeris-stack.github.io/ROOTS_RecruitingApp/"
-          referrerpolicy="no-referrer-when-downgrade"
-          allow="microphone; camera"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'self'; microphone 'self'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="onboarding">
@@ -1417,7 +1420,8 @@
           class="tool-iframe"
           title="ROOTS Onboarding"
           data-src="https://pgoutzeris-stack.github.io/onboarding/"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="notes">
@@ -1426,7 +1430,8 @@
           class="tool-iframe"
           title="ROOTS Notes Tool"
           data-src="https://pgoutzeris-stack.github.io/Notes-Tool/"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="whiteboard">
@@ -1435,7 +1440,8 @@
           class="tool-iframe"
           title="ROOTS Whiteboard"
           data-src="https://pgoutzeris-stack.github.io/whiteboard/"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="livepoll">
@@ -1444,7 +1450,8 @@
           class="tool-iframe"
           title="ROOTS Live Poll"
           data-src="https://pgoutzeris-stack.github.io/roots-livepoll/"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="signal-layer">
@@ -1453,7 +1460,8 @@
           class="tool-iframe"
           title="Signal Layer"
           data-src="https://pgoutzeris-stack.github.io/Signal-Layer/?v=20260717-1845"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="admin" data-scroll>
@@ -1500,7 +1508,8 @@
           class="tool-iframe"
           title="ROOTS SOP Dashboard"
           data-src="https://pgoutzeris-stack.github.io/ROOTS_SOP_Tool/"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="image">
@@ -1508,7 +1517,8 @@
           class="tool-iframe"
           title="Image Generation Tool"
           data-src="https://pgoutzeris-stack.github.io/Image-Generation-Tool/"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="teamkalender">
@@ -1516,7 +1526,8 @@
           class="tool-iframe"
           title="ROOTS Team-Kalender · Abwesenheiten"
           data-src="https://pgoutzeris-stack.github.io/Team-Kalender/"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="vacation">
@@ -1524,7 +1535,8 @@
           class="tool-iframe"
           title="ROOTS Urlaubsplanung"
           data-src="https://pgoutzeris-stack.github.io/urlaubsplanung/"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="wissenshub">
@@ -1532,7 +1544,8 @@
           class="tool-iframe"
           title="ROOTS Wissenshub"
           data-src="https://pgoutzeris-stack.github.io/ROOTS_WissensHub/"
-          referrerpolicy="no-referrer-when-downgrade"></iframe>
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="upcoming" data-scroll>
@@ -3731,65 +3744,159 @@ window.RootsAdmin = {
   document.getElementById('roots-logout-btn')?.addEventListener('click',()=>sb.auth.signOut());
 })();
 
+const ROOTS_TOOL_ORIGIN = 'https://pgoutzeris-stack.github.io';
+const ROOTS_ALLOWED_MESSAGE_TYPES = new Set([
+  'roots-request-signout',
+  'roots-open-settings',
+  'roots-open-view',
+  'roots-notification-click',
+  'roots-open-url',
+  'roots-print-iframe',
+  'roots-download-file',
+]);
+const ROOTS_ALLOWED_VIEWS = new Set([
+  'dashboard', 'upcoming', 'teamkalender', 'vacation', 'sop', 'wissenshub',
+  'slide-writing', 'recruiting', 'image', 'onboarding', 'notes',
+  'whiteboard', 'livepoll', 'signal-layer', 'admin',
+]);
+const ROOTS_MAX_MESSAGE_BYTES = 4096;
+const ROOTS_MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
+const ROOTS_ALLOWED_DOWNLOAD_TYPES = new Set([
+  'application/octet-stream',
+  'application/pdf',
+  'application/json',
+  'application/zip',
+  'application/vnd.ms-excel',
+  'application/vnd.ms-powerpoint',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/svg+xml',
+  'text/csv',
+  'text/plain',
+]);
+
+function rootsMessageSourceFrame(event) {
+  if (event.origin !== ROOTS_TOOL_ORIGIN || !event.source) return null;
+  if (!event.data || typeof event.data !== 'object' || Array.isArray(event.data)) return null;
+  if (!ROOTS_ALLOWED_MESSAGE_TYPES.has(event.data.type)) return null;
+  return Array.from(document.querySelectorAll('iframe.tool-iframe'))
+    .find((frame) => frame.contentWindow === event.source) || null;
+}
+
+function rootsIsActiveFrame(frame) {
+  const active = window.RootsNotifications?.getActiveToolIframe?.()
+    || document.querySelector('.app-view.is-active iframe.tool-iframe');
+  return !active || active === frame;
+}
+
+function rootsSafeExternalUrl(value) {
+  if (typeof value !== 'string' || value.length < 1 || value.length > 2048) return null;
+  if (/^(mailto:|tel:)/i.test(value)) {
+    return /^[a-z]+:[^\u0000-\u001f\u007f<>"]+$/i.test(value) ? value : null;
+  }
+  let parsed;
+  try { parsed = new URL(value); } catch (_) { return null; }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
+  const host = parsed.hostname.toLowerCase();
+  if (!host || host === 'localhost' || host.endsWith('.local') || host.endsWith('.internal')) return null;
+  if (/^(127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)) return null;
+  if (host === '::1' || host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) return null;
+  return parsed.href;
+}
+
+function rootsSafeFilename(value) {
+  if (typeof value !== 'string') return null;
+  const name = value.replace(/[\\/\u0000-\u001f\u007f]/g, '_').trim().slice(0, 180);
+  return name && name !== '.' && name !== '..' ? name : null;
+}
+
 window.addEventListener('message', (e) => {
-  if (e.origin !== 'https://pgoutzeris-stack.github.io') return;
-  if (e.data?.type === 'roots-request-signout') {
+  const sourceFrame = rootsMessageSourceFrame(e);
+  if (!sourceFrame || !rootsIsActiveFrame(sourceFrame)) return;
+
+  const type = e.data.type;
+  if (type !== 'roots-download-file') {
+    try {
+      if (JSON.stringify(e.data).length > ROOTS_MAX_MESSAGE_BYTES) return;
+    } catch (_) {
+      return;
+    }
+  }
+
+  if (type === 'roots-request-signout') {
     void window.__rootsSupabaseClient?.auth.signOut();
+    return;
   }
-  if (e.data?.type === 'roots-open-settings') window.RootsUser?.openSettings();
-  if (e.data?.type === 'roots-open-view' && window.intranetNavigateToView) {
-    window.intranetNavigateToView(e.data.view);
+
+  if (type === 'roots-open-settings') {
+    window.RootsUser?.openSettings();
+    return;
   }
-  if (e.data?.type === 'roots-notification-click' && e.data.id) {
-    void window.RootsNotifications?.handleClickById(e.data.id);
+
+  if (type === 'roots-open-view') {
+    const view = typeof e.data.view === 'string' ? e.data.view : '';
+    if (ROOTS_ALLOWED_VIEWS.has(view) && window.intranetNavigateToView) {
+      window.intranetNavigateToView(view);
+    }
+    return;
   }
-  // External-link proxy: iframe tools can't open system browser directly.
-  // They postMessage the URL here; we call __TAURI_INTERNALS__.invoke()
-  // directly — this works even with withGlobalTauri:false because
-  // __TAURI_INTERNALS__ is always available to the main frame.
-  // No user-gesture restriction applies to invoke() unlike a.click().
-  if (e.data?.type === 'roots-open-url' && e.data.url) {
+
+  if (type === 'roots-notification-click') {
+    const id = typeof e.data.id === 'string' ? e.data.id : '';
+    if (/^[0-9a-f-]{16,64}$/i.test(id)) {
+      void window.RootsNotifications?.handleClickById(id);
+    }
+    return;
+  }
+
+  if (type === 'roots-open-url') {
+    const url = rootsSafeExternalUrl(e.data.url);
+    if (!url) return;
+    const T = window.__TAURI_INTERNALS__;
+    const openInBrowser = () => {
+      try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (_) {}
+    };
+    if (T && typeof T.invoke === 'function') {
+      Promise.resolve()
+        .then(() => T.invoke('plugin:opener|open_url', { url }))
+        .catch(() => T.invoke('plugin:shell|open', { path: url }))
+        .catch(() => T.invoke('plugin:opener|open_url', { path: url }))
+        .catch(() => openInBrowser());
+    } else {
+      openInBrowser();
+    }
+    return;
+  }
+
+  if (type === 'roots-print-iframe') {
+    try { sourceFrame.contentWindow?.print(); } catch (_) {}
+    return;
+  }
+
+  if (type === 'roots-download-file') {
+    const filename = rootsSafeFilename(e.data.filename);
+    const mimeType = typeof e.data.mimeType === 'string' ? e.data.mimeType.toLowerCase() : '';
+    const buffer = e.data.buffer;
+    if (!filename || !ROOTS_ALLOWED_DOWNLOAD_TYPES.has(mimeType)) return;
+    if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 1 || buffer.byteLength > ROOTS_MAX_DOWNLOAD_BYTES) return;
     try {
-      const url = String(e.data.url);
-      if (!/^(https?:\/\/|mailto:|tel:)/.test(url)) return;
-      const T = window.__TAURI_INTERNALS__;
-      const openInBrowser = () => { try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (_) {} };
-      if (T && typeof T.invoke === 'function') {
-        // invoke() rejects (async) when a plugin/command isn't registered, so
-        // chain fallbacks across the common plugin variants before giving up
-        // to window.open. A plain try/catch would miss the async rejection.
-        Promise.resolve()
-          .then(() => T.invoke('plugin:opener|open_url', { url }))
-          .catch(() => T.invoke('plugin:shell|open', { path: url }))
-          .catch(() => T.invoke('plugin:opener|open_url', { path: url }))
-          .catch(() => openInBrowser());
-      } else {
-        openInBrowser();
-      }
-    } catch (_) {}
-  }
-  // Print proxy: window.print() is blocked inside WKWebView iframes.
-  // iframe sends roots-print-iframe; we call iframe.contentWindow.print()
-  // from the top-level context where it IS allowed.
-  if (e.data?.type === 'roots-print-iframe') {
-    try {
-      const iframe = window.RootsNotifications?.getActiveToolIframe?.()
-        || document.querySelector('.app-view.is-active iframe.tool-iframe');
-      if (iframe?.contentWindow) iframe.contentWindow.print();
-    } catch (_) {}
-  }
-  // File download proxy: iframe tools can't trigger blob-downloads in WKWebView;
-  // they forward the file as an ArrayBuffer and we download from the top-level page.
-  if (e.data?.type === 'roots-download-file' && e.data.buffer && e.data.filename) {
-    try {
-      const blob = new Blob([e.data.buffer], { type: e.data.mimeType || 'application/octet-stream' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = e.data.filename;
+      const blob = new Blob([buffer], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.rel = 'noopener';
       document.body.appendChild(a);
       a.click();
-      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 1500);
     } catch (_) {}
   }
 });

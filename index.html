@@ -1400,7 +1400,8 @@
         <iframe
           class="tool-iframe"
           title="Slide Writing"
-          data-src="https://pgoutzeris-stack.github.io/slide-writing/"
+          data-src="https://pgoutzeris-stack.github.io/slide-writing/?authBroker=v1"
+          sandbox="allow-scripts allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"
           referrerpolicy="no-referrer"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
@@ -4073,6 +4074,39 @@ async function rootsHandleSopRequest(sb, user, input) {
   throw new Error('Ungültige SOP-Anfrage');
 }
 
+function rootsValidateSlideWritingRequest(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Ungültige Slide-Writing-Anfrage');
+  const action = String(input.action || '');
+  if (action === 'settings_status') return { action };
+  if (action === 'save_api_key') {
+    const key = String(input.api_key_value || '').trim();
+    if (key.length < 20 || key.length > 256 || /\s/.test(key)) throw new Error('Ungültiger API-Schlüssel');
+    return { action, api_key_value: key };
+  }
+  if (action !== 'chat') throw new Error('Slide-Writing-Aktion nicht erlaubt');
+  let json;
+  try { json = JSON.stringify(input); } catch (_) { throw new Error('Slide-Writing-Anfrage ist ungültig'); }
+  if (json.length > 1024 * 1024) throw new Error('Slide-Writing-Anfrage ist zu groß');
+  const clean = JSON.parse(json);
+  clean.action = 'chat';
+  clean.message = String(clean.message || '').slice(0, 20000);
+  clean.messages = Array.isArray(clean.messages) ? clean.messages.slice(-8).map((item) => ({
+    role: item?.role === 'assistant' ? 'assistant' : 'user',
+    content: String(item?.content || '').slice(0, 20000),
+  })) : [];
+  if (!clean.analysis || typeof clean.analysis !== 'object' || Array.isArray(clean.analysis)) clean.analysis = {};
+  if (!clean.deep_analysis || typeof clean.deep_analysis !== 'object' || Array.isArray(clean.deep_analysis)) clean.deep_analysis = {};
+  if (clean.draft_spec != null && (typeof clean.draft_spec !== 'object' || Array.isArray(clean.draft_spec))) clean.draft_spec = null;
+  return clean;
+}
+
+async function rootsHandleSlideWritingRequest(sb, input) {
+  const body = rootsValidateSlideWritingRequest(input);
+  const { data, error } = await sb.functions.invoke('slide-writing-ai', { body });
+  if (error) throw new Error(error.message || 'Slide-Writing-Funktion fehlgeschlagen');
+  return data;
+}
+
 async function rootsHandleBrokerRequest(frame, message) {
   const requestId = typeof message.requestId === 'string' ? message.requestId : '';
   if (!/^[a-z0-9_-]{8,80}$/i.test(requestId)) return;
@@ -4104,6 +4138,11 @@ async function rootsHandleBrokerRequest(frame, message) {
     }
     if (message.action === 'sop' && frameUrl.includes('/ROOTS_SOP_Tool/')) {
       const result = await rootsHandleSopRequest(sb, user, message.payload);
+      rootsBrokerReply(frame, requestId, result);
+      return;
+    }
+    if (message.action === 'slide-writing' && frameUrl.includes('/slide-writing/')) {
+      const result = await rootsHandleSlideWritingRequest(sb, message.payload);
       rootsBrokerReply(frame, requestId, result);
       return;
     }

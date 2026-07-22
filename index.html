@@ -1516,8 +1516,9 @@
         <iframe
           class="tool-iframe"
           title="Image Generation Tool"
-          data-src="https://pgoutzeris-stack.github.io/Image-Generation-Tool/"
+          data-src="https://pgoutzeris-stack.github.io/Image-Generation-Tool/?authBroker=v1"
           referrerpolicy="no-referrer"
+          sandbox="allow-scripts allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
@@ -3753,6 +3754,7 @@ const ROOTS_ALLOWED_MESSAGE_TYPES = new Set([
   'roots-open-url',
   'roots-print-iframe',
   'roots-download-file',
+  'roots-broker-request',
 ]);
 const ROOTS_ALLOWED_VIEWS = new Set([
   'dashboard', 'upcoming', 'teamkalender', 'vacation', 'sop', 'wissenshub',
@@ -3781,11 +3783,16 @@ const ROOTS_ALLOWED_DOWNLOAD_TYPES = new Set([
 ]);
 
 function rootsMessageSourceFrame(event) {
-  if (event.origin !== ROOTS_TOOL_ORIGIN || !event.source) return null;
-  if (!event.data || typeof event.data !== 'object' || Array.isArray(event.data)) return null;
+  if (!event.source || !event.data || typeof event.data !== 'object' || Array.isArray(event.data)) return null;
   if (!ROOTS_ALLOWED_MESSAGE_TYPES.has(event.data.type)) return null;
-  return Array.from(document.querySelectorAll('iframe.tool-iframe'))
-    .find((frame) => frame.contentWindow === event.source) || null;
+  const frame = Array.from(document.querySelectorAll('iframe.tool-iframe'))
+    .find((candidate) => candidate.contentWindow === event.source) || null;
+  if (!frame) return null;
+  const sandboxedOrigin = frame.hasAttribute('sandbox')
+    && !frame.sandbox.contains('allow-same-origin')
+    && event.origin === 'null';
+  if (event.origin !== ROOTS_TOOL_ORIGIN && !sandboxedOrigin) return null;
+  return frame;
 }
 
 function rootsIsActiveFrame(frame) {
@@ -3815,11 +3822,108 @@ function rootsSafeFilename(value) {
   return name && name !== '.' && name !== '..' ? name : null;
 }
 
+function rootsBrokerReply(frame, requestId, result, error = null) {
+  const sandboxed = frame.hasAttribute('sandbox') && !frame.sandbox.contains('allow-same-origin');
+  frame.contentWindow?.postMessage({
+    type: 'roots-broker-response',
+    requestId,
+    ok: !error,
+    result: error ? null : result,
+    error: error ? String(error).slice(0, 500) : null,
+  }, sandboxed ? '*' : ROOTS_TOOL_ORIGIN);
+}
+
+function rootsValidateImageRequest(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Ungültige Anfrage');
+  const action = input.action;
+  if (!['settings_status', 'save_google_api_key', 'generate_image', 'get_history', 'delete_history_item'].includes(action)) {
+    throw new Error('Aktion nicht erlaubt');
+  }
+  if (action === 'settings_status') return { action };
+  if (action === 'save_google_api_key') {
+    const apiKey = typeof input.apiKey === 'string' ? input.apiKey.trim() : '';
+    if (apiKey.length < 16 || apiKey.length > 256) throw new Error('Ungültiger API-Key');
+    return { action, apiKey };
+  }
+  if (action === 'get_history') {
+    const limit = Math.max(1, Math.min(100, Number(input.limit) || 50));
+    return { action, limit };
+  }
+  if (action === 'delete_history_item') {
+    const id = typeof input.id === 'string' ? input.id : '';
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) throw new Error('Ungültige ID');
+    return { action, id };
+  }
+  const allowedModels = new Set(['gemini-3-pro-image', 'gemini-3.1-flash-image', 'gemini-2.5-flash-image']);
+  const allowedAspects = new Set(['9:16', '16:9', '1:1', '4:3']);
+  const modelId = typeof input.modelId === 'string' ? input.modelId : '';
+  const promptText = typeof input.promptText === 'string' ? input.promptText.trim() : '';
+  const aspect = typeof input.aspect === 'string' ? input.aspect : '';
+  if (!allowedModels.has(modelId) || !allowedAspects.has(aspect)) throw new Error('Modell oder Format nicht erlaubt');
+  if (!promptText || promptText.length > 20000) throw new Error('Prompt ist ungültig oder zu lang');
+  const refImageData = input.refImageData == null ? null : String(input.refImageData);
+  const refImageMimeType = input.refImageMimeType == null ? null : String(input.refImageMimeType).toLowerCase();
+  if (refImageData && refImageData.length > 15 * 1024 * 1024) throw new Error('Referenzbild ist zu groß');
+  if (refImageData && !['image/jpeg', 'image/png', 'image/webp'].includes(refImageMimeType)) {
+    throw new Error('Referenzbildformat nicht erlaubt');
+  }
+  return {
+    action,
+    modelId,
+    modelLabel: String(input.modelLabel || '').slice(0, 100),
+    promptText,
+    aspect,
+    styleId: String(input.styleId || '').slice(0, 64),
+    refImageData,
+    refImageMimeType,
+  };
+}
+
+async function rootsHandleBrokerRequest(frame, message) {
+  const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+  if (!/^[a-z0-9_-]{8,80}$/i.test(requestId)) return;
+  try {
+    const sb = window.__rootsSupabaseClient;
+    if (!sb) throw new Error('Supabase ist nicht verfügbar');
+    const { data: userData, error: userError } = await sb.auth.getUser();
+    const user = userData?.user;
+    if (userError || !user) throw new Error('Nicht angemeldet');
+
+    if (message.action === 'user-context') {
+      const { data: profile, error } = await sb.schema('users').from('profiles')
+        .select('id,email,full_name,position,avatar_url,linkedin_url,app_role')
+        .eq('id', user.id)
+        .single();
+      if (error) throw new Error('Profil konnte nicht geladen werden');
+      rootsBrokerReply(frame, requestId, {
+        user: { id: user.id, email: user.email || profile?.email || '' },
+        profile: profile || { id: user.id, email: user.email || '', app_role: 'reader' },
+      });
+      return;
+    }
+
+    const frameUrl = String(frame.dataset.src || frame.src || '');
+    if (message.action !== 'image-generation' || !frameUrl.includes('/Image-Generation-Tool/')) {
+      throw new Error('Broker-Aktion für dieses Tool nicht erlaubt');
+    }
+    const body = rootsValidateImageRequest(message.payload);
+    const { data, error } = await sb.functions.invoke('image-generation', { body });
+    if (error) throw new Error(error.message || 'Image-Funktion fehlgeschlagen');
+    rootsBrokerReply(frame, requestId, data);
+  } catch (error) {
+    rootsBrokerReply(frame, requestId, null, error?.message || 'Broker-Anfrage fehlgeschlagen');
+  }
+}
+
 window.addEventListener('message', (e) => {
   const sourceFrame = rootsMessageSourceFrame(e);
   if (!sourceFrame || !rootsIsActiveFrame(sourceFrame)) return;
 
   const type = e.data.type;
+  if (type === 'roots-broker-request') {
+    void rootsHandleBrokerRequest(sourceFrame, e.data);
+    return;
+  }
   if (type !== 'roots-download-file') {
     try {
       if (JSON.stringify(e.data).length > ROOTS_MAX_MESSAGE_BYTES) return;

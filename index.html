@@ -1508,7 +1508,8 @@
         <iframe
           class="tool-iframe"
           title="ROOTS SOP Dashboard"
-          data-src="https://pgoutzeris-stack.github.io/ROOTS_SOP_Tool/"
+          data-src="https://pgoutzeris-stack.github.io/ROOTS_SOP_Tool/?authBroker=v1"
+          sandbox="allow-scripts allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"
           referrerpolicy="no-referrer"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
@@ -4022,6 +4023,56 @@ async function rootsHandleNotesRequest(sb, user, input) {
   return { ok: true };
 }
 
+function rootsSopUuid(value) {
+  const id = String(value || '');
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) throw new Error('Ungültige Versions-ID');
+  return id;
+}
+
+async function rootsHandleSopRequest(sb, user, input) {
+  const action = String(input?.action || '');
+  const revisions = sb.from('sop_revisions');
+  if (action === 'latest') {
+    const { data, error } = await revisions.select('id,snapshot,created_at,label,author_name')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+  if (action === 'head') {
+    const { data, error } = await revisions.select('id,created_at')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+  if (action === 'list') {
+    const { data, error } = await revisions.select('id,author_name,label,created_at')
+      .order('created_at', { ascending: false }).limit(50);
+    if (error) throw error;
+    return data || [];
+  }
+  if (action === 'get') {
+    const { data, error } = await revisions.select('id,snapshot,created_at,author_name')
+      .eq('id', rootsSopUuid(input.id)).single();
+    if (error) throw error;
+    return data;
+  }
+  if (action === 'create') {
+    let json;
+    try { json = JSON.stringify(input.snapshot); } catch (_) { throw new Error('SOP-Snapshot ist ungültig'); }
+    if (!Array.isArray(input.snapshot) || !input.snapshot.length || json.length > 4 * 1024 * 1024) throw new Error('SOP-Snapshot ist ungültig oder zu groß');
+    const { data: profile, error: profileError } = await sb.schema('users').from('profiles')
+      .select('full_name').eq('id', user.id).single();
+    if (profileError) throw new Error('Profil konnte nicht geladen werden');
+    const authorName = String(profile?.full_name || user.email || 'ROOTS Benutzer').trim().slice(0, 160);
+    const label = `${authorName} · ${new Date().toLocaleString('de-DE')}`;
+    const { data, error } = await revisions.insert({ author_name: authorName, author_id: user.id, label, snapshot: input.snapshot })
+      .select('id,created_at').single();
+    if (error) throw error;
+    return data;
+  }
+  throw new Error('Ungültige SOP-Anfrage');
+}
+
 async function rootsHandleBrokerRequest(frame, message) {
   const requestId = typeof message.requestId === 'string' ? message.requestId : '';
   if (!/^[a-z0-9_-]{8,80}$/i.test(requestId)) return;
@@ -4048,6 +4099,11 @@ async function rootsHandleBrokerRequest(frame, message) {
     const frameUrl = String(frame.dataset.src || frame.src || '');
     if (message.action === 'notes' && frameUrl.includes('/Notes-Tool/')) {
       const result = await rootsHandleNotesRequest(sb, user, message.payload);
+      rootsBrokerReply(frame, requestId, result);
+      return;
+    }
+    if (message.action === 'sop' && frameUrl.includes('/ROOTS_SOP_Tool/')) {
+      const result = await rootsHandleSopRequest(sb, user, message.payload);
       rootsBrokerReply(frame, requestId, result);
       return;
     }

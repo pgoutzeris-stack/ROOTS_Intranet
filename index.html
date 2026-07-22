@@ -1538,7 +1538,8 @@
         <iframe
           class="tool-iframe"
           title="ROOTS Urlaubsplanung"
-          data-src="https://pgoutzeris-stack.github.io/urlaubsplanung/"
+          data-src="https://pgoutzeris-stack.github.io/urlaubsplanung/?authBroker=v1"
+          sandbox="allow-scripts allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"
           referrerpolicy="no-referrer"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
@@ -4107,6 +4108,74 @@ async function rootsHandleSlideWritingRequest(sb, input) {
   return data;
 }
 
+function rootsVacationDate(value) {
+  const text = String(value || '');
+  if (!/^20\d{2}-\d{2}-\d{2}$/.test(text)) throw new Error('Ungültiges Datum');
+  return text;
+}
+
+function rootsValidateVacationRequest(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Ungültige Urlaubsanfrage');
+  const method = String(input.method || '').toUpperCase();
+  if (method === 'GET') {
+    const params = new URLSearchParams(String(input.query || '').replace(/^\?/, ''));
+    const scope = params.get('scope') || 'mine';
+    const allowedScopes = new Set(['mine','holidays','balance','admin','closures','team_overview','team_calendar','staff']);
+    if (!allowedScopes.has(scope)) throw new Error('Urlaubsbereich nicht erlaubt');
+    const clean = new URLSearchParams({ scope });
+    if (params.has('year')) {
+      const year = Number(params.get('year'));
+      if (!Number.isInteger(year) || year < 2020 || year > 2100) throw new Error('Ungültiges Jahr');
+      clean.set('year', String(year));
+    }
+    if (params.has('from')) clean.set('from', rootsVacationDate(params.get('from')));
+    if (params.has('to')) clean.set('to', rootsVacationDate(params.get('to')));
+    return { method, query: `?${clean.toString()}`, body: null };
+  }
+  if (method !== 'POST' || !input.body || typeof input.body !== 'object' || Array.isArray(input.body)) throw new Error('Urlaubsaktion nicht erlaubt');
+  const raw = input.body;
+  const action = String(raw.action || '');
+  const allowed = new Set(['create','withdraw','cancel_approved','approve','reject','update_closure','update_urlaubstage']);
+  if (!allowed.has(action)) throw new Error('Urlaubsaktion nicht erlaubt');
+  const body = { action };
+  if (action === 'create') {
+    body.start_date = rootsVacationDate(raw.start_date);
+    body.end_date = rootsVacationDate(raw.end_date);
+    body.day_part = ['full','am','pm'].includes(raw.day_part) ? raw.day_part : 'full';
+    body.note = raw.note == null ? null : String(raw.note).trim().slice(0, 1000);
+  } else {
+    if (raw.id != null) body.id = rootsUuid(raw.id);
+    if (action === 'reject') body.reason = raw.reason == null ? null : String(raw.reason).trim().slice(0, 1000);
+    if (action === 'update_closure') {
+      body.label = String(raw.label || '').trim().slice(0, 200);
+      body.deduct_days = Math.max(0, Math.min(5, Number(raw.deduct_days)));
+    }
+    if (action === 'update_urlaubstage') {
+      body.user_id = rootsUuid(raw.user_id);
+      body.urlaubstage = Math.max(0, Math.min(365, Math.floor(Number(raw.urlaubstage))));
+    }
+  }
+  return { method, query: '', body };
+}
+
+async function rootsHandleVacationRequest(sb, input) {
+  const request = rootsValidateVacationRequest(input);
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session?.access_token) throw new Error('Nicht angemeldet');
+  const response = await fetch(`https://csmguwcvzreefluhahyu.supabase.co/functions/v1/urlaubsplanung${request.query}`, {
+    method: request.method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+      'apikey': sb.supabaseKey,
+    },
+    body: request.body ? JSON.stringify(request.body) : undefined,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || data?.message || `Urlaubsplanung HTTP ${response.status}`);
+  return data;
+}
+
 async function rootsHandleBrokerRequest(frame, message) {
   const requestId = typeof message.requestId === 'string' ? message.requestId : '';
   if (!/^[a-z0-9_-]{8,80}$/i.test(requestId)) return;
@@ -4143,6 +4212,11 @@ async function rootsHandleBrokerRequest(frame, message) {
     }
     if (message.action === 'slide-writing' && frameUrl.includes('/slide-writing/')) {
       const result = await rootsHandleSlideWritingRequest(sb, message.payload);
+      rootsBrokerReply(frame, requestId, result);
+      return;
+    }
+    if (message.action === 'vacation' && frameUrl.includes('/urlaubsplanung/')) {
+      const result = await rootsHandleVacationRequest(sb, message.payload);
       rootsBrokerReply(frame, requestId, result);
       return;
     }

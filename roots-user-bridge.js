@@ -141,7 +141,7 @@
 
   const SYNC_INTERVAL_MS = 20000;
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
-  const BRIDGE_VERSION = '20260522-hover';
+  const BRIDGE_VERSION = 'security-source-v1-20260522-hover';
 
   function escapeAttr(s) {
     return escapeHtml(s).replace(/"/g, '&quot;');
@@ -1185,7 +1185,8 @@
   }
 
   window.addEventListener('message', (e) => {
-    if (e.origin !== ORIGIN) return;
+    if (e.origin !== ORIGIN || e.source !== window.parent) return;
+    if (!e.data || typeof e.data !== 'object' || Array.isArray(e.data)) return;
     if (e.data?.type === 'roots-profile-updated') {
       onProfileUpdate(window.RootsUser, e.data.profile);
     }

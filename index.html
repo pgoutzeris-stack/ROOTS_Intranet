@@ -1529,7 +1529,8 @@
         <iframe
           class="tool-iframe"
           title="ROOTS Team-Kalender · Abwesenheiten"
-          data-src="https://pgoutzeris-stack.github.io/Team-Kalender/"
+          data-src="https://pgoutzeris-stack.github.io/Team-Kalender/?authBroker=v1"
+          sandbox="allow-scripts allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"
           referrerpolicy="no-referrer"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
@@ -4176,6 +4177,71 @@ async function rootsHandleVacationRequest(sb, input) {
   return data;
 }
 
+function rootsTeamCalendarDate(value) {
+  const text = String(value || '');
+  if (!/^20\d{2}-\d{2}-\d{2}$/.test(text)) throw new Error('Ungültiges Kalenderdatum');
+  return text;
+}
+
+function rootsValidateTeamCalendarRequest(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Ungültige Kalenderanfrage');
+  const method = String(input.method || '').toUpperCase();
+  if (method === 'GET') {
+    const params = new URLSearchParams(String(input.query || '').replace(/^\?/, ''));
+    const list = params.get('list') || '';
+    if (!['', 'members', 'nrw_holidays', 'quota'].includes(list)) throw new Error('Kalenderbereich nicht erlaubt');
+    return { method, query: list ? `?list=${encodeURIComponent(list)}` : '', body: null };
+  }
+  if (method === 'DELETE') {
+    const params = new URLSearchParams(String(input.query || '').replace(/^\?/, ''));
+    const id = rootsUuid(params.get('id'));
+    const target = params.get('target') || 'event';
+    if (!['event', 'member'].includes(target)) throw new Error('Löschziel nicht erlaubt');
+    return { method, query: `?id=${encodeURIComponent(id)}&target=${encodeURIComponent(target)}`, body: null };
+  }
+  if (method !== 'POST' || !input.body || typeof input.body !== 'object' || Array.isArray(input.body)) {
+    throw new Error('Kalenderaktion nicht erlaubt');
+  }
+  const raw = input.body;
+  const kind = String(raw.kind || 'event');
+  if (!['ensure_member', 'event', 'event_update'].includes(kind)) throw new Error('Kalenderaktion nicht erlaubt');
+  if (kind === 'ensure_member') {
+    return { method, query: '', body: { kind, user_id: rootsUuid(raw.user_id), name: String(raw.name || '').trim().slice(0, 160) } };
+  }
+  const type = String(raw.type || '');
+  if (!['urlaub', 'krank', 'dienstreise', 'sonstiges'].includes(type)) throw new Error('Kalendertyp nicht erlaubt');
+  const body = {
+    kind,
+    type,
+    title: String(raw.title || '').trim().slice(0, 240),
+    start_date: rootsTeamCalendarDate(raw.start_date),
+    end_date: rootsTeamCalendarDate(raw.end_date),
+    day_part: ['full', 'am', 'pm'].includes(raw.day_part) ? raw.day_part : 'full',
+    note: raw.note == null ? null : String(raw.note).trim().slice(0, 2000),
+  };
+  if (kind === 'event_update') body.id = rootsUuid(raw.id);
+  else body.member_id = rootsUuid(raw.member_id);
+  return { method, query: '', body };
+}
+
+async function rootsHandleTeamCalendarRequest(sb, input) {
+  const request = rootsValidateTeamCalendarRequest(input);
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session?.access_token) throw new Error('Nicht angemeldet');
+  const response = await fetch(`https://csmguwcvzreefluhahyu.supabase.co/functions/v1/team-kalender${request.query}`, {
+    method: request.method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+      'apikey': sb.supabaseKey,
+    },
+    body: request.body ? JSON.stringify(request.body) : undefined,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || data?.message || `Team-Kalender HTTP ${response.status}`);
+  return data;
+}
+
 async function rootsHandleBrokerRequest(frame, message) {
   const requestId = typeof message.requestId === 'string' ? message.requestId : '';
   if (!/^[a-z0-9_-]{8,80}$/i.test(requestId)) return;
@@ -4217,6 +4283,11 @@ async function rootsHandleBrokerRequest(frame, message) {
     }
     if (message.action === 'vacation' && frameUrl.includes('/urlaubsplanung/')) {
       const result = await rootsHandleVacationRequest(sb, message.payload);
+      rootsBrokerReply(frame, requestId, result);
+      return;
+    }
+    if (message.action === 'team-calendar' && frameUrl.includes('/Team-Kalender/')) {
+      const result = await rootsHandleTeamCalendarRequest(sb, message.payload);
       rootsBrokerReply(frame, requestId, result);
       return;
     }

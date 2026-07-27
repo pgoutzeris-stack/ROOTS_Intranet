@@ -958,6 +958,14 @@
     }
     #roots-profile-setup-modal .ob-title { font-size: 1.4rem; font-weight: 700; margin: 0 0 .35rem; color: var(--ink); }
     #roots-profile-setup-modal .ob-sub { font-size: .95rem; color: var(--muted); margin: 0; }
+    #roots-profile-setup-modal .ob-skip {
+      border: 0; background: none; color: var(--muted); cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+      margin-top: 1rem; padding: .45rem .65rem;
+      font-family: inherit; font-size: .85rem; font-weight: 500;
+    }
+    #roots-profile-setup-modal .ob-skip:hover,
+    #roots-profile-setup-modal .ob-skip:focus-visible { color: var(--brand); outline: none; }
     #roots-profile-setup-modal .ob-steps { display: flex; justify-content: center; gap: .5rem; margin-bottom: 2.25rem; }
     #roots-profile-setup-modal .ob-step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); transition: all .3s; }
     #roots-profile-setup-modal .ob-step-dot.active { background: var(--brand); width: 24px; border-radius: 4px; }
@@ -1923,6 +1931,9 @@
       <div class="ob-icon"><i class="fa-solid fa-user-tie"></i></div>
       <h2 class="ob-title">Profil einrichten</h2>
       <p class="ob-sub">Kurz noch ein paar Angaben zu deiner Rolle bei ROOTS.</p>
+      <button type="button" class="ob-skip" onclick="window.RootsUser.deferProfileSetup()">
+        <i class="fa-regular fa-clock"></i> Später eintragen
+      </button>
     </div>
 
     <div class="ob-steps">
@@ -3138,7 +3149,7 @@ window.RootsUser = {
         this._mount();
       }
 
-      if (this._p && !this.isProfileComplete(this._p)) {
+      if (this._p && !this.isProfileComplete(this._p) && !this.isProfileSetupDeferred()) {
         this.showProfileSetup();
       }
 
@@ -3329,6 +3340,24 @@ window.RootsUser = {
     document.getElementById('roots-profile-setup-modal')?.classList.remove('visible');
   },
 
+  isProfileSetupDeferred() {
+    if (!this._uid) return false;
+    try {
+      return sessionStorage.getItem(`roots-profile-setup-deferred:${this._uid}`) === '1';
+    } catch (_) {
+      return false;
+    }
+  },
+
+  deferProfileSetup() {
+    if (this._uid) {
+      try {
+        sessionStorage.setItem(`roots-profile-setup-deferred:${this._uid}`, '1');
+      } catch (_) {}
+    }
+    this.closeProfileSetup();
+  },
+
   async saveProfileSetup() {
     const btn = document.getElementById('rps-save');
     this._hideProfileSetupError();
@@ -3347,6 +3376,9 @@ window.RootsUser = {
       const { error } = await this._sb.schema('users').from('profiles').update(payload).eq('id', this._uid);
       if (error) throw error;
       if (this._p) Object.assign(this._p, payload);
+      try {
+        sessionStorage.removeItem(`roots-profile-setup-deferred:${this._uid}`);
+      } catch (_) {}
       this._mount();
       this._broadcastProfile();
       this.closeProfileSetup();

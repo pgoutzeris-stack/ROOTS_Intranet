@@ -1098,6 +1098,9 @@
       <div id="roots-password-success" class="roots-alert roots-alert-success">
         <i class="fa-solid fa-circle-check"></i><span>Passwort geändert. Du kannst dich jetzt anmelden.</span>
       </div>
+      <a class="roots-btn-primary" id="roots-password-return" href="#" style="display:none;text-decoration:none">
+        <i class="fa-solid fa-arrow-up-right-from-square"></i> Zurück zum Intranet
+      </a>
       <form id="roots-password-form" novalidate>
         <div class="roots-form-group">
           <label for="roots-new-password">Neues Passwort</label>
@@ -1393,7 +1396,8 @@
           title="ROOTS Recruiting Tool"
           data-src="https://pgoutzeris-stack.github.io/ROOTS_RecruitingApp/"
           referrerpolicy="no-referrer"
-          allow="camera 'self'; microphone 'self'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
+          allow="fullscreen 'self'; clipboard-write 'self'; camera 'self'; microphone 'self'; geolocation 'none'; payment 'none'; usb 'none'"
+          allowfullscreen></iframe>
       </section>
 
       <section class="app-view" data-view-panel="onboarding">
@@ -1403,7 +1407,7 @@
           title="ROOTS Onboarding"
           data-src="https://pgoutzeris-stack.github.io/onboarding/"
           referrerpolicy="no-referrer"
-          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
+          allow="clipboard-write 'self'; camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="notes">
@@ -1424,7 +1428,7 @@
           title="ROOTS Whiteboard"
           data-src="https://pgoutzeris-stack.github.io/whiteboard/"
           referrerpolicy="no-referrer"
-          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
+          allow="clipboard-write 'self'; camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
 
       <section class="app-view" data-view-panel="livepoll">
@@ -3628,9 +3632,44 @@ window.RootsAdmin = {
   const vForgot=document.getElementById('roots-view-forgot');
   const vRequest=document.getElementById('roots-view-request');
   const vReset=document.getElementById('roots-view-reset');
+  let completingPasswordRecovery=false;
   const LOGIN_BTN_HTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
   const RESET_BTN_HTML='<i class="fa-solid fa-paper-plane"></i> Link senden';
   const REQUEST_BTN_HTML='<i class="fa-solid fa-paper-plane"></i> Anfrage senden';
+  function trustedEmbedReturn(value){
+    if(!value)return'';
+    try{
+      const url=new URL(value);
+      const host=url.hostname.toLowerCase();
+      const trusted=host==='roots-consultants.de'||host.endsWith('.roots-consultants.de')
+        ||host==='roots-consultants.com'||host.endsWith('.roots-consultants.com');
+      if(url.protocol!=='https:'||!trusted)return'';
+      url.hash='';
+      return url.href;
+    }catch(_){return'';}
+  }
+  function currentEmbedReturn(){
+    const fromQuery=trustedEmbedReturn(new URLSearchParams(location.search).get('embedReturn'));
+    if(fromQuery)return fromQuery;
+    return window.parent!==window?trustedEmbedReturn(document.referrer):'';
+  }
+  function recoveryRedirectUrl(){
+    const url=new URL(INTRANET_REDIRECT);
+    const embedReturn=currentEmbedReturn();
+    if(embedReturn)url.searchParams.set('embedReturn',embedReturn);
+    return url.href;
+  }
+  function configurePasswordReturn(){
+    const link=document.getElementById('roots-password-return');
+    if(!link)return;
+    const embedReturn=currentEmbedReturn();
+    link.style.display=embedReturn?'flex':'none';
+    if(embedReturn)link.href=embedReturn;
+  }
+  async function requestPersistentEmbedStorage(){
+    if(window.parent===window||!navigator.storage?.persist)return;
+    try{await navigator.storage.persist();}catch(_){}
+  }
   function resetLoginUi(){
     const btn=document.getElementById('roots-login-btn');
     if(btn){btn.disabled=false;btn.innerHTML=LOGIN_BTN_HTML;}
@@ -3661,9 +3700,11 @@ window.RootsAdmin = {
     if(vReset)vReset.style.display='block';
     document.getElementById('roots-password-error')?.classList.remove('visible');
     document.getElementById('roots-password-success')?.classList.remove('visible');
+    const returnLink=document.getElementById('roots-password-return');
+    if(returnLink)returnLink.style.display='none';
   }
   sb.auth.getSession().then(({data:{session}})=>{
-    if(session){hideAuthOverlay();window.RootsUser&&void RootsUser._loadAndMount(sb,session);}
+    if(session){void requestPersistentEmbedStorage();hideAuthOverlay();window.RootsUser&&void RootsUser._loadAndMount(sb,session);}
     else{resetLoginUi();}
   });
   sb.auth.onAuthStateChange((event,session)=>{
@@ -3672,12 +3713,13 @@ window.RootsAdmin = {
       return;
     }
     if(session){
+      void requestPersistentEmbedStorage();
       hideAuthOverlay();
       resetLoginUi();
       window.RootsUser&&void RootsUser._loadAndMount(sb,session);
     }
     else if(event==='SIGNED_OUT'){
-      showAuthOverlay();
+      if(!completingPasswordRecovery)showAuthOverlay();
       resetLoginUi();
       window.RootsNotifications?.reset();
       window.RootsUser?._broadcastAuthSignOut?.();
@@ -3707,7 +3749,7 @@ window.RootsAdmin = {
     const errEl=document.getElementById('roots-reset-error');
     const okEl=document.getElementById('roots-reset-success');
     btn.disabled=true;errEl.classList.remove('visible');okEl.classList.remove('visible');
-    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:INTRANET_REDIRECT});
+    const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:recoveryRedirectUrl()});
     if(error){errEl.classList.add('visible');document.getElementById('roots-reset-error-text').textContent=error.message;btn.disabled=false;}
     else{okEl.classList.add('visible');btn.disabled=false;}
   });
@@ -3745,8 +3787,14 @@ window.RootsAdmin = {
     const {error}=await sb.auth.updateUser({password});
     if(error){errText.textContent=error.message;errEl.classList.add('visible');btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-key"></i> Passwort speichern';return;}
     okEl.classList.add('visible');
+    configurePasswordReturn();
+    completingPasswordRecovery=true;
     await sb.auth.signOut();
-    setTimeout(()=>{showAuthOverlay();document.getElementById('roots-password-form').reset();},1200);
+    if(currentEmbedReturn()){
+      btn.style.display='none';
+    }else{
+      setTimeout(()=>{showAuthOverlay();document.getElementById('roots-password-form').reset();},1200);
+    }
   });
   document.getElementById('roots-go-forgot').addEventListener('click',()=>{vLogin.style.display='none';vForgot.style.display='block';});
   document.getElementById('roots-go-request').addEventListener('click',()=>{vLogin.style.display='none';vForgot.style.display='none';vRequest.style.display='block';});
@@ -3789,6 +3837,8 @@ const ROOTS_ALLOWED_DOWNLOAD_TYPES = new Set([
   'image/webp',
   'image/svg+xml',
   'text/csv',
+  'text/html',
+  'text/markdown',
   'text/plain',
 ]);
 
@@ -4377,7 +4427,9 @@ window.addEventListener('message', (e) => {
 
   if (type === 'roots-download-file') {
     const filename = rootsSafeFilename(e.data.filename);
-    const mimeType = typeof e.data.mimeType === 'string' ? e.data.mimeType.toLowerCase() : '';
+    const mimeType = typeof e.data.mimeType === 'string'
+      ? e.data.mimeType.toLowerCase().split(';', 1)[0].trim()
+      : '';
     const buffer = e.data.buffer;
     if (!filename || !ROOTS_ALLOWED_DOWNLOAD_TYPES.has(mimeType)) return;
     if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 1 || buffer.byteLength > ROOTS_MAX_DOWNLOAD_BYTES) return;

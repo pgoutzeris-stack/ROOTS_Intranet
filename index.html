@@ -1626,6 +1626,13 @@
         const panel = document.querySelector(`.app-view[data-view-panel="${viewName}"]`);
         const iframe = panel?.querySelector('iframe.tool-iframe');
         if (!iframe) return;
+        const identityUser = window.RootsUser?._uid || '';
+        const identityEpoch = window.RootsUser?._authEpoch || 0;
+        if (!identityUser) {
+          iframe.src = 'about:blank';
+          delete iframe.dataset.loaded;
+          return;
+        }
         const base = iframe.dataset.src;
         if (!base) return;
         // Per-app-launch cache-bust: the native Tauri WKWebView caches iframe
@@ -1637,6 +1644,8 @@
         const syncAuth = () => window.RootsUser?._broadcastAuthSession?.();
         if (!iframe.dataset.loaded) {
           iframe.dataset.loaded = '1';
+          iframe.dataset.identityUser = identityUser;
+          iframe.dataset.identityEpoch = String(identityEpoch);
           iframe.addEventListener('load', syncAuth, { once: true });
           iframe.src = url;
         } else {
@@ -3075,6 +3084,10 @@ window.RootsAdminEmployee = {
 // ===== RootsUser - shared user profile module =====
 window.RootsUser = {
   _p: null, _sb: null, _uid: null,
+  _authEpoch: Date.now(),
+  _loadGeneration: 0,
+  _explicitAuthTransition: false,
+  _authBlocked: false,
 
   _initials(name) {
     if (!name) return '?';
@@ -3091,14 +3104,15 @@ window.RootsUser = {
 
   _previewAvatar(url) { return this._avatarSpan(url || (this._p && this._p.avatar_url), this._p && this._p.full_name, 60); },
 
-  async _loadAndMount(sb, sessionHint) {
-    return this._doLoadAndMount(sb, sessionHint);
+  async _loadAndMount(sb, sessionHint, options) {
+    return this._doLoadAndMount(sb, sessionHint, options);
   },
 
-  async _doLoadAndMount(sb, sessionHint) {
+  async _doLoadAndMount(sb, sessionHint, options = {}) {
     this._sb = sb;
     window.__rootsSupabaseClient = sb;
     window.rootsSupabase = sb;
+    const generation = ++this._loadGeneration;
     try {
       let session = sessionHint || null;
       if (!session) {
@@ -3106,24 +3120,54 @@ window.RootsUser = {
         session = stored;
       }
       if (!session) {
-        this._uid = null;
-        this._p = null;
+        this._clearIdentity();
         return;
       }
-      this._uid = session.user.id;
+
+      const hintedUserId = session.user?.id || '';
+      const previousUserId = this._uid;
+      const explicitTransition = options.explicit === true || this._explicitAuthTransition;
+      if (this._authBlocked && !explicitTransition) {
+        throw new Error('Die Session ist bis zur nächsten ausdrücklichen Anmeldung gesperrt.');
+      }
+      if (!hintedUserId) throw new Error('Die Anmeldung enthält keine eindeutige Benutzer-ID.');
+      if (previousUserId && previousUserId !== hintedUserId && !explicitTransition) {
+        this._authBlocked = true;
+        throw new Error('Ein unerwarteter Benutzerwechsel wurde blockiert.');
+      }
+      let verifiedUser = session.user;
+      if (!previousUserId && !explicitTransition) {
+        const { data: verifiedData, error: verifiedError } = await sb.auth.getUser(session.access_token);
+        verifiedUser = verifiedData?.user;
+        if (verifiedError || !verifiedUser || verifiedUser.id !== hintedUserId) {
+          throw new Error('Die Anmeldung konnte nicht eindeutig bestätigt werden.');
+        }
+      }
+      if (generation !== this._loadGeneration) return;
+
+      const userId = verifiedUser.id;
+      if (previousUserId !== userId) {
+        this._authEpoch = Math.max(Date.now(), this._authEpoch + 1);
+        this._resetEmbeddedTools();
+        window.RootsNotifications?.reset?.();
+      }
+      this._explicitAuthTransition = false;
+      this._authBlocked = false;
+      this._uid = userId;
       this._p = {
-        id: this._uid,
-        email: session.user.email || '',
-        full_name: session.user.user_metadata?.full_name || '',
+        id: userId,
+        email: verifiedUser.email || '',
+        full_name: verifiedUser.user_metadata?.full_name || '',
         app_role: 'reader',
       };
       this._mount();
 
       const { data, error } = await sb.schema('users').from('profiles')
         .select('id,email,full_name,position,avatar_url,linkedin_url,app_role,app_settings,kuerzel,hourly_rate,phone')
-        .eq('id', this._uid).maybeSingle();
+        .eq('id', userId).maybeSingle();
+      if (generation !== this._loadGeneration || this._uid !== userId) return;
       if (error) console.warn('Profil laden:', error.message);
-      else if (data) {
+      else if (data?.id === userId) {
         this._p = data;
         this._mount();
       }
@@ -3138,40 +3182,88 @@ window.RootsUser = {
       if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
       if (window.RootsNotifications) {
         const rn = window.RootsNotifications;
-        if (rn._userId !== this._uid) {
+        if (rn._userId !== userId) {
           rn.reset();
-          rn._userId = this._uid;
+          rn._userId = userId;
           rn.start();
         } else if (!rn._pollTimer) {
           rn.start();
         }
       }
+      const activeTool = document.querySelector('.app-view.is-active[data-view-panel]')?.dataset.viewPanel;
+      if (activeTool) window.ensureToolIframe?.(activeTool);
     } catch (e) {
       console.error('RootsUser._doLoadAndMount', e);
-      if (this._p) this._mount();
+      if (generation !== this._loadGeneration) return;
+      this._clearIdentity();
+      window.rootsShowAuthOverlay?.();
     }
   },
 
-  _broadcastAuthSignOut() {
-    document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
-      try {
-        f.contentWindow?.postMessage({ type: 'roots-auth-sync', signOut: true }, 'https://pgoutzeris-stack.github.io');
-      } catch (_) {}
+  _resetEmbeddedTools() {
+    document.querySelectorAll('iframe.tool-iframe').forEach((frame) => {
+      frame.src = 'about:blank';
+      delete frame.dataset.loaded;
+      delete frame.dataset.identityEpoch;
+      delete frame.dataset.identityUser;
     });
   },
 
+  _clearIdentity() {
+    ++this._loadGeneration;
+    this._authEpoch = Math.max(Date.now(), this._authEpoch + 1);
+    this._uid = null;
+    this._p = null;
+    this._explicitAuthTransition = false;
+    this._resetEmbeddedTools();
+    window.RootsNotifications?.reset?.();
+  },
+
+  _broadcastAuthSignOut({ preserveBlock = false } = {}) {
+    document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
+      try {
+        f.contentWindow?.postMessage({
+          type: 'roots-auth-sync',
+          signOut: true,
+          authEpoch: this._authEpoch,
+        }, 'https://pgoutzeris-stack.github.io');
+      } catch (_) {}
+    });
+    if (!preserveBlock) this._authBlocked = false;
+    this._clearIdentity();
+    if (preserveBlock) this._authBlocked = true;
+  },
+
   _broadcastAuthSession() {
-    const ping = () => {
+    const userId = this._uid;
+    const authEpoch = this._authEpoch;
+    if (!userId) return;
+    const ping = async () => {
+      if (this._uid !== userId || this._authEpoch !== authEpoch) return;
+      const { data: { session } } = await this._sb.auth.getSession();
+      if (!session?.access_token || !session?.refresh_token || session.user?.id !== userId) return;
       document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
+        if (f.src === 'about:blank') return;
         try {
-          f.contentWindow?.postMessage({ type: 'roots-auth-sync' }, 'https://pgoutzeris-stack.github.io');
+          f.dataset.identityUser = userId;
+          f.dataset.identityEpoch = String(authEpoch);
+          f.contentWindow?.postMessage({
+            type: 'roots-auth-sync',
+            userId,
+            authEpoch,
+            session: {
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+              user: { id: userId, email: session.user.email || '' },
+            },
+          }, 'https://pgoutzeris-stack.github.io');
         } catch (_) {}
       });
       this._broadcastProfile();
     };
-    ping();
-    setTimeout(ping, 400);
-    setTimeout(ping, 1200);
+    void ping();
+    setTimeout(() => void ping(), 400);
+    setTimeout(() => void ping(), 1200);
   },
 
   _syncAdminNav() {
@@ -3369,10 +3461,19 @@ window.RootsUser = {
   },
 
   _broadcastProfile() {
-    if (!this._p) return;
+    if (!this._p || this._p.id !== this._uid) return;
     const profile = { ...this._p };
+    const userId = this._uid;
+    const authEpoch = this._authEpoch;
     document.querySelectorAll('iframe').forEach((f) => {
-      try { f.contentWindow?.postMessage({ type: 'roots-profile-updated', profile }, 'https://pgoutzeris-stack.github.io'); } catch (_) {}
+      try {
+        f.contentWindow?.postMessage({
+          type: 'roots-profile-updated',
+          profile,
+          userId,
+          authEpoch,
+        }, 'https://pgoutzeris-stack.github.io');
+      } catch (_) {}
     });
   },
 
@@ -3616,7 +3717,7 @@ window.RootsAdmin = {
 };
 </script>
 
-<script src="roots-user-bridge.js?v=20260522-hover"></script>
+<script src="roots-user-bridge.js?v=20260728-identity-guard-v1"></script>
 
 <script>
 (function(){
@@ -3635,6 +3736,7 @@ window.RootsAdmin = {
   const vRequest=document.getElementById('roots-view-request');
   const vReset=document.getElementById('roots-view-reset');
   let completingPasswordRecovery=false;
+  let blockingSignOut=false;
   const LOGIN_BTN_HTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
   const RESET_BTN_HTML='<i class="fa-solid fa-paper-plane"></i> Link senden';
   const REQUEST_BTN_HTML='<i class="fa-solid fa-paper-plane"></i> Anfrage senden';
@@ -3691,6 +3793,7 @@ window.RootsAdmin = {
     if(vReset)vReset.style.display='none';
     resetLoginUi();
   }
+  window.rootsShowAuthOverlay=showAuthOverlay;
   function hideAuthOverlay(){
     if(overlay)overlay.style.display='none';
   }
@@ -3705,26 +3808,43 @@ window.RootsAdmin = {
     const returnLink=document.getElementById('roots-password-return');
     if(returnLink)returnLink.style.display='none';
   }
+  async function applyAuthenticatedSession(session,{explicit=false}={}){
+    if(!session?.user?.id){showAuthOverlay();return false;}
+    if(explicit&&window.RootsUser){
+      window.RootsUser._explicitAuthTransition=true;
+      window.RootsUser._authBlocked=false;
+    }
+    await window.RootsUser?._loadAndMount(sb,session,{explicit});
+    const accepted=window.RootsUser?._uid===session.user.id;
+    if(accepted){
+      void requestPersistentEmbedStorage();
+      hideAuthOverlay();
+      resetLoginUi();
+    }else{
+      showAuthOverlay();
+      blockingSignOut=window.RootsUser?._authBlocked===true;
+      try{await sb.auth.signOut({scope:'local'});}catch(_){}
+    }
+    return accepted;
+  }
   sb.auth.getSession().then(({data:{session}})=>{
-    if(session){void requestPersistentEmbedStorage();hideAuthOverlay();window.RootsUser&&void RootsUser._loadAndMount(sb,session);}
-    else{resetLoginUi();}
-  });
+    if(session)void applyAuthenticatedSession(session);
+    else resetLoginUi();
+  }).catch(()=>showAuthOverlay());
   sb.auth.onAuthStateChange((event,session)=>{
     if(event==='PASSWORD_RECOVERY'){
       showPasswordReset();
       return;
     }
     if(session){
-      void requestPersistentEmbedStorage();
-      hideAuthOverlay();
-      resetLoginUi();
-      window.RootsUser&&void RootsUser._loadAndMount(sb,session);
+      setTimeout(()=>void applyAuthenticatedSession(session),0);
     }
     else if(event==='SIGNED_OUT'){
       if(!completingPasswordRecovery)showAuthOverlay();
       resetLoginUi();
       window.RootsNotifications?.reset();
-      window.RootsUser?._broadcastAuthSignOut?.();
+      window.RootsUser?._broadcastAuthSignOut?.({preserveBlock:blockingSignOut});
+      blockingSignOut=false;
     }
   });
   document.getElementById('roots-login-form').addEventListener('submit',async(e)=>{
@@ -3737,11 +3857,15 @@ window.RootsAdmin = {
     btn.disabled=true;
     btn.innerHTML='<i class="fa-solid fa-circle-notch roots-spin"></i> Anmelden...';
     errB.classList.remove('visible');
+    if(window.RootsUser)window.RootsUser._explicitAuthTransition=true;
     const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
-    if(error){errB.classList.add('visible');errT.textContent='Ungültige E-Mail oder falsches Passwort.';btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';}
+    if(error){
+      if(window.RootsUser)window.RootsUser._explicitAuthTransition=false;
+      errB.classList.add('visible');errT.textContent='Ungültige E-Mail oder falsches Passwort.';btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
+    }
     else{
       resetLoginUi();
-      if(data?.session) void RootsUser._loadAndMount(sb,data.session);
+      if(data?.session) void applyAuthenticatedSession(data.session,{explicit:true});
     }
   });
   document.getElementById('roots-forgot-form').addEventListener('submit',async(e)=>{
@@ -3815,6 +3939,7 @@ const ROOTS_ALLOWED_MESSAGE_TYPES = new Set([
   'roots-print-iframe',
   'roots-download-file',
   'roots-broker-request',
+  'roots-auth-request',
 ]);
 const ROOTS_ALLOWED_VIEWS = new Set([
   'dashboard', 'upcoming', 'teamkalender', 'vacation', 'sop', 'wissenshub',
@@ -3886,12 +4011,16 @@ function rootsSafeFilename(value) {
 
 function rootsBrokerReply(frame, requestId, result, error = null) {
   const sandboxed = frame.hasAttribute('sandbox') && !frame.sandbox.contains('allow-same-origin');
+  const userId = window.RootsUser?._uid || null;
+  const authEpoch = window.RootsUser?._authEpoch || 0;
   frame.contentWindow?.postMessage({
     type: 'roots-broker-response',
     requestId,
     ok: !error,
     result: error ? null : result,
     error: error ? String(error).slice(0, 500) : null,
+    userId,
+    authEpoch,
   }, sandboxed ? '*' : ROOTS_TOOL_ORIGIN);
 }
 
@@ -4308,6 +4437,15 @@ async function rootsHandleBrokerRequest(frame, message) {
     const { data: userData, error: userError } = await sb.auth.getUser();
     const user = userData?.user;
     if (userError || !user) throw new Error('Nicht angemeldet');
+    const authEpoch = window.RootsUser?._authEpoch || 0;
+    if (window.RootsUser?._uid !== user.id) throw new Error('Die aktive Identität ist nicht eindeutig');
+    if (frame.dataset.identityUser !== user.id || frame.dataset.identityEpoch !== String(authEpoch)) {
+      throw new Error('Die Tool-Session ist veraltet und wird neu geladen');
+    }
+    if (message.userId && message.userId !== user.id) throw new Error('Benutzerbindung stimmt nicht überein');
+    if (message.authEpoch && Number(message.authEpoch) !== Number(authEpoch)) {
+      throw new Error('Die Tool-Session ist veraltet');
+    }
 
     if (message.action === 'user-context') {
       const { data: profile, error } = await sb.schema('users').from('profiles')
@@ -4318,6 +4456,7 @@ async function rootsHandleBrokerRequest(frame, message) {
       rootsBrokerReply(frame, requestId, {
         user: { id: user.id, email: user.email || profile?.email || '' },
         profile: profile || { id: user.id, email: user.email || '', app_role: 'reader' },
+        authEpoch,
       });
       return;
     }
@@ -4365,6 +4504,10 @@ window.addEventListener('message', (e) => {
   if (!sourceFrame || !rootsIsActiveFrame(sourceFrame)) return;
 
   const type = e.data.type;
+  if (type === 'roots-auth-request') {
+    window.RootsUser?._broadcastAuthSession?.();
+    return;
+  }
   if (type === 'roots-broker-request') {
     void rootsHandleBrokerRequest(sourceFrame, e.data);
     return;

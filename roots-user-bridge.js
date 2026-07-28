@@ -1104,17 +1104,20 @@
     }
   }
 
-  function onProfileUpdate(RU, profile) {
-    if (!RU || !profile) return;
+  function onProfileUpdate(RU, profile, userId, authEpoch) {
+    if (!RU || !profile || !_boundUserId) return;
+    if (userId !== _boundUserId || profile.id !== _boundUserId || Number(authEpoch) !== Number(_boundEpoch)) return;
     RU._p = { ...(RU._p || {}), ...profile };
+    RU._uid = _boundUserId;
     RU._mount?.();
     if (typeof window.onRootsTeamRefresh === 'function') window.onRootsTeamRefresh();
   }
 
-  const AUTH_STORAGE_KEY = `sb-${SUPABASE_REF}-auth-token`;
-  let _lastAuthFingerprint = null;
+  let _boundUserId = null;
+  let _boundEpoch = 0;
   let _hadSession = false;
   let _syncInFlight = null;
+  let _authSerial = 0;
   const _brokerPending = new Map();
 
   function brokerRequest(action, payload = {}, timeoutMs = 180000) {
@@ -1126,12 +1129,14 @@
         _brokerPending.delete(requestId);
         reject(new Error('Broker-Anfrage hat zu lange gedauert'));
       }, Math.max(1000, Math.min(Number(timeoutMs) || 180000, 300000)));
-      _brokerPending.set(requestId, { resolve, reject, timer });
+      _brokerPending.set(requestId, { resolve, reject, timer, action });
       window.parent.postMessage({
         type: 'roots-broker-request',
         requestId,
         action,
         payload,
+        userId: _boundUserId,
+        authEpoch: _boundEpoch,
       }, ORIGIN);
     });
   }
@@ -1148,79 +1153,68 @@
     return window.__rootsSupabaseClient || window.RootsUser?._sb || null;
   }
 
-  function sessionFromStorageRaw(raw) {
-    if (!raw) return null;
-    try {
-      const data = JSON.parse(raw);
-      const access_token = data.access_token || data.currentSession?.access_token;
-      const refresh_token = data.refresh_token || data.currentSession?.refresh_token;
-      if (!access_token || !refresh_token) return null;
-      return { access_token, refresh_token };
-    } catch (_) {
-      return null;
-    }
-  }
-
-  function readAuthStorageRaw() {
-    try {
-      return window.top.localStorage.getItem(AUTH_STORAGE_KEY);
-    } catch (_) {
-      try {
-        return window.localStorage.getItem(AUTH_STORAGE_KEY);
-      } catch (_) {
-        return null;
-      }
-    }
-  }
-
-  async function hydrateSessionFromParentStorage() {
+  async function applyParentSession(message) {
     const sb = getSupabaseClient();
     if (!sb) return null;
-    const raw = readAuthStorageRaw();
-    const payload = sessionFromStorageRaw(raw);
-    if (!payload) return null;
-
-    const { data: { session: current } } = await sb.auth.getSession();
-    if (current?.access_token === payload.access_token) {
-      _hadSession = true;
-      return current;
+    const expectedUserId = typeof message.userId === 'string' ? message.userId : '';
+    const authEpoch = Number(message.authEpoch) || 0;
+    const payload = message.session;
+    if (!expectedUserId || !authEpoch || !payload?.access_token || !payload?.refresh_token) {
+      await applyAuthSignOut();
+      return null;
     }
-
+    const serial = ++_authSerial;
     const { data, error } = await sb.auth.setSession({
       access_token: payload.access_token,
       refresh_token: payload.refresh_token,
     });
+    if (serial !== _authSerial) return null;
     if (error) {
-      console.warn('RootsAuthBridge hydrateSession', error.message);
-      return current || null;
+      console.warn('RootsAuthBridge applyParentSession', error.message);
+      await applyAuthSignOut();
+      return null;
     }
+    const session = data?.session || null;
+    if (session?.user?.id !== expectedUserId) {
+      await applyAuthSignOut();
+      return null;
+    }
+    if (_boundUserId && _boundUserId !== expectedUserId) dispatchAuthSignedOut();
+    _boundUserId = expectedUserId;
+    _boundEpoch = authEpoch;
     _hadSession = true;
-    return data?.session || null;
+    dispatchAuthReady(session);
+    return session;
   }
 
   async function syncAuthFromParentStorage() {
     if (TOKENLESS_EMBED) return null;
     if (_syncInFlight) return _syncInFlight;
-    _syncInFlight = (async () => {
-      const raw = readAuthStorageRaw();
-      if (raw === _lastAuthFingerprint && _hadSession) {
-        const sb = getSupabaseClient();
-        const { data: { session } } = sb ? await sb.auth.getSession() : { data: { session: null } };
-        if (session) return session;
-      }
-      _lastAuthFingerprint = raw;
-      const session = await hydrateSessionFromParentStorage();
-      if (session) dispatchAuthReady(session);
-      return session;
-    })().finally(() => {
+    _syncInFlight = new Promise((resolve) => {
+      window.parent.postMessage({ type: 'roots-auth-request' }, ORIGIN);
+      setTimeout(() => resolve(null), 1000);
+    }).finally(() => {
       _syncInFlight = null;
     });
     return _syncInFlight;
   }
 
   async function applyAuthSignOut() {
+    ++_authSerial;
     _hadSession = false;
-    _lastAuthFingerprint = null;
+    _boundUserId = null;
+    _boundEpoch = 0;
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) await sb.auth.signOut({ scope: 'local' });
+      } catch (_) {}
+    }
+    if (window.RootsUser) {
+      window.RootsUser._uid = null;
+      window.RootsUser._p = null;
+    }
     dispatchAuthSignedOut();
   }
 
@@ -1232,12 +1226,27 @@
       if (!pending) return;
       clearTimeout(pending.timer);
       _brokerPending.delete(e.data.requestId);
+      const responseUserId = typeof e.data.userId === 'string' ? e.data.userId : '';
+      const responseEpoch = Number(e.data.authEpoch) || 0;
+      if (pending.action === 'user-context' && !_boundUserId && e.data.ok) {
+        const contextUserId = e.data.result?.user?.id || '';
+        if (!responseUserId || responseUserId !== contextUserId || !responseEpoch) {
+          pending.reject(new Error('Broker-Identität konnte nicht bestätigt werden'));
+          return;
+        }
+        _boundUserId = responseUserId;
+        _boundEpoch = responseEpoch;
+      }
+      if (responseUserId !== _boundUserId || responseEpoch !== Number(_boundEpoch)) {
+        pending.reject(new Error('Veraltete Broker-Antwort wurde blockiert'));
+        return;
+      }
       if (e.data.ok) pending.resolve(e.data.result);
       else pending.reject(new Error(e.data.error || 'Broker-Anfrage fehlgeschlagen'));
       return;
     }
     if (e.data?.type === 'roots-profile-updated') {
-      onProfileUpdate(window.RootsUser, e.data.profile);
+      onProfileUpdate(window.RootsUser, e.data.profile, e.data.userId, e.data.authEpoch);
     }
     if (e.data?.type === 'roots-notification-toast') {
       showBridgeToast(e.data.notification);
@@ -1246,11 +1255,27 @@
       if (e.data.signOut) {
         void applyAuthSignOut();
       } else if (TOKENLESS_EMBED) {
+        const expectedUserId = typeof e.data.userId === 'string' ? e.data.userId : '';
+        const expectedEpoch = Number(e.data.authEpoch) || 0;
+        if (!expectedUserId || !expectedEpoch) {
+          void applyAuthSignOut();
+          return;
+        }
+        if (_boundUserId && (_boundUserId !== expectedUserId || Number(_boundEpoch) !== expectedEpoch)) {
+          _boundUserId = null;
+          _boundEpoch = 0;
+          dispatchAuthSignedOut();
+        }
+        _boundUserId = expectedUserId;
+        _boundEpoch = expectedEpoch;
         void brokerRequest('user-context').then((context) => {
+          if (context?.user?.id !== _boundUserId || Number(context?.authEpoch) !== Number(_boundEpoch)) {
+            throw new Error('Broker-Kontext gehört zu einer anderen Identität');
+          }
           window.dispatchEvent(new CustomEvent('roots-broker-context-ready', { detail: context }));
         }).catch(() => applyAuthSignOut());
       } else {
-        void syncAuthFromParentStorage();
+        void applyParentSession(e.data);
       }
     }
     if (e.data?.type === 'roots-notes-refresh') {
@@ -1259,9 +1284,6 @@
   });
 
   if (IN_IFRAME && !TOKENLESS_EMBED) {
-    window.addEventListener('storage', (e) => {
-      if (e.key === AUTH_STORAGE_KEY) void syncAuthFromParentStorage();
-    });
     const waitForClient = (n) => {
       if (getSupabaseClient()) void syncAuthFromParentStorage();
       else if (n < 120) setTimeout(() => waitForClient(n + 1), 50);

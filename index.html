@@ -4209,10 +4209,22 @@ function rootsBrokerReply(frame, requestId, result, error = null) {
   }, sandboxed ? '*' : ROOTS_TOOL_ORIGIN);
 }
 
+function rootsValidateImageReference(input, dataKey, mimeKey) {
+  const data = input[dataKey] == null ? '' : String(input[dataKey]);
+  const mimeType = input[mimeKey] == null ? '' : String(input[mimeKey]).toLowerCase();
+  if (!data && !mimeType) return { data: null, mimeType: null };
+  if (!data || !mimeType) throw new Error('Referenzbild ist unvollständig');
+  if (data.length > 12_000_000) throw new Error('Referenzbild ist zu groß');
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
+    throw new Error('Referenzbildformat nicht erlaubt');
+  }
+  return { data, mimeType };
+}
+
 function rootsValidateImageRequest(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Ungültige Anfrage');
   const action = input.action;
-  if (!['settings_status', 'save_google_api_key', 'generate_image', 'get_history', 'delete_history_item'].includes(action)) {
+  if (!['settings_status', 'save_google_api_key', 'improve_style_prompt', 'generate_image', 'get_history', 'delete_history_item'].includes(action)) {
     throw new Error('Aktion nicht erlaubt');
   }
   if (action === 'settings_status') return { action };
@@ -4230,29 +4242,66 @@ function rootsValidateImageRequest(input) {
     if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) throw new Error('Ungültige ID');
     return { action, id };
   }
-  const allowedModels = new Set(['gemini-3-pro-image', 'gemini-3.1-flash-image', 'gemini-2.5-flash-image']);
-  const allowedAspects = new Set(['9:16', '16:9', '1:1', '4:3']);
+  if (action === 'improve_style_prompt') {
+    const stylePrompt = typeof input.stylePrompt === 'string' ? input.stylePrompt.trim() : '';
+    if (stylePrompt.length < 5 || stylePrompt.length > 6000) throw new Error('Stilidee ist ungültig oder zu lang');
+    return { action, stylePrompt };
+  }
+  const allowedModels = new Set(['gemini-3-pro-image', 'gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview']);
+  const allowedAspects = new Set(['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']);
+  const allowedLogoPlacements = new Set(['top-left', 'top-right', 'bottom-left', 'bottom-right', 'bottom-center', 'center', 'integrated']);
   const modelId = typeof input.modelId === 'string' ? input.modelId : '';
   const promptText = typeof input.promptText === 'string' ? input.promptText.trim() : '';
   const aspect = typeof input.aspect === 'string' ? input.aspect : '';
   if (!allowedModels.has(modelId) || !allowedAspects.has(aspect)) throw new Error('Modell oder Format nicht erlaubt');
-  if (!promptText || promptText.length > 20000) throw new Error('Prompt ist ungültig oder zu lang');
-  const refImageData = input.refImageData == null ? null : String(input.refImageData);
-  const refImageMimeType = input.refImageMimeType == null ? null : String(input.refImageMimeType).toLowerCase();
-  if (refImageData && refImageData.length > 15 * 1024 * 1024) throw new Error('Referenzbild ist zu groß');
-  if (refImageData && !['image/jpeg', 'image/png', 'image/webp'].includes(refImageMimeType)) {
-    throw new Error('Referenzbildformat nicht erlaubt');
-  }
+  if (!promptText || promptText.length > 6000) throw new Error('Prompt ist ungültig oder zu lang');
+  const stylePrompt = typeof input.stylePrompt === 'string' ? input.stylePrompt.trim().slice(0, 8000) : '';
+  const legacyReference = rootsValidateImageReference(input, 'refImageData', 'refImageMimeType');
+  const styleReference = rootsValidateImageReference(input, 'styleReferenceData', 'styleReferenceMimeType');
+  const logoReference = rootsValidateImageReference(input, 'logoReferenceData', 'logoReferenceMimeType');
+  const requestedLogoPlacement = typeof input.logoPlacement === 'string' ? input.logoPlacement : '';
+  const logoPlacement = allowedLogoPlacements.has(requestedLogoPlacement) ? requestedLogoPlacement : 'bottom-right';
   return {
     action,
     modelId,
     modelLabel: String(input.modelLabel || '').slice(0, 100),
     promptText,
     aspect,
-    styleId: String(input.styleId || '').slice(0, 64),
-    refImageData,
-    refImageMimeType,
+    styleId: String(input.styleId || '').slice(0, 100),
+    stylePrompt,
+    refImageData: legacyReference.data,
+    refImageMimeType: legacyReference.mimeType,
+    styleReferenceData: styleReference.data,
+    styleReferenceMimeType: styleReference.mimeType,
+    logoReferenceData: logoReference.data,
+    logoReferenceMimeType: logoReference.mimeType,
+    logoPlacement,
   };
+}
+
+async function rootsHandleImageRequest(sb, input) {
+  const body = rootsValidateImageRequest(input);
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session?.access_token) throw new Error('Nicht angemeldet');
+  const response = await fetch('https://csmguwcvzreefluhahyu.supabase.co/functions/v1/image-generation', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+      'apikey': sb.supabaseKey,
+    },
+    body: JSON.stringify(body),
+  });
+  const responseText = await response.text();
+  let data = {};
+  try { data = responseText ? JSON.parse(responseText) : {}; } catch (_) {}
+  if (!response.ok) {
+    const errorCode = response.headers.get('sb-error-code');
+    const message = data?.error?.message || data?.error || data?.message
+      || (errorCode ? `Image-Funktion: ${errorCode}` : `Image-Funktion HTTP ${response.status}`);
+    throw new Error(message);
+  }
+  return data;
 }
 
 function rootsUuid(value) {
@@ -4675,10 +4724,8 @@ async function rootsHandleBrokerRequest(frame, message) {
     if (message.action !== 'image-generation' || !frameUrl.includes('/Image-Generation-Tool/')) {
       throw new Error('Broker-Aktion für dieses Tool nicht erlaubt');
     }
-    const body = rootsValidateImageRequest(message.payload);
-    const { data, error } = await sb.functions.invoke('image-generation', { body });
-    if (error) throw new Error(error.message || 'Image-Funktion fehlgeschlagen');
-    rootsBrokerReply(frame, requestId, data);
+    const result = await rootsHandleImageRequest(sb, message.payload);
+    rootsBrokerReply(frame, requestId, result);
   } catch (error) {
     rootsBrokerReply(frame, requestId, null, error?.message || 'Broker-Anfrage fehlgeschlagen');
   }

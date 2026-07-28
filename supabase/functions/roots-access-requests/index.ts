@@ -110,7 +110,13 @@ Deno.serve(async (req) => {
       if (error || !data?.user?.id) return reply(req, { error: error?.message || "Einladung konnte nicht versendet werden." }, 500);
       authUserId = data.user.id;
     } else if (!authUserId) {
-      const { data, error } = await context.service.auth.admin.createUser({ email, email_confirm: true, password: crypto.randomUUID(), user_metadata: { full_name: fullName } });
+      const { data, error } = await context.service.auth.admin.createUser({
+        email,
+        email_confirm: true,
+        password: crypto.randomUUID(),
+        user_metadata: { full_name: fullName },
+        app_metadata: { roots_admin_provisioned: true },
+      });
       if (error || !data?.user?.id) return reply(req, { error: error?.message || "Nutzer konnte nicht angelegt werden." }, 500);
       authUserId = data.user.id;
     }

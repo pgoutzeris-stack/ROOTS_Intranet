@@ -3082,9 +3082,10 @@ window.RootsUser = {
   },
 
   _avatarSpan(url, name, size) {
-    const ini = this._initials(name);
+    const ini = escapeHtml(this._initials(name));
     const s = `width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:${Math.floor(size*.38)}px;flex-shrink:0;`;
-    if (url) return `<span style="${s}background:var(--brand-light,#eff6ff)"><img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentElement.innerHTML='<span style=color:var(--brand,#206efb)>${ini}</span>'"></span>`;
+    const safeUrl = url && /^https:\/\//i.test(String(url)) ? escapeHtml(String(url)) : '';
+    if (safeUrl) return `<span style="${s}background:var(--brand-light,#eff6ff)"><img src="${safeUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.remove()"></span>`;
     return `<span style="${s}background:var(--brand-light,#eff6ff);color:var(--brand,#206efb)">${ini}</span>`;
   },
 

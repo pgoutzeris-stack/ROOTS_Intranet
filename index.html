@@ -240,16 +240,21 @@
     }
     .admin-field textarea { height: auto; min-height: 72px; padding: .6rem 12px; resize: vertical; }
     .admin-field-hint {
-      margin: .5rem 0 0; font-size: .72rem; color: #94a3b8; font-style: italic; line-height: 1.45;
-      display: flex; align-items: flex-start; gap: .4rem;
+      margin: .42rem 0 0; font-size: .68rem; color: #7c8795; font-style: normal; line-height: 1.35;
+      display: flex; align-items: center; gap: .38rem;
     }
-    .admin-field-hint i { font-size: .68rem; margin-top: .12rem; flex-shrink: 0; font-style: normal; opacity: .9; color: #94a3b8; }
+    .admin-field-hint i {
+      width: 14px; height: 14px; margin: 0; flex: 0 0 14px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: .64rem; line-height: 1; font-style: normal; color: #8d98a6;
+    }
+    .admin-field-hint span { min-width: 0; }
     .admin-field-hint--notice {
-      margin-top: .75rem; padding: .65rem .75rem; align-items: center; gap: .6rem;
-      border: 1px solid rgba(32, 110, 251, .14); border-radius: 9px;
-      background: var(--brand-light); color: var(--muted); font-style: normal; line-height: 1.4;
+      margin-top: .55rem; padding: .48rem .58rem; gap: .42rem;
+      border: 1px solid rgba(32, 110, 251, .14); border-radius: 8px;
+      background: var(--brand-light); color: var(--muted);
     }
-    .admin-field-hint--notice i { margin: 0; color: var(--brand); font-size: .76rem; opacity: 1; }
+    .admin-field-hint--notice i { color: var(--brand); }
     .admin-readonly {
       background: var(--status-bg) !important; color: var(--muted) !important;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; cursor: default;
@@ -270,15 +275,31 @@
       background-repeat: no-repeat; background-position: center; background-size: 11px 11px;
     }
 
-    .admin-tools-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .55rem; display: block; }
-    .admin-tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .5rem; }
+    .admin-tools-head {
+      display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .5rem;
+    }
+    .admin-tools-label {
+      min-width: 0; font-size: .68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0; color: var(--muted);
+    }
+    .admin-tools-count {
+      flex-shrink: 0; font-size: .65rem; font-weight: 700; color: var(--brand);
+      padding: .18rem .42rem; border-radius: 999px; background: var(--brand-light);
+    }
+    .admin-tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: .45rem; }
     .admin-tool-opt {
-      display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: .8rem;
+      display: grid; grid-template-columns: 30px minmax(0, 1fr) 18px; align-items: center; gap: .62rem;
       font-size: .82rem; font-weight: 500; color: var(--ink);
-      cursor: pointer; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: 10px;
+      cursor: pointer; padding: .55rem .65rem; border: 1px solid var(--line); border-radius: 8px;
       background: var(--bg); user-select: none; transition: border-color .15s, background .15s, color .15s;
     }
+    .admin-tool-icon {
+      width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 7px; background: var(--status-bg); color: var(--muted); font-size: .78rem;
+      transition: background .15s, color .15s;
+    }
     .admin-tool-opt input[type="checkbox"] {
+      grid-column: 3;
       -webkit-appearance: none; appearance: none; width: 18px; height: 18px; margin: 0;
       border: 1.5px solid var(--line); border-radius: 5px; background: var(--bg); cursor: pointer;
       transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
@@ -292,6 +313,7 @@
     }
     .admin-tool-opt:hover { border-color: #c7dbfa; background: var(--brand-light); }
     .admin-tool-opt:has(input:checked) { border-color: var(--brand); background: var(--brand-light); color: var(--brand-dark); box-shadow: inset 0 0 0 1px rgba(32,110,251,.08); }
+    .admin-tool-opt:has(input:checked) .admin-tool-icon { background: var(--bg); color: var(--brand); }
     .admin-tool-opt .roots-check-label { display: flex; align-items: center; min-width: 0; min-height: 18px; line-height: 1.25; word-break: break-word; }
 
     .admin-layout { display: grid; grid-template-columns: minmax(280px, 320px) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
@@ -1581,7 +1603,11 @@
       const upTitle    = document.getElementById('upcoming-feature-title');
       const upDesc     = document.getElementById('upcoming-feature-description');
 
-      const TOOL_VIEWS = new Set(['slide-writing', 'recruiting', 'sop', 'image', 'teamkalender', 'onboarding', 'notes', 'vacation', 'whiteboard', 'livepoll', 'wissenshub', 'signal-layer']);
+      const TOOL_VIEWS = new Set(
+        Array.from(document.querySelectorAll('.nav-item[data-tool-id]'))
+          .map(item => item.dataset.toolId)
+          .filter(Boolean)
+      );
       const SIDEBAR_AUTO_VIEWS = new Set([...TOOL_VIEWS, 'admin']);
 
       function getGreeting() {
@@ -2332,20 +2358,49 @@ window.RootsNotifications = {
 };
 
 // ===== Intranet tool access =====
-window.INTRANET_TOOLS = [
-  { id: 'slide-writing', label: 'Slide Writing' },
-  { id: 'recruiting', label: 'Recruiting Tool' },
-  { id: 'sop', label: 'SOP Dashboard' },
-  { id: 'image', label: 'Bildgenerierung (KI)' },
-  { id: 'teamkalender', label: 'Team Kalender' },
-  { id: 'vacation', label: 'Urlaubsplanung' },
-  { id: 'onboarding', label: 'Onboarding' },
-  { id: 'notes', label: 'Notes Tool' },
-  { id: 'whiteboard', label: 'Whiteboard' },
-  { id: 'livepoll', label: 'Live Poll' },
-  { id: 'signal-layer', label: 'Signal Layer' },
+window.INTRANET_TOOL_DEFAULTS = [
+  { id: 'slide-writing', label: 'Slide Writing', icon: 'fa-solid fa-file-powerpoint' },
+  { id: 'recruiting', label: 'Recruiting Tool', icon: 'fa-solid fa-user-tie' },
+  { id: 'sop', label: 'SOP Dashboard', icon: 'fa-solid fa-layer-group' },
+  { id: 'wissenshub', label: 'Wissenshub', icon: 'fa-solid fa-book-open' },
+  { id: 'image', label: 'Bildgenerierung (KI)', icon: 'fa-solid fa-image' },
+  { id: 'teamkalender', label: 'Team Kalender', icon: 'fa-solid fa-calendar-days' },
+  { id: 'vacation', label: 'Urlaubsplanung', icon: 'fa-solid fa-umbrella-beach' },
+  { id: 'onboarding', label: 'Onboarding', icon: 'fa-solid fa-door-open' },
+  { id: 'notes', label: 'Notes Tool', icon: 'fa-solid fa-note-sticky' },
+  { id: 'whiteboard', label: 'Whiteboard', icon: 'fa-solid fa-chalkboard-user' },
+  { id: 'livepoll', label: 'Live Poll', icon: 'fa-solid fa-signal' },
+  { id: 'signal-layer', label: 'Signal Layer', icon: 'fa-solid fa-broadcast-tower' },
 ];
-window.INTRANET_TOOL_IDS = window.INTRANET_TOOLS.map(t => t.id);
+
+window.refreshIntranetToolRegistry = function refreshIntranetToolRegistry() {
+  const defaults = new Map(window.INTRANET_TOOL_DEFAULTS.map(tool => [tool.id, tool]));
+  const tools = [];
+  const seen = new Set();
+  const elements = document.querySelectorAll('.nav-item[data-tool-id], .tool-launch-card[data-tool-id]');
+
+  elements.forEach(element => {
+    const id = String(element.dataset.toolId || '').trim();
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    const fallback = defaults.get(id) || {};
+    const label = element.querySelector('.nav-label-text')?.textContent?.trim()
+      || element.querySelector('h3')?.textContent?.trim()
+      || fallback.label
+      || id.replace(/[-_]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+    const iconElement = element.querySelector('i');
+    const icon = iconElement
+      ? Array.from(iconElement.classList).filter(name => name === 'fa-solid' || name.startsWith('fa-')).join(' ')
+      : (fallback.icon || 'fa-solid fa-toolbox');
+    tools.push({ id, label, icon: icon || fallback.icon || 'fa-solid fa-toolbox' });
+  });
+
+  window.INTRANET_TOOLS = tools.length ? tools : window.INTRANET_TOOL_DEFAULTS.map(tool => ({ ...tool }));
+  window.INTRANET_TOOL_IDS = window.INTRANET_TOOLS.map(tool => tool.id);
+  return window.INTRANET_TOOLS;
+};
+
+window.refreshIntranetToolRegistry();
 
 window.ADMIN_PROFILE_SELECT = 'id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,app_role,app_settings,reporting_line_id,mentor_id';
 window.ROOTS_EMPLOYEE_EMAIL_DOMAIN = '@roots-consultants.com';
@@ -2383,6 +2438,7 @@ window.IntranetAccess = {
   },
 
   applyVisibility(profile = window.RootsUser?._p) {
+    window.refreshIntranetToolRegistry?.();
     document.querySelectorAll('.nav-item[data-tool-id]').forEach(item => {
       const ok = this.canAccessTool(item.dataset.toolId, profile);
       item.classList.toggle('nav-item--hidden', !ok);
@@ -2391,6 +2447,16 @@ window.IntranetAccess = {
     document.querySelectorAll('.tool-launch-card[data-tool-id]').forEach(card => {
       const ok = this.canAccessTool(card.dataset.toolId, profile);
       card.classList.toggle('is-hidden', !ok);
+    });
+    document.querySelectorAll('.app-view[data-view-panel]').forEach(panel => {
+      const toolId = panel.dataset.viewPanel;
+      if (!window.INTRANET_TOOL_IDS.includes(toolId) || this.canAccessTool(toolId, profile)) return;
+      const frame = panel.querySelector('iframe.tool-iframe');
+      if (!frame) return;
+      frame.src = 'about:blank';
+      delete frame.dataset.loaded;
+      delete frame.dataset.identityEpoch;
+      delete frame.dataset.identityUser;
     });
     const activePanel = document.querySelector('.app-view.is-active[data-view-panel]');
     if (activePanel && window.INTRANET_TOOL_IDS.includes(activePanel.dataset.viewPanel)) {
@@ -2444,13 +2510,14 @@ window.IntranetAccess = {
   },
 
   renderAdminUserCard(u) {
+    window.refreshIntranetToolRegistry?.();
     const edits = (window._adminUserEdits && window._adminUserEdits[u.id]) || this.initialEditsFromUser(u);
     if (!window._adminUserEdits) window._adminUserEdits = {};
     if (!window._adminUserEdits[u.id]) window._adminUserEdits[u.id] = edits;
     const av = window.RootsUser._avatarSpan(u.avatar_url, u.full_name, 38);
     const toolChecks = window.INTRANET_TOOLS.map(t => {
       const on = edits.allowed_tools.includes(t.id);
-      return `<label class="admin-tool-opt"><input type="checkbox" data-uid="${u.id}" data-tool="${t.id}" ${on ? 'checked' : ''}><span class="roots-check-label">${t.label}</span></label>`;
+      return `<label class="admin-tool-opt"><span class="admin-tool-icon"><i class="${escapeHtml(t.icon)}"></i></span><span class="roots-check-label">${escapeHtml(t.label)}</span><input type="checkbox" data-uid="${u.id}" data-tool="${t.id}" ${on ? 'checked' : ''}></label>`;
     }).join('');
     const role = this.normalizeRole(edits.app_role);
     return `<div class="admin-user-card" data-uid="${u.id}">
@@ -2471,7 +2538,7 @@ window.IntranetAccess = {
       <div style="display:flex;justify-content:flex-end;margin:.55rem 0 .2rem">
         <button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" data-reset-email="${escapeHtml(u.email || '')}" onclick="window.RootsAdminEmployee?.sendPasswordReset(this.dataset.resetEmail)"><i class="fa-solid fa-key"></i> Passwort-Reset senden</button>
       </div>
-      <span class="admin-tools-label">Sichtbare Tools</span>
+      <div class="admin-tools-head"><span class="admin-tools-label">Sichtbare Tools</span><span class="admin-tools-count">${window.INTRANET_TOOLS.length} Tools</span></div>
       <div class="admin-tool-grid">${toolChecks}</div>
     </div>`;
   },
@@ -2651,13 +2718,19 @@ window.RootsAdminEmployee = {
   },
 
   toolChecksHtml(u, emptyDefault) {
+    window.refreshIntranetToolRegistry?.();
     const edits = emptyDefault
       ? { allowed_tools: [] }
       : (window._adminUserEdits?.[u.id] || window.IntranetAccess.initialEditsFromUser(u));
     return window.INTRANET_TOOLS.map(t => {
       const on = edits.allowed_tools.includes(t.id);
-      return `<label class="admin-tool-opt"><input type="checkbox" class="aec-tool" data-tool="${t.id}" ${on ? 'checked' : ''}><span class="roots-check-label">${t.label}</span></label>`;
+      return `<label class="admin-tool-opt"><span class="admin-tool-icon"><i class="${escapeHtml(t.icon)}"></i></span><span class="roots-check-label">${escapeHtml(t.label)}</span><input type="checkbox" class="aec-tool" data-tool="${t.id}" ${on ? 'checked' : ''}></label>`;
     }).join('');
+  },
+
+  toolsHeadingHtml(label = 'Sichtbare Intranet-Tools') {
+    window.refreshIntranetToolRegistry?.();
+    return `<div class="admin-tools-head"><span class="admin-tools-label">${escapeHtml(label)}</span><span class="admin-tools-count">${window.INTRANET_TOOLS.length} Tools</span></div>`;
   },
 
   renderCreateForm() {
@@ -2720,9 +2793,9 @@ window.RootsAdminEmployee = {
             </select>
           </div>
           <div class="admin-field span-2">
-            <span class="admin-tools-label">Sichtbare Intranet-Tools</span>
+            ${this.toolsHeadingHtml()}
             <div class="admin-tool-grid" id="aec-tools">${this.toolChecksHtml({}, true)}</div>
-            ${this.hintHtml('Ohne Auswahl sehen Nutzer standardmäßig alle Module.')}
+            ${this.hintHtml('Nur ausgewählte Tools werden angezeigt. Änderungen werden in geöffneten Sitzungen direkt übernommen.')}
           </div>
         </div>
         <div class="admin-detail-actions">
@@ -2791,9 +2864,9 @@ window.RootsAdminEmployee = {
             </select>
           </div>
           <div class="admin-field span-2">
-            <span class="admin-tools-label">Sichtbare Intranet-Tools</span>
+            ${this.toolsHeadingHtml()}
             <div class="admin-tool-grid" id="aec-tools">${this.toolChecksHtml(u)}</div>
-            ${this.hintHtml('Ohne Auswahl sehen Nutzer standardmäßig alle Module.')}
+            ${this.hintHtml('Nur ausgewählte Tools werden angezeigt. Änderungen werden in geöffneten Sitzungen direkt übernommen.')}
           </div>
         </div>
         <div class="admin-detail-actions">
@@ -3086,6 +3159,7 @@ window.RootsUser = {
   _p: null, _sb: null, _uid: null,
   _authEpoch: Date.now(),
   _loadGeneration: 0,
+  _profileRealtimeChannel: null,
   _explicitAuthTransition: false,
   _authBlocked: false,
 
@@ -3180,6 +3254,7 @@ window.RootsUser = {
       this._broadcastAuthSession();
       this._syncAdminNav();
       if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
+      this._startProfileRealtime();
       if (window.RootsNotifications) {
         const rn = window.RootsNotifications;
         if (rn._userId !== userId) {
@@ -3200,6 +3275,63 @@ window.RootsUser = {
     }
   },
 
+  _applyProfileSnapshot(profile, expectedUserId = this._uid) {
+    if (!profile?.id || profile.id !== expectedUserId || this._uid !== expectedUserId) return;
+    this._p = { ...(this._p || {}), ...profile };
+    this._mount();
+    this._syncAdminNav();
+    window.IntranetAccess?.applyVisibility(this._p);
+    this._broadcastProfile();
+  },
+
+  async _refreshProfileSnapshot(userId, authEpoch) {
+    const sb = this._sb;
+    if (!sb || !userId) return;
+    const { data, error } = await sb.schema('users').from('profiles')
+      .select('id,email,full_name,position,avatar_url,linkedin_url,app_role,app_settings,kuerzel,hourly_rate,phone')
+      .eq('id', userId).maybeSingle();
+    if (this._uid !== userId || this._authEpoch !== authEpoch) return;
+    if (error) {
+      console.warn('Profil nach Realtime-Verbindung aktualisieren:', error.message);
+      return;
+    }
+    this._applyProfileSnapshot(data, userId);
+  },
+
+  _startProfileRealtime() {
+    this._stopProfileRealtime();
+    const sb = this._sb;
+    const userId = this._uid;
+    const authEpoch = this._authEpoch;
+    if (!sb || !userId) return;
+
+    const channel = sb.channel(`roots-profile-${userId}-${authEpoch}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'users',
+        table: 'profiles',
+        filter: `id=eq.${userId}`,
+      }, payload => {
+        if (this._uid !== userId || this._authEpoch !== authEpoch) return;
+        this._applyProfileSnapshot(payload.new, userId);
+      })
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED' && this._uid === userId && this._authEpoch === authEpoch) {
+          void this._refreshProfileSnapshot(userId, authEpoch);
+        }
+      });
+    this._profileRealtimeChannel = channel;
+  },
+
+  _stopProfileRealtime() {
+    const channel = this._profileRealtimeChannel;
+    this._profileRealtimeChannel = null;
+    if (!channel || !this._sb) return;
+    void this._sb.removeChannel(channel).catch(error => {
+      console.warn('Profil-Realtime-Kanal entfernen:', error?.message || error);
+    });
+  },
+
   _resetEmbeddedTools() {
     document.querySelectorAll('iframe.tool-iframe').forEach((frame) => {
       frame.src = 'about:blank';
@@ -3210,6 +3342,7 @@ window.RootsUser = {
   },
 
   _clearIdentity() {
+    this._stopProfileRealtime();
     ++this._loadGeneration;
     this._authEpoch = Math.max(Date.now(), this._authEpoch + 1);
     this._uid = null;

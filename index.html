@@ -286,21 +286,28 @@
       flex-shrink: 0; font-size: .65rem; font-weight: 700; color: var(--brand);
       padding: .18rem .42rem; border-radius: 999px; background: var(--brand-light);
     }
-    .admin-tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: .45rem; }
+    .admin-tool-groups { display: grid; gap: .7rem; }
+    .admin-tool-group { display: grid; gap: .35rem; }
+    .admin-tool-group[hidden] { display: none; }
+    .admin-tool-group-head {
+      display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+      color: var(--muted); font-size: .66rem; font-weight: 650;
+    }
+    .admin-tool-group-count { font-variant-numeric: tabular-nums; color: #8b96a4; }
+    .admin-tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .35rem; }
     .admin-tool-opt {
-      display: grid; grid-template-columns: 30px minmax(0, 1fr) 18px; align-items: center; gap: .62rem;
-      font-size: .82rem; font-weight: 500; color: var(--ink);
-      cursor: pointer; padding: .55rem .65rem; border: 1px solid var(--line); border-radius: 8px;
+      display: grid; grid-template-columns: 17px minmax(0, 1fr) 16px; align-items: center; gap: .48rem;
+      min-height: 36px; font-size: .78rem; font-weight: 550; color: var(--ink);
+      cursor: pointer; padding: .38rem .52rem; border: 1px solid var(--line); border-radius: 7px;
       background: var(--bg); user-select: none; transition: border-color .15s, background .15s, color .15s;
     }
     .admin-tool-icon {
-      width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
-      border-radius: 7px; background: var(--status-bg); color: var(--muted); font-size: .78rem;
-      transition: background .15s, color .15s;
+      grid-column: 3; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center;
+      color: #9aa5b1; font-size: .68rem; transition: color .15s;
     }
     .admin-tool-opt input[type="checkbox"] {
-      grid-column: 3;
-      -webkit-appearance: none; appearance: none; width: 18px; height: 18px; margin: 0;
+      grid-column: 1; grid-row: 1;
+      -webkit-appearance: none; appearance: none; width: 17px; height: 17px; margin: 0;
       border: 1.5px solid var(--line); border-radius: 5px; background: var(--bg); cursor: pointer;
       transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
     }
@@ -312,9 +319,16 @@
       background-repeat: no-repeat; background-position: center; background-size: 11px 11px;
     }
     .admin-tool-opt:hover { border-color: #c7dbfa; background: var(--brand-light); }
-    .admin-tool-opt:has(input:checked) { border-color: var(--brand); background: var(--brand-light); color: var(--brand-dark); box-shadow: inset 0 0 0 1px rgba(32,110,251,.08); }
-    .admin-tool-opt:has(input:checked) .admin-tool-icon { background: var(--bg); color: var(--brand); }
-    .admin-tool-opt .roots-check-label { display: flex; align-items: center; min-width: 0; min-height: 18px; line-height: 1.25; word-break: break-word; }
+    .admin-tool-opt:has(input:checked) { border-color: #bfd5fb; background: var(--brand-light); color: var(--brand-dark); }
+    .admin-tool-opt:has(input:checked) .admin-tool-icon { color: var(--brand); }
+    .admin-tool-opt:not(:has(input:checked)) {
+      border-color: #e7ebf0; background: var(--status-bg); color: #7c8795; opacity: .76;
+    }
+    .admin-tool-opt:not(:has(input:checked)):hover { opacity: 1; border-color: #cfd7e2; }
+    .admin-tool-opt .roots-check-label {
+      grid-column: 2; grid-row: 1; display: flex; align-items: center;
+      min-width: 0; min-height: 17px; line-height: 1.2; word-break: break-word;
+    }
 
     .admin-layout { display: grid; grid-template-columns: minmax(280px, 320px) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
     @media (max-width: 960px) { .admin-layout { grid-template-columns: 1fr; } }
@@ -2431,7 +2445,6 @@ window.IntranetAccess = {
 
   canAccessTool(toolId, profile = window.RootsUser?._p) {
     if (!toolId) return true;
-    if (String(profile?.app_role || '').trim() === 'admin') return true;
     const allowed = this.getAllowedTools(profile);
     if (allowed === null) return true;
     return allowed.includes(toolId);
@@ -2494,6 +2507,44 @@ window.IntranetAccess = {
     };
   },
 
+  toolGroupsHtml(allowedTools, { uid = '', className = '' } = {}) {
+    const selected = new Set(Array.isArray(allowedTools) ? allowedTools : []);
+    const groups = {
+      active: window.INTRANET_TOOLS.filter(tool => selected.has(tool.id)),
+      inactive: window.INTRANET_TOOLS.filter(tool => !selected.has(tool.id)),
+    };
+    const optionHtml = (tool, active) => {
+      const toolIndex = window.INTRANET_TOOL_IDS.indexOf(tool.id);
+      const uidAttr = uid ? ` data-uid="${escapeHtml(uid)}"` : '';
+      const classAttr = className ? ` class="${escapeHtml(className)}"` : '';
+      return `<label class="admin-tool-opt" data-tool-order="${toolIndex}"><input type="checkbox"${classAttr}${uidAttr} data-tool="${escapeHtml(tool.id)}" ${active ? 'checked' : ''}><span class="roots-check-label">${escapeHtml(tool.label)}</span><span class="admin-tool-icon" aria-hidden="true"><i class="${escapeHtml(tool.icon)}"></i></span></label>`;
+    };
+    return ['active', 'inactive'].map(group => {
+      const label = group === 'active' ? 'Aktiv' : 'Nicht aktiv';
+      const tools = groups[group];
+      return `<div class="admin-tool-group" data-tool-group="${group}" ${tools.length ? '' : 'hidden'}>
+        <div class="admin-tool-group-head"><span>${label}</span><span class="admin-tool-group-count">${tools.length}</span></div>
+        <div class="admin-tool-grid">${tools.map(tool => optionHtml(tool, group === 'active')).join('')}</div>
+      </div>`;
+    }).join('');
+  },
+
+  syncToolGroups(container) {
+    if (!container) return;
+    const options = [...container.querySelectorAll('.admin-tool-opt')]
+      .sort((a, b) => Number(a.dataset.toolOrder) - Number(b.dataset.toolOrder));
+    ['active', 'inactive'].forEach(group => {
+      const section = container.querySelector(`[data-tool-group="${group}"]`);
+      const grid = section?.querySelector('.admin-tool-grid');
+      if (!section || !grid) return;
+      const active = group === 'active';
+      const matching = options.filter(option => Boolean(option.querySelector('input[type="checkbox"]')?.checked) === active);
+      matching.forEach(option => grid.appendChild(option));
+      section.querySelector('.admin-tool-group-count').textContent = String(matching.length);
+      section.hidden = matching.length === 0;
+    });
+  },
+
   renderAdminUserRow(u, activeId) {
     const role = this.normalizeRole(u.app_role);
     const badgeCls = role === 'admin' ? 'admin-role-badge--admin' : role === 'editor' ? 'admin-role-badge--editor' : 'admin-role-badge--reader';
@@ -2515,10 +2566,7 @@ window.IntranetAccess = {
     if (!window._adminUserEdits) window._adminUserEdits = {};
     if (!window._adminUserEdits[u.id]) window._adminUserEdits[u.id] = edits;
     const av = window.RootsUser._avatarSpan(u.avatar_url, u.full_name, 38);
-    const toolChecks = window.INTRANET_TOOLS.map(t => {
-      const on = edits.allowed_tools.includes(t.id);
-      return `<label class="admin-tool-opt"><span class="admin-tool-icon"><i class="${escapeHtml(t.icon)}"></i></span><span class="roots-check-label">${escapeHtml(t.label)}</span><input type="checkbox" data-uid="${u.id}" data-tool="${t.id}" ${on ? 'checked' : ''}></label>`;
-    }).join('');
+    const toolChecks = this.toolGroupsHtml(edits.allowed_tools, { uid: u.id });
     const role = this.normalizeRole(edits.app_role);
     return `<div class="admin-user-card" data-uid="${u.id}">
       <div class="admin-user-head">
@@ -2539,7 +2587,7 @@ window.IntranetAccess = {
         <button type="button" class="admin-btn admin-btn--ghost admin-btn--compact" data-reset-email="${escapeHtml(u.email || '')}" onclick="window.RootsAdminEmployee?.sendPasswordReset(this.dataset.resetEmail)"><i class="fa-solid fa-key"></i> Passwort-Reset senden</button>
       </div>
       <div class="admin-tools-head"><span class="admin-tools-label">Sichtbare Tools</span><span class="admin-tools-count">${window.INTRANET_TOOLS.length} Tools</span></div>
-      <div class="admin-tool-grid">${toolChecks}</div>
+      <div class="admin-tool-groups">${toolChecks}</div>
     </div>`;
   },
 
@@ -2559,6 +2607,7 @@ window.IntranetAccess = {
         if (!window._adminUserEdits[uid]) window._adminUserEdits[uid] = this.initialEditsFromUser(u || {});
         const checked = [...root.querySelectorAll(`input[data-tool][data-uid="${uid}"]:checked`)].map(el => el.dataset.tool);
         window._adminUserEdits[uid].allowed_tools = checked;
+        this.syncToolGroups(cb.closest('.admin-tool-groups'));
       });
     });
   },
@@ -2722,10 +2771,7 @@ window.RootsAdminEmployee = {
     const edits = emptyDefault
       ? { allowed_tools: [] }
       : (window._adminUserEdits?.[u.id] || window.IntranetAccess.initialEditsFromUser(u));
-    return window.INTRANET_TOOLS.map(t => {
-      const on = edits.allowed_tools.includes(t.id);
-      return `<label class="admin-tool-opt"><span class="admin-tool-icon"><i class="${escapeHtml(t.icon)}"></i></span><span class="roots-check-label">${escapeHtml(t.label)}</span><input type="checkbox" class="aec-tool" data-tool="${t.id}" ${on ? 'checked' : ''}></label>`;
-    }).join('');
+    return window.IntranetAccess.toolGroupsHtml(edits.allowed_tools, { className: 'aec-tool' });
   },
 
   toolsHeadingHtml(label = 'Sichtbare Intranet-Tools') {
@@ -2794,8 +2840,8 @@ window.RootsAdminEmployee = {
           </div>
           <div class="admin-field span-2">
             ${this.toolsHeadingHtml()}
-            <div class="admin-tool-grid" id="aec-tools">${this.toolChecksHtml({}, true)}</div>
-            ${this.hintHtml('Nur ausgewählte Tools werden angezeigt. Änderungen werden in geöffneten Sitzungen direkt übernommen.')}
+            <div class="admin-tool-groups" id="aec-tools">${this.toolChecksHtml({}, true)}</div>
+            ${this.hintHtml('Nur ausgewählte Tools werden angezeigt – auch bei Admins. Änderungen werden in geöffneten Sitzungen direkt übernommen.')}
           </div>
         </div>
         <div class="admin-detail-actions">
@@ -2865,8 +2911,8 @@ window.RootsAdminEmployee = {
           </div>
           <div class="admin-field span-2">
             ${this.toolsHeadingHtml()}
-            <div class="admin-tool-grid" id="aec-tools">${this.toolChecksHtml(u)}</div>
-            ${this.hintHtml('Nur ausgewählte Tools werden angezeigt. Änderungen werden in geöffneten Sitzungen direkt übernommen.')}
+            <div class="admin-tool-groups" id="aec-tools">${this.toolChecksHtml(u)}</div>
+            ${this.hintHtml('Nur ausgewählte Tools werden angezeigt – auch bei Admins. Änderungen werden in geöffneten Sitzungen direkt übernommen.')}
           </div>
         </div>
         <div class="admin-detail-actions">
@@ -2879,6 +2925,12 @@ window.RootsAdminEmployee = {
 
   bindForm(u) {
     const form = document.getElementById('roots-admin-employee-form');
+    const toolGroups = document.getElementById('aec-tools');
+    toolGroups?.addEventListener('change', event => {
+      if (event.target.matches('input[type="checkbox"][data-tool]')) {
+        window.IntranetAccess.syncToolGroups(toolGroups);
+      }
+    });
     document.getElementById('aec-add-client')?.addEventListener('click', () => {
       const wrap = document.getElementById('aec-client-rates');
       if (!wrap) return;

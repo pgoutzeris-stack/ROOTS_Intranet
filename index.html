@@ -934,7 +934,7 @@
     #roots-profile-setup-modal .ob-skip {
       border: 0; background: none; color: var(--muted); cursor: pointer;
       display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
-      margin-top: 1rem; padding: .45rem .65rem;
+      width: 100%; margin-top: 1.25rem; padding: .45rem .65rem;
       font-family: inherit; font-size: .85rem; font-weight: 500;
     }
     #roots-profile-setup-modal .ob-skip:hover,
@@ -1908,9 +1908,6 @@
       <div class="ob-icon"><i class="fa-solid fa-user-tie"></i></div>
       <h2 class="ob-title">Profil einrichten</h2>
       <p class="ob-sub">Kurz noch ein paar Angaben zu deiner Rolle bei ROOTS.</p>
-      <button type="button" class="ob-skip" onclick="window.RootsUser.deferProfileSetup()">
-        <i class="fa-regular fa-clock"></i> Später eintragen
-      </button>
     </div>
 
     <div class="ob-steps">
@@ -1992,6 +1989,10 @@
         </button>
       </div>
     </div>
+
+    <button type="button" class="ob-skip" onclick="window.RootsUser.deferProfileSetup()">
+      <i class="fa-regular fa-clock"></i> Später eintragen
+    </button>
   </div>
 </div>
 

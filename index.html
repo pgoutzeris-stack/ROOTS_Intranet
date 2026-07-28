@@ -2035,7 +2035,7 @@ window.RootsNotifications = {
   ORIGIN: 'https://pgoutzeris-stack.github.io',
   DASHBOARD_PREVIEW: 5,
   TOAST_MS: 9000,
-  POLL_MS: 30000,
+  POLL_MS: 10000,
   knownIds: new Set(),
   toastShownIds: new Set(),
   activeToastIds: new Set(),
@@ -4210,7 +4210,7 @@ function rootsValidateVacationRequest(input) {
     }
     if (action === 'update_urlaubstage') {
       body.user_id = rootsUuid(raw.user_id);
-      body.urlaubstage = Math.max(0, Math.min(365, Math.floor(Number(raw.urlaubstage))));
+      body.urlaubstage = Math.max(0, Math.min(365, Math.round(Number(raw.urlaubstage) * 2) / 2));
     }
   }
   return { method, query: '', body };

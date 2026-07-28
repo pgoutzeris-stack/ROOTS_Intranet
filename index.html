@@ -4224,7 +4224,7 @@ function rootsValidateImageReference(input, dataKey, mimeKey) {
 function rootsValidateImageRequest(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Ungültige Anfrage');
   const action = input.action;
-  if (!['settings_status', 'save_google_api_key', 'improve_style_prompt', 'generate_image', 'get_history', 'delete_history_item'].includes(action)) {
+  if (!['settings_status', 'save_google_api_key', 'improve_style_prompt', 'generate_image', 'get_history', 'get_history_image', 'delete_history_item'].includes(action)) {
     throw new Error('Aktion nicht erlaubt');
   }
   if (action === 'settings_status') return { action };
@@ -4237,7 +4237,7 @@ function rootsValidateImageRequest(input) {
     const limit = Math.max(1, Math.min(100, Number(input.limit) || 50));
     return { action, limit };
   }
-  if (action === 'delete_history_item') {
+  if (action === 'get_history_image' || action === 'delete_history_item') {
     const id = typeof input.id === 'string' ? input.id : '';
     if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) throw new Error('Ungültige ID');
     return { action, id };

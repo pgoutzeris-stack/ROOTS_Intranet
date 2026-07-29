@@ -953,7 +953,7 @@
     @keyframes profileSetupSlideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
     #roots-profile-setup-modal {
       display: none; position: fixed; inset: 0; z-index: 10001;
-      background: rgba(15,23,42,.65); backdrop-filter: blur(6px);
+      background: rgba(15,23,42,.65); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
       align-items: center; justify-content: center; padding: 1rem;
       font-family: 'Circular Std', system-ui, sans-serif;
       animation: profileSetupFadeIn .3s ease;
@@ -1668,10 +1668,11 @@
         navItems.forEach(item => item.classList.toggle('active', item === activeItem));
       }
 
-      function ensureToolIframe(viewName) {
+      function ensureToolIframe(viewName, options = {}) {
         const panel = document.querySelector(`.app-view[data-view-panel="${viewName}"]`);
         const iframe = panel?.querySelector('iframe.tool-iframe');
         if (!iframe) return;
+        const forceReload = options.forceReload === true;
         const identityUser = window.RootsUser?._uid || '';
         const identityEpoch = window.RootsUser?._authEpoch || 0;
         if (!identityUser) {
@@ -1686,9 +1687,15 @@
         // build. Appending a fresh token each launch guarantees the current
         // tool frontend loads, without having to bump versions by hand.
         window.__rootsCacheBust = window.__rootsCacheBust || Date.now().toString(36);
-        const url = base + (base.includes('?') ? '&' : '?') + 'cb=' + window.__rootsCacheBust;
+        const cacheToken = forceReload
+          ? `${window.__rootsCacheBust}-${Date.now().toString(36)}`
+          : window.__rootsCacheBust;
+        const url = base + (base.includes('?') ? '&' : '?') + 'cb=' + cacheToken;
         const syncAuth = () => window.RootsUser?._broadcastAuthSession?.();
-        if (!iframe.dataset.loaded) {
+        const identityChanged = iframe.dataset.identityUser !== identityUser
+          || iframe.dataset.identityEpoch !== String(identityEpoch);
+        const hasUsableSource = iframe.getAttribute('src') && iframe.getAttribute('src') !== 'about:blank';
+        if (forceReload || identityChanged || !iframe.dataset.loaded || !hasUsableSource) {
           iframe.dataset.loaded = '1';
           iframe.dataset.identityUser = identityUser;
           iframe.dataset.identityEpoch = String(identityEpoch);
@@ -1709,6 +1716,7 @@
         }
         const isTool = TOOL_VIEWS.has(viewName);
         const isSidebarAuto = SIDEBAR_AUTO_VIEWS.has(viewName);
+        window.__rootsCurrentView = viewName;
 
         // Panels umschalten
         panels.forEach(p => {
@@ -1807,12 +1815,11 @@
           if (toolId && window.IntranetAccess && !window.IntranetAccess.canAccessTool(toolId)) {
             return;
           }
-          setActiveNav(item);
-          setView(item.dataset.view, {
+          navigateToView(item.dataset.view, {
+            historyMode: 'push',
             featureTitle:       item.dataset.featureTitle,
             featureDescription: item.dataset.featureDescription
           });
-          document.dispatchEvent(new CustomEvent('intranet-view-changed', {detail: item.dataset.view}));
         });
       });
 
@@ -1847,9 +1854,7 @@
           e.preventDefault();
           const target = link.dataset.openView;
           if (window.IntranetAccess && !window.IntranetAccess.canAccessTool(target)) return;
-          const nav = navItems.find(i => i.dataset.view === target);
-          if (nav) setActiveNav(nav);
-          setView(target);
+          navigateToView(target, { historyMode: 'push' });
         });
       });
 
@@ -1859,15 +1864,14 @@
           const target = btn.dataset.actionView;
           if (!target) return;
           e.preventDefault();
-          const nav = navItems.find(i => i.dataset.view === target);
-          if (nav) setActiveNav(nav);
-          setView(target);
+          navigateToView(target, { historyMode: 'push' });
         });
       });
 
       // Initial + Hash-Navigation
-      function navigateToView(viewName) {
-        if (!viewName) { setView('dashboard'); return; }
+      function navigateToView(viewName, options = {}) {
+        const historyMode = options.historyMode || 'push';
+        if (!viewName) viewName = 'dashboard';
         if (viewName === 'admin' && !(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) {
           viewName = 'dashboard';
         }
@@ -1876,23 +1880,117 @@
         }
         const nav = navItems.find(i => i.dataset.view === viewName);
         if (nav) setActiveNav(nav);
-        setView(viewName);
-        if (location.hash !== '#' + viewName) history.replaceState(null, '', '#' + viewName);
+        setView(viewName, options);
+        const nextHash = '#' + viewName;
+        if (historyMode !== 'none' && location.hash !== nextHash) {
+          const method = historyMode === 'replace' ? 'replaceState' : 'pushState';
+          history[method]({ rootsIntranet: true, view: viewName }, '', nextHash);
+        } else if (historyMode === 'replace') {
+          history.replaceState({ rootsIntranet: true, view: viewName }, '', nextHash);
+        }
+        document.dispatchEvent(new CustomEvent('intranet-view-changed', { detail: viewName }));
       }
       window.intranetNavigateToView = navigateToView;
+
+      function normalizeRecruitingToolHistory(value) {
+        if (!value || typeof value !== 'object') return null;
+        const view = ['dashboard', 'bewerber', 'interview'].includes(value.view) ? value.view : 'dashboard';
+        const cleanId = input => typeof input === 'string'
+          && input.length <= 200
+          && !/[\u0000-\u001f\u007f]/.test(input)
+          ? input
+          : null;
+        const sessionId = cleanId(value.sessionId);
+        return {
+          rootsRecruiting: true,
+          version: 2,
+          view: view === 'interview' && !sessionId ? 'dashboard' : view,
+          applicantId: cleanId(value.applicantId),
+          applicantMode: value.applicantMode === 'create'
+            ? 'create'
+            : (value.applicantId ? 'detail' : 'list'),
+          sessionId,
+          runde: value.runde === 'zweit' ? 'zweit' : 'erst',
+        };
+      }
+
+      function recruitingToolFrame() {
+        return document.querySelector('.app-view[data-view-panel="recruiting"] iframe.tool-iframe');
+      }
+
+      function deliverRecruitingToolHistory(value) {
+        const frame = recruitingToolFrame();
+        if (!frame) return;
+        const message = {
+          type: 'roots-tool-history-restore',
+          tool: 'recruiting',
+          state: normalizeRecruitingToolHistory(value),
+        };
+        const send = () => {
+          try {
+            frame.contentWindow?.postMessage(message, 'https://pgoutzeris-stack.github.io');
+          } catch (error) {
+            console.warn('Recruiting-History konnte nicht wiederhergestellt werden', error);
+          }
+        };
+        frame.addEventListener('load', send, { once: true });
+        setTimeout(send, 0);
+      }
+
+      window.intranetRecordToolHistory = function intranetRecordToolHistory(tool, value, mode = 'push') {
+        if (tool !== 'recruiting' || window.__rootsCurrentView !== 'recruiting') return;
+        const route = normalizeRecruitingToolHistory(value);
+        if (!route) return;
+        const next = {
+          rootsIntranet: true,
+          view: 'recruiting',
+          tool: 'recruiting',
+          toolHistory: route,
+        };
+        const method = mode === 'replace' ? 'replaceState' : 'pushState';
+        try {
+          history[method](next, '', '#recruiting');
+        } catch (error) {
+          console.warn(`Intranet-History konnte nicht per ${method} aktualisiert werden`, error);
+        }
+      };
 
       const dashNav = navItems.find(i => i.dataset.view === 'dashboard');
       const hashView = (location.hash || '').replace(/^#/, '');
       if (hashView && (hashView === 'admin' || TOOL_VIEWS.has(hashView))) {
-        navigateToView(hashView);
+        navigateToView(hashView, { historyMode: 'replace' });
       } else if (dashNav) {
-        setActiveNav(dashNav);
-        setView('dashboard');
+        navigateToView('dashboard', { historyMode: 'replace' });
       }
 
       window.addEventListener('hashchange', () => {
         const v = (location.hash || '').replace(/^#/, '');
-        if (v) navigateToView(v);
+        navigateToView(v || 'dashboard', { historyMode: 'none' });
+      });
+      window.addEventListener('popstate', event => {
+        const stateView = event.state?.rootsIntranet && typeof event.state.view === 'string'
+          ? event.state.view
+          : (location.hash || '').replace(/^#/, '');
+        const restoredView = stateView || 'dashboard';
+        navigateToView(restoredView, { historyMode: 'none' });
+        if (restoredView === 'recruiting') {
+          deliverRecruitingToolHistory(event.state?.toolHistory || null);
+        }
+      });
+      window.addEventListener('pageshow', event => {
+        if (!event.persisted) return;
+        const restoredView = window.__rootsCurrentView
+          || (location.hash || '').replace(/^#/, '')
+          || 'dashboard';
+        if (TOOL_VIEWS.has(restoredView)) {
+          ensureToolIframe(restoredView, { forceReload: true });
+          if (restoredView === 'recruiting') {
+            deliverRecruitingToolHistory(history.state?.toolHistory || null);
+          }
+        } else {
+          navigateToView(restoredView, { historyMode: 'none' });
+        }
+        window.RootsUser?._broadcastAuthSession?.();
       });
 
       sidebarToggle?.addEventListener('click', () => {
@@ -1912,7 +2010,7 @@
   </script>
 <!-- ===== ROOTS USER MODULE ===== -->
 <!-- Settings Modal -->
-<div id="roots-user-settings-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:1rem;font-family:'Circular Std',system-ui,sans-serif">
+<div id="roots-user-settings-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.6);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:1rem;font-family:'Circular Std',system-ui,sans-serif">
   <div style="background:var(--bg,#fff);border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,.2);width:100%;max-width:480px;padding:0;overflow:hidden">
     <div style="display:flex;align-items:center;gap:1rem;padding:1.5rem 1.75rem 1rem;border-bottom:1px solid var(--line,#e2e8f0)">
       <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-light,#eff6ff);color:var(--brand,#206efb);display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex-shrink:0"><i class="fa-solid fa-user"></i></div>
@@ -2052,7 +2150,7 @@
 </div>
 
 <!-- Admin Panel Modal -->
-<div id="roots-admin-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto;font-family:'Circular Std',system-ui,sans-serif">
+<div id="roots-admin-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.6);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto;font-family:'Circular Std',system-ui,sans-serif">
   <div style="background:var(--bg,#fff);border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.25);width:100%;max-width:680px;padding:2rem;margin-bottom:2rem">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
       <div>
@@ -3991,7 +4089,7 @@ window.RootsAdmin = {
 };
 </script>
 
-<script src="roots-user-bridge.js?v=20260728-identity-guard-v1"></script>
+<script src="roots-user-bridge.js?v=20260729-safari-v1"></script>
 
 <script>
 (function(){
@@ -3999,8 +4097,46 @@ window.RootsAdmin = {
   const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNzbWd1d2N2enJlZWZsdWhhaHl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjM0ODcsImV4cCI6MjA5MjUzOTQ4N30.Fiafx7XBaQZXUX3bKQIBH7znBHx3B51yL-bftOHsL4Q';
   const INTRANET_REDIRECT='https://pgoutzeris-stack.github.io/ROOTS_Intranet/';
   const {createClient}=window.supabase;
+  function createResilientAuthStorage(){
+    const memory=new Map();
+    const stores=[];
+    ['localStorage','sessionStorage'].forEach(name=>{
+      try{
+        const store=window[name];
+        const probe=`__roots_auth_probe_${name}`;
+        store.setItem(probe,'1');
+        store.removeItem(probe);
+        stores.push(store);
+      }catch(_){}
+    });
+    return{
+      getItem(key){
+        for(const store of stores){
+          try{
+            const value=store.getItem(key);
+            if(value!=null)return value;
+          }catch(_){}
+        }
+        return memory.has(key)?memory.get(key):null;
+      },
+      setItem(key,value){
+        const serialized=String(value);
+        memory.set(key,serialized);
+        for(const store of stores){
+          try{store.setItem(key,serialized);}catch(_){}
+        }
+      },
+      removeItem(key){
+        memory.delete(key);
+        for(const store of stores){
+          try{store.removeItem(key);}catch(_){}
+        }
+      }
+    };
+  }
+  const rootsAuthStorage=createResilientAuthStorage();
   const sb=createClient(SB_URL,SB_ANON,{
-    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage}
+    auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:rootsAuthStorage}
   });
   window.__rootsSupabaseClient=sb;
   window.rootsSupabase=sb;
@@ -4210,6 +4346,7 @@ const ROOTS_ALLOWED_MESSAGE_TYPES = new Set([
   'roots-request-signout',
   'roots-open-settings',
   'roots-open-view',
+  'roots-tool-history',
   'roots-notification-click',
   'roots-open-url',
   'roots-print-iframe',
@@ -4858,6 +4995,13 @@ window.addEventListener('message', (e) => {
     if (ROOTS_ALLOWED_VIEWS.has(view) && window.intranetNavigateToView) {
       window.intranetNavigateToView(view);
     }
+    return;
+  }
+
+  if (type === 'roots-tool-history') {
+    const tool = typeof e.data.tool === 'string' ? e.data.tool : '';
+    const mode = e.data.mode === 'replace' ? 'replace' : 'push';
+    window.intranetRecordToolHistory?.(tool, e.data.state, mode);
     return;
   }
 

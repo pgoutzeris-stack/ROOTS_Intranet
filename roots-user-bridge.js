@@ -1375,6 +1375,13 @@
    *   window.RootsUserBridge.downloadBlob(blob, 'MyFile.pdf');
    */
   function downloadBlob(blob, filename) {
+    // Safari keeps the user activation only for the synchronous click path.
+    // A regular web iframe is therefore safer downloading directly; Tauri
+    // continues to hand the bytes to its top-level WKWebView.
+    if (IN_IFRAME && !IN_TAURI) {
+      _directDownload(blob, filename);
+      return;
+    }
     if (IN_IFRAME && typeof blob.arrayBuffer === 'function') {
       blob.arrayBuffer().then(buf => {
         window.parent.postMessage(
@@ -1394,6 +1401,8 @@
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
+      a.rel = 'noopener';
+      a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);

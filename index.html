@@ -1770,8 +1770,10 @@
             supportsLifecycle: false,
             loadTimer: null,
             fallbackTimer: null,
+            hideTimer: null,
             pongTimer: null,
             pingId: '',
+            loadingStarted: 0,
           };
           this.frames.set(frame, entry);
           frame.addEventListener('load', () => this.onLoad(frame));
@@ -1785,13 +1787,15 @@
           return entry;
         },
 
-        showLoading(frame) {
+        showLoading(frame, options = {}) {
           const entry = this.stateFor(frame);
           clearTimeout(entry.loadTimer);
           clearTimeout(entry.fallbackTimer);
+          clearTimeout(entry.hideTimer);
           clearTimeout(entry.pongTimer);
           entry.pingId = '';
-          entry.supportsLifecycle = false;
+          if (!options.preserveLifecycle) entry.supportsLifecycle = false;
+          entry.loadingStarted = Date.now();
           entry.guard.classList.remove('is-recovery');
           entry.guard.classList.add('is-visible');
           entry.guard.querySelector('.tool-load-guard__spinner').innerHTML = '';
@@ -1815,7 +1819,14 @@
           const entry = this.stateFor(frame);
           clearTimeout(entry.loadTimer);
           clearTimeout(entry.fallbackTimer);
-          entry.guard.classList.remove('is-visible', 'is-recovery');
+          clearTimeout(entry.hideTimer);
+          const elapsed = Date.now() - entry.loadingStarted;
+          const delay = entry.guard.classList.contains('is-visible')
+            ? Math.max(0, 180 - elapsed)
+            : 0;
+          entry.hideTimer = setTimeout(() => {
+            entry.guard.classList.remove('is-visible', 'is-recovery');
+          }, delay);
         },
 
         ready(frame) {
@@ -1863,6 +1874,7 @@
           if (message.type === 'roots-tool-pong' && message.requestId === entry.pingId) {
             clearTimeout(entry.pongTimer);
             entry.pingId = '';
+            entry.supportsLifecycle = true;
             this.markUsable(frame);
           }
         },
@@ -1878,6 +1890,15 @@
           entry.pongTimer = setTimeout(() => {
             this.showRecovery(frame);
           }, 8000);
+        },
+
+        probeActive() {
+          const frame = document.querySelector('.app-view.is-active iframe.tool-iframe');
+          if (!frame) return;
+          const entry = this.stateFor(frame);
+          if (!entry.supportsLifecycle) return;
+          this.showLoading(frame, { preserveLifecycle: true });
+          this.pingActive();
         },
 
         start() {
@@ -2212,10 +2233,11 @@
           || (location.hash || '').replace(/^#/, '')
           || 'dashboard';
         if (TOOL_VIEWS.has(restoredView)) {
-          ensureToolIframe(restoredView, { forceReload: true });
+          ensureToolIframe(restoredView);
           if (restoredView === 'recruiting') {
             deliverRecruitingToolHistory(history.state?.toolHistory || null);
           }
+          setTimeout(() => RootsToolLifecycle.probeActive(), 0);
         } else {
           navigateToView(restoredView, { historyMode: 'none' });
         }

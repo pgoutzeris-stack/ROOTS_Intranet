@@ -144,7 +144,47 @@
 
   const SYNC_INTERVAL_MS = 20000;
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
-  const BRIDGE_VERSION = 'tokenless-broker-v1-20260522-hover';
+  const BRIDGE_VERSION = 'tokenless-broker-v2-20260730-lifecycle';
+  let lifecycleReadySent = false;
+
+  function postLifecycle(type, detail = {}) {
+    if (!IN_IFRAME) return;
+    try {
+      window.parent.postMessage({
+        type,
+        bridgeVersion: BRIDGE_VERSION,
+        ...detail,
+      }, ORIGIN);
+    } catch (_) {}
+  }
+
+  function announceLifecycleReady() {
+    if (lifecycleReadySent || !IN_IFRAME) return;
+    lifecycleReadySent = true;
+    postLifecycle('roots-tool-ready');
+  }
+
+  function dispatchLifecycleEvent(type, detail = {}) {
+    try {
+      window.dispatchEvent(new CustomEvent(type, { detail }));
+    } catch (_) {}
+  }
+
+  function handleBeforeHide(requestId) {
+    const pending = [];
+    dispatchLifecycleEvent('roots-tool-before-hide', {
+      waitUntil(value) {
+        if (value && typeof value.then === 'function') pending.push(Promise.resolve(value));
+      },
+    });
+    const settled = pending.length ? Promise.allSettled(pending) : Promise.resolve();
+    Promise.race([
+      settled,
+      new Promise(resolve => setTimeout(resolve, 900)),
+    ]).finally(() => {
+      postLifecycle('roots-tool-hide-ready', { requestId });
+    });
+  }
 
   function escapeAttr(s) {
     return escapeHtml(s).replace(/"/g, '&quot;');
@@ -1223,6 +1263,20 @@
   window.addEventListener('message', (e) => {
     if (e.origin !== ORIGIN || e.source !== window.parent) return;
     if (!e.data || typeof e.data !== 'object' || Array.isArray(e.data)) return;
+    if (e.data.type === 'roots-tool-ping') {
+      postLifecycle('roots-tool-pong', {
+        requestId: typeof e.data.requestId === 'string' ? e.data.requestId.slice(0, 120) : '',
+      });
+      return;
+    }
+    if (e.data.type === 'roots-tool-before-hide') {
+      handleBeforeHide(typeof e.data.requestId === 'string' ? e.data.requestId.slice(0, 120) : '');
+      return;
+    }
+    if (e.data.type === 'roots-tool-visible' || e.data.type === 'roots-tool-hidden') {
+      dispatchLifecycleEvent(e.data.type);
+      return;
+    }
     if (e.data.type === 'roots-broker-response') {
       const pending = _brokerPending.get(e.data.requestId);
       if (!pending) return;
@@ -1429,6 +1483,12 @@
 
   DataSourceTracker.install();
   installLinkInterceptor();  // proxy external links to parent in WKWebView iframe
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', announceLifecycleReady, { once: true });
+  } else {
+    queueMicrotask(announceLifecycleReady);
+  }
+  window.addEventListener('load', announceLifecycleReady, { once: true });
 
   const bootSync = (n) => {
     if (window.RootsUser) patch(window.RootsUser);

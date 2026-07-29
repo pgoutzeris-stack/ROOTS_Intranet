@@ -600,7 +600,7 @@
     .btn-ghost:hover { border-color: var(--brand); color: var(--brand); transform: translateY(-2px); }
 
     /* ── Views ── */
-    .app-view { display: none; }
+    .app-view { display: none; position: relative; }
     .app-view.is-active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
 
     /* Dashboard & Upcoming: scrollbar wiederherstellen */
@@ -617,6 +617,71 @@
       border: 0;
       background: #fff;
     }
+
+    .tool-load-guard {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background: #fff;
+      color: var(--ink);
+      text-align: center;
+    }
+
+    .tool-load-guard.is-visible { display: flex; }
+
+    .tool-load-guard__content {
+      display: grid;
+      justify-items: center;
+      gap: 0.8rem;
+      max-width: 420px;
+    }
+
+    .tool-load-guard__spinner {
+      width: 28px;
+      height: 28px;
+      border: 2px solid #dbe3ed;
+      border-top-color: var(--brand);
+      border-radius: 50%;
+      animation: roots-tool-spin 0.8s linear infinite;
+    }
+
+    .tool-load-guard.is-recovery .tool-load-guard__spinner {
+      animation: none;
+      border: 0;
+      color: #d97706;
+      font-size: 1.35rem;
+    }
+
+    .tool-load-guard__title { font-size: 1rem; font-weight: 700; }
+    .tool-load-guard__text { color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
+    .tool-load-guard__actions { display: none; gap: 0.6rem; margin-top: 0.25rem; }
+    .tool-load-guard.is-recovery .tool-load-guard__actions { display: flex; }
+    .tool-load-guard__actions button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      min-height: 38px;
+      padding: 0.55rem 0.9rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.84rem;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .tool-load-guard__actions button:first-child {
+      border-color: var(--brand);
+      background: var(--brand);
+      color: #fff;
+    }
+
+    @keyframes roots-tool-spin { to { transform: rotate(360deg); } }
 
     /* ── Placeholder (Bildgenerierung noch nicht live) ── */
     .tool-placeholder {
@@ -1668,6 +1733,161 @@
         navItems.forEach(item => item.classList.toggle('active', item === activeItem));
       }
 
+      const RootsToolLifecycle = {
+        frames: new WeakMap(),
+        pingTimer: null,
+
+        post(frame, message) {
+          if (!frame?.contentWindow) return;
+          const opaque = frame.hasAttribute('sandbox') && !frame.sandbox.contains('allow-same-origin');
+          try {
+            frame.contentWindow.postMessage(message, opaque ? '*' : 'https://pgoutzeris-stack.github.io');
+          } catch (_) {}
+        },
+
+        stateFor(frame) {
+          let entry = this.frames.get(frame);
+          if (entry) return entry;
+          const panel = frame.closest('.app-view[data-view-panel]');
+          const guard = document.createElement('div');
+          guard.className = 'tool-load-guard';
+          guard.setAttribute('role', 'status');
+          guard.setAttribute('aria-live', 'polite');
+          guard.innerHTML = `
+            <div class="tool-load-guard__content">
+              <span class="tool-load-guard__spinner" aria-hidden="true"></span>
+              <div class="tool-load-guard__title">Tool wird geladen…</div>
+              <div class="tool-load-guard__text">Die Verbindung wird hergestellt.</div>
+              <div class="tool-load-guard__actions">
+                <button type="button" data-tool-retry><i class="fa-solid fa-rotate-right"></i> Erneut laden</button>
+                <button type="button" data-tool-dashboard><i class="fa-solid fa-house"></i> Dashboard</button>
+              </div>
+            </div>`;
+          panel?.appendChild(guard);
+          entry = {
+            panel,
+            guard,
+            supportsLifecycle: false,
+            loadTimer: null,
+            fallbackTimer: null,
+            pongTimer: null,
+            pingId: '',
+          };
+          this.frames.set(frame, entry);
+          frame.addEventListener('load', () => this.onLoad(frame));
+          guard.querySelector('[data-tool-retry]')?.addEventListener('click', () => {
+            const view = panel?.dataset.viewPanel;
+            if (view) window.ensureToolIframe?.(view, { forceReload: true });
+          });
+          guard.querySelector('[data-tool-dashboard]')?.addEventListener('click', () => {
+            window.intranetNavigateToView?.('dashboard');
+          });
+          return entry;
+        },
+
+        showLoading(frame) {
+          const entry = this.stateFor(frame);
+          clearTimeout(entry.loadTimer);
+          clearTimeout(entry.fallbackTimer);
+          clearTimeout(entry.pongTimer);
+          entry.pingId = '';
+          entry.supportsLifecycle = false;
+          entry.guard.classList.remove('is-recovery');
+          entry.guard.classList.add('is-visible');
+          entry.guard.querySelector('.tool-load-guard__spinner').innerHTML = '';
+          entry.guard.querySelector('.tool-load-guard__title').textContent = 'Tool wird geladen…';
+          entry.guard.querySelector('.tool-load-guard__text').textContent = 'Die Verbindung wird hergestellt.';
+          entry.loadTimer = setTimeout(() => this.showRecovery(frame), 15000);
+        },
+
+        onLoad(frame) {
+          const entry = this.stateFor(frame);
+          clearTimeout(entry.loadTimer);
+          clearTimeout(entry.fallbackTimer);
+          if (frame.getAttribute('src') === 'about:blank') {
+            entry.guard.classList.remove('is-visible', 'is-recovery');
+            return;
+          }
+          entry.fallbackTimer = setTimeout(() => this.markUsable(frame), 1200);
+        },
+
+        markUsable(frame) {
+          const entry = this.stateFor(frame);
+          clearTimeout(entry.loadTimer);
+          clearTimeout(entry.fallbackTimer);
+          entry.guard.classList.remove('is-visible', 'is-recovery');
+        },
+
+        ready(frame) {
+          const entry = this.stateFor(frame);
+          entry.supportsLifecycle = true;
+          this.markUsable(frame);
+          if (entry.panel?.classList.contains('is-active')) this.post(frame, { type: 'roots-tool-visible' });
+        },
+
+        showRecovery(frame) {
+          const entry = this.stateFor(frame);
+          if (!entry.panel?.classList.contains('is-active')) return;
+          entry.guard.classList.add('is-visible', 'is-recovery');
+          entry.guard.querySelector('.tool-load-guard__spinner').innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+          entry.guard.querySelector('.tool-load-guard__title').textContent = 'Tool reagiert nicht';
+          entry.guard.querySelector('.tool-load-guard__text').textContent =
+            'Deine aktuelle Sitzung bleibt erhalten. Du kannst das Tool erneut laden oder zum Dashboard wechseln.';
+        },
+
+        activate(viewName) {
+          const frame = document.querySelector(`.app-view[data-view-panel="${viewName}"] iframe.tool-iframe`);
+          if (!frame) return;
+          const entry = this.stateFor(frame);
+          if (entry.supportsLifecycle) this.post(frame, { type: 'roots-tool-visible' });
+        },
+
+        deactivate(viewName) {
+          const frame = document.querySelector(`.app-view[data-view-panel="${viewName}"] iframe.tool-iframe`);
+          if (!frame) return;
+          const entry = this.stateFor(frame);
+          if (!entry.supportsLifecycle) return;
+          const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+          this.post(frame, { type: 'roots-tool-before-hide', requestId });
+          this.post(frame, { type: 'roots-tool-hidden' });
+          clearTimeout(entry.pongTimer);
+          entry.pingId = '';
+        },
+
+        receive(frame, message) {
+          const entry = this.stateFor(frame);
+          if (message.type === 'roots-tool-ready') {
+            this.ready(frame);
+            return;
+          }
+          if (message.type === 'roots-tool-pong' && message.requestId === entry.pingId) {
+            clearTimeout(entry.pongTimer);
+            entry.pingId = '';
+            this.markUsable(frame);
+          }
+        },
+
+        pingActive() {
+          if (document.visibilityState !== 'visible') return;
+          const frame = document.querySelector('.app-view.is-active iframe.tool-iframe');
+          if (!frame) return;
+          const entry = this.stateFor(frame);
+          if (!entry.supportsLifecycle || entry.pingId) return;
+          entry.pingId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+          this.post(frame, { type: 'roots-tool-ping', requestId: entry.pingId });
+          entry.pongTimer = setTimeout(() => {
+            this.showRecovery(frame);
+          }, 8000);
+        },
+
+        start() {
+          document.querySelectorAll('iframe.tool-iframe').forEach(frame => this.stateFor(frame));
+          if (!this.pingTimer) this.pingTimer = setInterval(() => this.pingActive(), 45000);
+        },
+      };
+      window.RootsToolLifecycle = RootsToolLifecycle;
+      RootsToolLifecycle.start();
+
       function ensureToolIframe(viewName, options = {}) {
         const panel = document.querySelector(`.app-view[data-view-panel="${viewName}"]`);
         const iframe = panel?.querySelector('iframe.tool-iframe');
@@ -1678,6 +1898,7 @@
         if (!identityUser) {
           iframe.src = 'about:blank';
           delete iframe.dataset.loaded;
+          RootsToolLifecycle.markUsable(iframe);
           return;
         }
         const base = iframe.dataset.src;
@@ -1696,6 +1917,7 @@
           || iframe.dataset.identityEpoch !== String(identityEpoch);
         const hasUsableSource = iframe.getAttribute('src') && iframe.getAttribute('src') !== 'about:blank';
         if (forceReload || identityChanged || !iframe.dataset.loaded || !hasUsableSource) {
+          RootsToolLifecycle.showLoading(iframe);
           iframe.dataset.loaded = '1';
           iframe.dataset.identityUser = identityUser;
           iframe.dataset.identityEpoch = String(identityEpoch);
@@ -1708,6 +1930,7 @@
       window.ensureToolIframe = ensureToolIframe;
 
       function setView(viewName, options) {
+        const previousView = window.__rootsCurrentView;
         if (viewName === 'admin' && !(window.RootsUser && window.RootsUser.isAdmin && window.RootsUser.isAdmin())) {
           viewName = 'dashboard';
         }
@@ -1716,6 +1939,9 @@
         }
         const isTool = TOOL_VIEWS.has(viewName);
         const isSidebarAuto = SIDEBAR_AUTO_VIEWS.has(viewName);
+        if (previousView && previousView !== viewName && TOOL_VIEWS.has(previousView)) {
+          RootsToolLifecycle.deactivate(previousView);
+        }
         window.__rootsCurrentView = viewName;
 
         // Panels umschalten
@@ -1747,7 +1973,10 @@
         }
 
         if (viewName === 'notes') refreshNotesIframe();
-        if (isTool) ensureToolIframe(viewName);
+        if (isTool) {
+          ensureToolIframe(viewName);
+          RootsToolLifecycle.activate(viewName);
+        }
         else if (window.RootsUser?._broadcastAuthSession) window.RootsUser._broadcastAuthSession();
         applySidebarForView(viewName);
         if (viewName === 'admin') mountAdminSyncStatus();
@@ -4089,7 +4318,7 @@ window.RootsAdmin = {
 };
 </script>
 
-<script src="roots-user-bridge.js?v=20260729-safari-v1"></script>
+<script src="roots-user-bridge.js?v=20260730-lifecycle-v2"></script>
 
 <script>
 (function(){
@@ -4347,6 +4576,9 @@ const ROOTS_ALLOWED_MESSAGE_TYPES = new Set([
   'roots-open-settings',
   'roots-open-view',
   'roots-tool-history',
+  'roots-tool-ready',
+  'roots-tool-pong',
+  'roots-tool-hide-ready',
   'roots-notification-click',
   'roots-open-url',
   'roots-print-iframe',
@@ -4961,9 +5193,17 @@ async function rootsHandleBrokerRequest(frame, message) {
 
 window.addEventListener('message', (e) => {
   const sourceFrame = rootsMessageSourceFrame(e);
-  if (!sourceFrame || !rootsIsActiveFrame(sourceFrame)) return;
+  if (!sourceFrame) return;
 
   const type = e.data.type;
+  const isLifecycleMessage = type === 'roots-tool-ready'
+    || type === 'roots-tool-pong'
+    || type === 'roots-tool-hide-ready';
+  if (!isLifecycleMessage && !rootsIsActiveFrame(sourceFrame)) return;
+  if (isLifecycleMessage) {
+    window.RootsToolLifecycle?.receive(sourceFrame, e.data);
+    return;
+  }
   if (type === 'roots-auth-request') {
     window.RootsUser?._broadcastAuthSession?.();
     return;

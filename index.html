@@ -2085,14 +2085,15 @@ window.RootsNotifications = {
   DASHBOARD_PREVIEW: 5,
   TOAST_MS: 9000,
   POLL_MS: 10000,
-  knownIds: new Set(),
   toastShownIds: new Set(),
   activeToastIds: new Set(),
   dashboardExpanded: false,
   items: [],
   _userId: null,
   _pollTimer: null,
-  _pollInFlight: false,
+  _pollInFlight: null,
+  _presentationReady: false,
+  _generation: 0,
 
   notifMeta(n) {
     const type = String(n.type || '');
@@ -2140,12 +2141,11 @@ window.RootsNotifications = {
 
   renderParentToast(n) {
     if (!n?.id || this.activeToastIds.has(n.id)) return;
-    this.activeToastIds.add(n.id);
     const stack = document.getElementById('roots-notif-toast-stack');
-    if (!stack) {
-      this.activeToastIds.delete(n.id);
-      return;
-    }
+    if (!stack) return;
+    stack.replaceChildren();
+    this.activeToastIds.clear();
+    this.activeToastIds.add(n.id);
     const meta = this.notifMeta(n);
     const el = document.createElement('button');
     el.type = 'button';
@@ -2175,7 +2175,7 @@ window.RootsNotifications = {
   },
 
   showToast(n) {
-    if (!n?.id || this.toastShownIds.has(n.id) || this.activeToastIds.has(n.id)) return;
+    if (!this.canPresent() || !n?.id || this.toastShownIds.has(n.id) || this.activeToastIds.has(n.id)) return;
     this.toastShownIds.add(n.id);
     const iframe = this.getActiveToolIframe();
     if (iframe?.contentWindow) {
@@ -2225,7 +2225,6 @@ window.RootsNotifications = {
     toastEl?.remove();
     await this.markRead(n.id);
     this.items = this.items.filter(item => item.id !== n.id);
-    this.knownIds.add(n.id);
     await this.navigateForNotification(n);
     this.renderDashboard();
   },
@@ -2271,54 +2270,41 @@ window.RootsNotifications = {
     }
   },
 
-  _storageKey() {
-    return this._userId ? `roots_notif_seen_${this._userId}` : null;
+  canPresent() {
+    const overlay = document.getElementById('roots-auth-overlay');
+    const loginVisible = overlay && window.getComputedStyle(overlay).display !== 'none';
+    return this._presentationReady
+      && !loginVisible
+      && Boolean(window.RootsUser?._sb && window.RootsUser?._uid)
+      && window.RootsUser._uid === this._userId;
   },
 
-  _loadSeenFromStorage() {
-    const key = this._storageKey();
-    if (!key) return;
-    try {
-      const saved = JSON.parse(localStorage.getItem(key) || '[]');
-      saved.forEach(id => this.knownIds.add(id));
-    } catch (_) {}
+  async claimLatestToast(userId, generation) {
+    if (!this.canPresent() || userId !== this._userId || generation !== this._generation) return null;
+    const shownAt = new Date().toISOString();
+    const { data, error } = await window.RootsUser._sb.schema('recruiting').from('notifications')
+      .update({ toast_shown_at: shownAt })
+      .eq('user_id', userId)
+      .is('read_at', null)
+      .is('toast_shown_at', null)
+      .select('id,user_id,type,title,message,session_id,runde,meta,read_at,toast_shown_at,created_at');
+    if (error) throw error;
+    if (userId !== this._userId || generation !== this._generation) return null;
+    const claimed = (data || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    if (!claimed.length) return null;
+    const claimedIds = new Set(claimed.map(item => item.id));
+    this.items = this.items.map(item => claimedIds.has(item.id)
+      ? { ...item, toast_shown_at: shownAt }
+      : item);
+    return claimed[0];
   },
 
-  _persistSeen(id) {
-    const key = this._storageKey();
-    if (!key) return;
-    try {
-      const saved = JSON.parse(localStorage.getItem(key) || '[]');
-      if (!saved.includes(id)) {
-        saved.push(id);
-        /* keep max 200 entries to avoid unbounded growth */
-        const trimmed = saved.slice(-200);
-        localStorage.setItem(key, JSON.stringify(trimmed));
-      }
-    } catch (_) {}
-  },
-
-  detectNew(items) {
-    /* knownIds is pre-populated from localStorage before the first poll,
-       so items already seen in a previous session are silently skipped.
-       Only IDs genuinely absent from knownIds trigger a toast. */
-    const fresh = items.filter(item => !this.knownIds.has(item.id));
-    items.forEach(item => {
-      if (!this.knownIds.has(item.id)) {
-        this.knownIds.add(item.id);
-        this._persistSeen(item.id);
-      }
-    });
-    return fresh;
-  },
-
-  async fetchUnread() {
+  async fetchUnread(userId = this._userId) {
     const sb = window.RootsUser?._sb;
-    const uid = window.RootsUser?._uid;
-    if (!sb || !uid) return [];
+    if (!sb || !userId || userId !== window.RootsUser?._uid) return [];
     const { data, error } = await sb.schema('recruiting').from('notifications')
-      .select('*')
-      .eq('user_id', uid)
+      .select('id,user_id,type,title,message,session_id,runde,meta,read_at,toast_shown_at,created_at')
+      .eq('user_id', userId)
       .is('read_at', null)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -2327,12 +2313,17 @@ window.RootsNotifications = {
 
   async poll() {
     if (this._pollInFlight) return;
-    if (!window.RootsUser?._sb || !window.RootsUser._uid) return;
-    this._pollInFlight = true;
+    if (!this.canPresent()) return;
+    const userId = this._userId;
+    const generation = this._generation;
+    const pollToken = { userId, generation };
+    this._pollInFlight = pollToken;
     try {
-      this.items = await this.fetchUnread();
-      const fresh = this.detectNew(this.items);
-      fresh.forEach(n => this.showToast(n));
+      const items = await this.fetchUnread(userId);
+      if (userId !== this._userId || generation !== this._generation) return;
+      this.items = items;
+      const latest = await this.claimLatestToast(userId, generation);
+      if (latest) this.showToast(latest);
       if (document.querySelector('.app-view.is-active[data-view-panel="dashboard"]')) {
         this.renderDashboard();
       }
@@ -2343,13 +2334,15 @@ window.RootsNotifications = {
         grid.innerHTML = '<div class="intranet-notif-empty">Benachrichtigungen konnten nicht geladen werden.</div>';
       }
     } finally {
-      this._pollInFlight = false;
+      if (this._pollInFlight === pollToken) this._pollInFlight = null;
     }
   },
 
-  start() {
-    this._userId = window.RootsUser?._uid || null;
-    this._loadSeenFromStorage(); /* pre-populate knownIds from previous sessions */
+  start(userId = window.RootsUser?._uid || null) {
+    if (!userId || userId !== window.RootsUser?._uid) return;
+    if (this._userId && this._userId !== userId) this.reset();
+    this._userId = userId;
+    this._presentationReady = true;
     void this.poll();
     if (!this._pollTimer) {
       this._pollTimer = setInterval(() => { void this.poll(); }, this.POLL_MS);
@@ -2357,12 +2350,14 @@ window.RootsNotifications = {
   },
 
   reset() {
-    this.knownIds.clear();
+    this._generation += 1;
     this.toastShownIds.clear();
     this.activeToastIds.clear();
     this.items = [];
     this.dashboardExpanded = false;
     this._userId = null;
+    this._presentationReady = false;
+    this._pollInFlight = null;
     if (this._pollTimer) {
       clearInterval(this._pollTimer);
       this._pollTimer = null;
@@ -3322,16 +3317,6 @@ window.RootsUser = {
       this._syncAdminNav();
       if (window.IntranetAccess) window.IntranetAccess.applyVisibility(this._p);
       this._startProfileRealtime();
-      if (window.RootsNotifications) {
-        const rn = window.RootsNotifications;
-        if (rn._userId !== userId) {
-          rn.reset();
-          rn._userId = userId;
-          rn.start();
-        } else if (!rn._pollTimer) {
-          rn.start();
-        }
-      }
       const activeTool = document.querySelector('.app-view.is-active[data-view-panel]')?.dataset.viewPanel;
       if (activeTool) window.ensureToolIframe?.(activeTool);
     } catch (e) {
@@ -3986,6 +3971,7 @@ window.RootsAdmin = {
   }
   function showAuthOverlay(){
     if(!overlay)return;
+    window.RootsNotifications?.reset?.();
     overlay.style.display='flex';
     if(vLogin)vLogin.style.display='block';
     if(vForgot)vForgot.style.display='none';
@@ -4020,6 +4006,7 @@ window.RootsAdmin = {
       void requestPersistentEmbedStorage();
       hideAuthOverlay();
       resetLoginUi();
+      window.RootsNotifications?.start?.(session.user.id);
     }else{
       showAuthOverlay();
       blockingSignOut=window.RootsUser?._authBlocked===true;

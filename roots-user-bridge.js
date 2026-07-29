@@ -110,8 +110,10 @@
     if (!IN_IFRAME || !notification?.id) return;
     if (toastShownIds.has(notification.id) || visibleToastIds.has(notification.id)) return;
     toastShownIds.add(notification.id);
-    visibleToastIds.add(notification.id);
     const stack = ensureNotifStack();
+    stack.replaceChildren();
+    visibleToastIds.clear();
+    visibleToastIds.add(notification.id);
     const icon = notifIcon(notification.type);
     const el = document.createElement('button');
     el.type = 'button';

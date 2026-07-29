@@ -144,7 +144,7 @@
 
   const SYNC_INTERVAL_MS = 20000;
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
-  const BRIDGE_VERSION = 'tokenless-broker-v2-20260730-lifecycle';
+  const BRIDGE_VERSION = 'tokenless-broker-v3-20260730-history-auth';
   let lifecycleReadySent = false;
 
   function postLifecycle(type, detail = {}) {
@@ -158,8 +158,8 @@
     } catch (_) {}
   }
 
-  function announceLifecycleReady() {
-    if (lifecycleReadySent || !IN_IFRAME) return;
+  function announceLifecycleReady(force = false) {
+    if ((!force && lifecycleReadySent) || !IN_IFRAME) return;
     lifecycleReadySent = true;
     postLifecycle('roots-tool-ready');
   }
@@ -1484,11 +1484,17 @@
   DataSourceTracker.install();
   installLinkInterceptor();  // proxy external links to parent in WKWebView iframe
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', announceLifecycleReady, { once: true });
+    document.addEventListener('DOMContentLoaded', () => announceLifecycleReady(), { once: true });
   } else {
     queueMicrotask(announceLifecycleReady);
   }
-  window.addEventListener('load', announceLifecycleReady, { once: true });
+  window.addEventListener('load', () => announceLifecycleReady(), { once: true });
+  window.addEventListener('pageshow', event => {
+    if (event.persisted) announceLifecycleReady(true);
+  });
+  window.addEventListener('pagehide', event => {
+    postLifecycle('roots-tool-unloading', { persisted: event.persisted === true });
+  });
 
   const bootSync = (n) => {
     if (window.RootsUser) patch(window.RootsUser);

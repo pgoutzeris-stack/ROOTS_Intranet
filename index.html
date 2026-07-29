@@ -1013,6 +1013,8 @@
     .roots-card-footer{margin-top:1.75rem;text-align:center;font-size:.85rem;color:var(--muted,#475569)}
     @keyframes roots-spin{to{transform:rotate(360deg)}}
     .roots-spin{animation:roots-spin .8s linear infinite}
+    .roots-session-recovery{text-align:center;padding:.5rem 0 1rem}
+    .roots-session-recovery-icon{width:40px;height:40px;margin:0 auto 1rem;border:2px solid var(--line,#e2e8f0);border-top-color:#206efb;border-radius:50%;animation:roots-spin .8s linear infinite}
     /* ── Profil-Setup (Onboarding-Look) ── */
     @keyframes profileSetupFadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes profileSetupSlideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
@@ -1125,7 +1127,12 @@
     <div class="roots-logo-wrap">
       <img src="https://roots-consultants.de/wp-content/uploads/2025/04/Roots-Brand-Strategy-Consultants-Logo.svg" alt="ROOTS" />
     </div>
-    <div id="roots-view-login">
+    <div id="roots-view-session-recovery" class="roots-session-recovery">
+      <div class="roots-session-recovery-icon" aria-hidden="true"></div>
+      <h1 class="roots-card-title">Sitzung wird wiederhergestellt</h1>
+      <p class="roots-card-sub">Deine sichere ROOTS-Anmeldung wird geprüft.</p>
+    </div>
+    <div id="roots-view-login" style="display:none">
       <h1 class="roots-card-title">Willkommen zurück</h1>
       <p class="roots-card-sub">Melde dich bei deinem ROOTS-Konto an.</p>
       <div id="roots-error-banner" class="roots-alert roots-alert-error">
@@ -1774,6 +1781,7 @@
             pongTimer: null,
             pingId: '',
             loadingStarted: 0,
+            unloading: false,
           };
           this.frames.set(frame, entry);
           frame.addEventListener('load', () => this.onLoad(frame));
@@ -1804,14 +1812,51 @@
           entry.loadTimer = setTimeout(() => this.showRecovery(frame), 15000);
         },
 
+        currentHref(frame) {
+          try {
+            return frame.contentWindow?.location?.href || '';
+          } catch (_) {
+            return '';
+          }
+        },
+
+        recoverUnexpectedBlank(frame) {
+          const entry = this.stateFor(frame);
+          entry.unloading = false;
+          if (!entry.panel?.classList.contains('is-active') || !window.RootsUser?._uid) {
+            this.markUsable(frame);
+            return;
+          }
+          this.showLoading(frame, { preserveLifecycle: true });
+          setTimeout(() => {
+            if (!entry.panel?.classList.contains('is-active')) return;
+            window.intranetNavigateToView?.('dashboard', { historyMode: 'replace' });
+          }, 0);
+        },
+
         onLoad(frame) {
           const entry = this.stateFor(frame);
           clearTimeout(entry.loadTimer);
           clearTimeout(entry.fallbackTimer);
+          const intentional = frame.dataset.intentionalNavigation === '1';
+          delete frame.dataset.intentionalNavigation;
+          const currentHref = this.currentHref(frame);
+          if (frame.dataset.loaded && frame.dataset.expectedUrl && currentHref === 'about:blank') {
+            this.recoverUnexpectedBlank(frame);
+            return;
+          }
           if (frame.getAttribute('src') === 'about:blank') {
+            entry.unloading = false;
             entry.guard.classList.remove('is-visible', 'is-recovery');
             return;
           }
+          if (entry.unloading && !intentional) {
+            entry.loadTimer = setTimeout(() => {
+              if (entry.unloading) this.showRecovery(frame);
+            }, 1200);
+            return;
+          }
+          entry.unloading = false;
           entry.fallbackTimer = setTimeout(() => this.markUsable(frame), 1200);
         },
 
@@ -1831,6 +1876,7 @@
 
         ready(frame) {
           const entry = this.stateFor(frame);
+          entry.unloading = false;
           entry.supportsLifecycle = true;
           this.markUsable(frame);
           if (entry.panel?.classList.contains('is-active')) this.post(frame, { type: 'roots-tool-visible' });
@@ -1867,6 +1913,12 @@
 
         receive(frame, message) {
           const entry = this.stateFor(frame);
+          if (message.type === 'roots-tool-unloading') {
+            if (!entry.panel?.classList.contains('is-active') || frame.dataset.intentionalNavigation === '1') return;
+            entry.unloading = true;
+            this.showLoading(frame, { preserveLifecycle: true });
+            return;
+          }
           if (message.type === 'roots-tool-ready') {
             this.ready(frame);
             return;
@@ -1909,6 +1961,16 @@
       window.RootsToolLifecycle = RootsToolLifecycle;
       RootsToolLifecycle.start();
 
+      function replaceToolFrameLocation(iframe, url) {
+        iframe.dataset.expectedUrl = url;
+        iframe.dataset.intentionalNavigation = '1';
+        try {
+          iframe.contentWindow?.location.replace(url);
+          return;
+        } catch (_) {}
+        iframe.src = url;
+      }
+
       function ensureToolIframe(viewName, options = {}) {
         const panel = document.querySelector(`.app-view[data-view-panel="${viewName}"]`);
         const iframe = panel?.querySelector('iframe.tool-iframe');
@@ -1919,6 +1981,8 @@
         if (!identityUser) {
           iframe.src = 'about:blank';
           delete iframe.dataset.loaded;
+          delete iframe.dataset.expectedUrl;
+          delete iframe.dataset.intentionalNavigation;
           RootsToolLifecycle.markUsable(iframe);
           return;
         }
@@ -1943,7 +2007,7 @@
           iframe.dataset.identityUser = identityUser;
           iframe.dataset.identityEpoch = String(identityEpoch);
           iframe.addEventListener('load', syncAuth, { once: true });
-          iframe.src = url;
+          replaceToolFrameLocation(iframe, url);
         } else {
           syncAuth();
         }
@@ -2870,6 +2934,8 @@ window.IntranetAccess = {
       delete frame.dataset.loaded;
       delete frame.dataset.identityEpoch;
       delete frame.dataset.identityUser;
+      delete frame.dataset.expectedUrl;
+      delete frame.dataset.intentionalNavigation;
     });
     const activePanel = document.querySelector('.app-view.is-active[data-view-panel]');
     if (activePanel && window.INTRANET_TOOL_IDS.includes(activePanel.dataset.viewPanel)) {
@@ -3662,6 +3728,7 @@ window.RootsUser = {
   _profileRealtimeChannel: null,
   _explicitAuthTransition: false,
   _authBlocked: false,
+  _lastAuthLoadRetryable: false,
 
   _initials(name) {
     if (!name) return '?';
@@ -3684,6 +3751,7 @@ window.RootsUser = {
 
   async _doLoadAndMount(sb, sessionHint, options = {}) {
     this._sb = sb;
+    this._lastAuthLoadRetryable = false;
     window.__rootsSupabaseClient = sb;
     window.rootsSupabase = sb;
     const generation = ++this._loadGeneration;
@@ -3714,6 +3782,8 @@ window.RootsUser = {
         const { data: verifiedData, error: verifiedError } = await sb.auth.getUser(session.access_token);
         verifiedUser = verifiedData?.user;
         if (verifiedError || !verifiedUser || verifiedUser.id !== hintedUserId) {
+          const status = Number(verifiedError?.status) || 0;
+          this._lastAuthLoadRetryable = !status || status === 429 || status >= 500;
           throw new Error('Die Anmeldung konnte nicht eindeutig bestätigt werden.');
         }
       }
@@ -3727,6 +3797,7 @@ window.RootsUser = {
       }
       this._explicitAuthTransition = false;
       this._authBlocked = false;
+      this._lastAuthLoadRetryable = false;
       this._uid = userId;
       this._p = {
         id: userId,
@@ -3760,6 +3831,7 @@ window.RootsUser = {
     } catch (e) {
       console.error('RootsUser._doLoadAndMount', e);
       if (generation !== this._loadGeneration) return;
+      if (this._lastAuthLoadRetryable) return;
       this._clearIdentity();
       window.rootsShowAuthOverlay?.();
     }
@@ -3828,6 +3900,8 @@ window.RootsUser = {
       delete frame.dataset.loaded;
       delete frame.dataset.identityEpoch;
       delete frame.dataset.identityUser;
+      delete frame.dataset.expectedUrl;
+      delete frame.dataset.intentionalNavigation;
     });
   },
 
@@ -4340,7 +4414,7 @@ window.RootsAdmin = {
 };
 </script>
 
-<script src="roots-user-bridge.js?v=20260730-lifecycle-v2"></script>
+<script src="roots-user-bridge.js?v=20260730-history-auth-v3"></script>
 
 <script>
 (function(){
@@ -4392,12 +4466,15 @@ window.RootsAdmin = {
   window.__rootsSupabaseClient=sb;
   window.rootsSupabase=sb;
   const overlay=document.getElementById('roots-auth-overlay');
+  const vSessionRecovery=document.getElementById('roots-view-session-recovery');
   const vLogin=document.getElementById('roots-view-login');
   const vForgot=document.getElementById('roots-view-forgot');
   const vRequest=document.getElementById('roots-view-request');
   const vReset=document.getElementById('roots-view-reset');
   let completingPasswordRecovery=false;
   let blockingSignOut=false;
+  let sessionRecoveryTimer=null;
+  let sessionRecoveryAttempt=0;
   const LOGIN_BTN_HTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
   const RESET_BTN_HTML='<i class="fa-solid fa-paper-plane"></i> Link senden';
   const REQUEST_BTN_HTML='<i class="fa-solid fa-paper-plane"></i> Anfrage senden';
@@ -4447,8 +4524,11 @@ window.RootsAdmin = {
   }
   function showAuthOverlay(){
     if(!overlay)return;
+    clearTimeout(sessionRecoveryTimer);
+    sessionRecoveryAttempt=0;
     window.RootsNotifications?.reset?.();
     overlay.style.display='flex';
+    if(vSessionRecovery)vSessionRecovery.style.display='none';
     if(vLogin)vLogin.style.display='block';
     if(vForgot)vForgot.style.display='none';
     if(vRequest)vRequest.style.display='none';
@@ -4456,12 +4536,25 @@ window.RootsAdmin = {
     resetLoginUi();
   }
   window.rootsShowAuthOverlay=showAuthOverlay;
+  function showSessionRecovery(){
+    if(!overlay)return;
+    overlay.style.display='flex';
+    if(vSessionRecovery)vSessionRecovery.style.display='block';
+    if(vLogin)vLogin.style.display='none';
+    if(vForgot)vForgot.style.display='none';
+    if(vRequest)vRequest.style.display='none';
+    if(vReset)vReset.style.display='none';
+  }
   function hideAuthOverlay(){
+    clearTimeout(sessionRecoveryTimer);
+    sessionRecoveryAttempt=0;
+    if(vSessionRecovery)vSessionRecovery.style.display='none';
     if(overlay)overlay.style.display='none';
   }
   function showPasswordReset(){
     if(!overlay)return;
     overlay.style.display='flex';
+    if(vSessionRecovery)vSessionRecovery.style.display='none';
     if(vLogin)vLogin.style.display='none';
     if(vForgot)vForgot.style.display='none';
     if(vReset)vReset.style.display='block';
@@ -4469,6 +4562,21 @@ window.RootsAdmin = {
     document.getElementById('roots-password-success')?.classList.remove('visible');
     const returnLink=document.getElementById('roots-password-return');
     if(returnLink)returnLink.style.display='none';
+  }
+  function scheduleSessionRecovery(){
+    clearTimeout(sessionRecoveryTimer);
+    sessionRecoveryAttempt+=1;
+    const delay=Math.min(1000*Math.pow(2,Math.min(sessionRecoveryAttempt-1,3)),8000);
+    sessionRecoveryTimer=setTimeout(async()=>{
+      try{
+        const{data:{session}}=await sb.auth.getSession();
+        if(session)await applyAuthenticatedSession(session,{recovery:true});
+        else showAuthOverlay();
+      }catch(_){
+        showSessionRecovery();
+        scheduleSessionRecovery();
+      }
+    },delay);
   }
   async function applyAuthenticatedSession(session,{explicit=false}={}){
     if(!session?.user?.id){showAuthOverlay();return false;}
@@ -4483,6 +4591,9 @@ window.RootsAdmin = {
       hideAuthOverlay();
       resetLoginUi();
       window.RootsNotifications?.start?.(session.user.id);
+    }else if(window.RootsUser?._lastAuthLoadRetryable===true){
+      showSessionRecovery();
+      scheduleSessionRecovery();
     }else{
       showAuthOverlay();
       blockingSignOut=window.RootsUser?._authBlocked===true;
@@ -4490,10 +4601,14 @@ window.RootsAdmin = {
     }
     return accepted;
   }
+  showSessionRecovery();
   sb.auth.getSession().then(({data:{session}})=>{
     if(session)void applyAuthenticatedSession(session);
-    else resetLoginUi();
-  }).catch(()=>showAuthOverlay());
+    else showAuthOverlay();
+  }).catch(()=>{
+    showSessionRecovery();
+    scheduleSessionRecovery();
+  });
   sb.auth.onAuthStateChange((event,session)=>{
     if(event==='PASSWORD_RECOVERY'){
       showPasswordReset();
@@ -4601,6 +4716,7 @@ const ROOTS_ALLOWED_MESSAGE_TYPES = new Set([
   'roots-tool-ready',
   'roots-tool-pong',
   'roots-tool-hide-ready',
+  'roots-tool-unloading',
   'roots-notification-click',
   'roots-open-url',
   'roots-print-iframe',
@@ -5220,7 +5336,8 @@ window.addEventListener('message', (e) => {
   const type = e.data.type;
   const isLifecycleMessage = type === 'roots-tool-ready'
     || type === 'roots-tool-pong'
-    || type === 'roots-tool-hide-ready';
+    || type === 'roots-tool-hide-ready'
+    || type === 'roots-tool-unloading';
   if (!isLifecycleMessage && !rootsIsActiveFrame(sourceFrame)) return;
   if (isLifecycleMessage) {
     window.RootsToolLifecycle?.receive(sourceFrame, e.data);

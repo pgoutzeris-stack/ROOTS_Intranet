@@ -2416,7 +2416,7 @@ window.refreshIntranetToolRegistry = function refreshIntranetToolRegistry() {
 
 window.refreshIntranetToolRegistry();
 
-window.ADMIN_PROFILE_SELECT = 'id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,app_role,app_settings,reporting_line_id,mentor_id';
+window.ADMIN_PROFILE_SELECT = 'id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,urlaubstage_jahr,app_role,app_settings,reporting_line_id,mentor_id';
 window.ROOTS_EMPLOYEE_EMAIL_DOMAIN = '@roots-consultants.com';
 
 window.ROOTS_POSITIONS = ['Praktikant', 'Junior Consultant', 'Consultant', 'Senior Consultant', 'Director', 'Partner'];
@@ -2809,7 +2809,7 @@ window.RootsAdminEmployee = {
         <div class="admin-form-grid">
           <div class="admin-field"><label for="aec-start-date">Einstiegsdatum</label><input class="modern-input" id="aec-start-date" type="date"></div>
           <div class="admin-field"><label for="aec-weekly-hours">Arbeitsstunden / Woche</label><input class="modern-input" id="aec-weekly-hours" type="number" min="0" step="0.5"></div>
-          <div class="admin-field"><label for="aec-urlaubstage">Urlaubstage</label><input class="modern-input" id="aec-urlaubstage" type="number" min="0" step="1" value="30"></div>
+          <div class="admin-field"><label for="aec-urlaubstage">Vertraglicher Jahresurlaub</label><input class="modern-input" id="aec-urlaubstage" type="number" min="0" max="365" step="1" value="30">${this.hintHtml('Statischer Urlaubsanspruch pro Kalenderjahr. Resturlaub wird in der Urlaubsplanung berechnet.')}</div>
           <div class="admin-field"><label for="aec-position">Position / Rolle</label><select class="modern-select" id="aec-position">${this.positionOptions('')}</select></div>
           <div class="admin-field"><label for="aec-hourly-rate">Stundensatz (allgemein)</label><input class="modern-input" id="aec-hourly-rate" type="number" min="0" step="0.01" placeholder="€/h"></div>
           <div class="admin-field"><label for="aec-reporting">Reporting Line</label><select class="modern-select" id="aec-reporting">${this.reportingOptions(users, null, null)}</select></div>
@@ -2884,7 +2884,7 @@ window.RootsAdminEmployee = {
         <div class="admin-form-grid">
           <div class="admin-field"><label for="aec-start-date">Einstiegsdatum</label><input class="modern-input" id="aec-start-date" type="date" value="${this.fmtDateInput(u.start_date)}"></div>
           <div class="admin-field"><label for="aec-weekly-hours">Arbeitsstunden / Woche</label><input class="modern-input" id="aec-weekly-hours" type="number" min="0" step="0.5" value="${u.weekly_hours ?? ''}"></div>
-          <div class="admin-field"><label for="aec-urlaubstage">Urlaubstage</label><input class="modern-input" id="aec-urlaubstage" type="number" min="0" step="1" value="${u.urlaubstage ?? 30}"></div>
+          <div class="admin-field"><label for="aec-urlaubstage">Vertraglicher Jahresurlaub</label><input class="modern-input" id="aec-urlaubstage" type="number" min="0" max="365" step="1" value="${u.urlaubstage_jahr ?? 30}">${this.hintHtml('Statischer Urlaubsanspruch pro Kalenderjahr. Genehmigungen verändern nur den Resturlaub im Urlaubsplanungstool.')}</div>
           <div class="admin-field"><label for="aec-position">Position / Rolle</label><select class="modern-select" id="aec-position">${this.positionOptions(u.position || '')}</select></div>
           <div class="admin-field"><label for="aec-hourly-rate">Stundensatz (allgemein)</label><input class="modern-input" id="aec-hourly-rate" type="number" min="0" step="0.01" value="${u.hourly_rate ?? ''}" placeholder="€/h"></div>
           <div class="admin-field"><label for="aec-reporting">Reporting Line</label><select class="modern-select" id="aec-reporting">${this.reportingOptions(users, u.reporting_line_id, u.id)}</select></div>
@@ -2981,6 +2981,15 @@ window.RootsAdminEmployee = {
       client: row.querySelector('.aec-client-name')?.value.trim() || '',
       rate: row.querySelector('.aec-client-rate')?.value,
     })).filter(r => r.client).map(r => ({ client: r.client, rate: r.rate === '' ? null : Number(r.rate) }));
+  },
+
+  readAnnualVacationDays() {
+    const input = document.getElementById('aec-urlaubstage');
+    const days = input?.value === '' || input?.value == null ? 30 : Number(input.value);
+    if (!Number.isInteger(days) || days < 0 || days > 365) {
+      throw new Error('Der vertragliche Jahresurlaub muss eine ganze Zahl zwischen 0 und 365 sein.');
+    }
+    return days;
   },
 
   async loadList(listId) {
@@ -3095,7 +3104,7 @@ window.RootsAdminEmployee = {
         birthday: document.getElementById('aec-birthday')?.value.trim() || null,
         start_date: document.getElementById('aec-start-date')?.value || null,
         weekly_hours: document.getElementById('aec-weekly-hours')?.value === '' ? null : Number(document.getElementById('aec-weekly-hours').value),
-        urlaubstage: document.getElementById('aec-urlaubstage')?.value === '' ? 30 : parseInt(document.getElementById('aec-urlaubstage').value, 10),
+        urlaubstage_jahr: this.readAnnualVacationDays(),
         position: document.getElementById('aec-position')?.value || null,
         hourly_rate: document.getElementById('aec-hourly-rate')?.value === '' ? null : Number(document.getElementById('aec-hourly-rate').value),
         reporting_line_id: document.getElementById('aec-reporting')?.value || null,
@@ -3147,7 +3156,7 @@ window.RootsAdminEmployee = {
       birthday: document.getElementById('aec-birthday')?.value.trim() || null,
       start_date: document.getElementById('aec-start-date')?.value || null,
       weekly_hours: document.getElementById('aec-weekly-hours')?.value === '' ? null : Number(document.getElementById('aec-weekly-hours').value),
-      urlaubstage: document.getElementById('aec-urlaubstage')?.value === '' ? 30 : parseInt(document.getElementById('aec-urlaubstage').value, 10),
+      urlaubstage_jahr: this.readAnnualVacationDays(),
       position: document.getElementById('aec-position')?.value || null,
       hourly_rate: document.getElementById('aec-hourly-rate')?.value === '' ? null : Number(document.getElementById('aec-hourly-rate').value),
       reporting_line_id: document.getElementById('aec-reporting')?.value || null,
@@ -3168,7 +3177,13 @@ window.RootsAdminEmployee = {
       msg.className = 'admin-form-msg' + (text ? (ok ? ' is-ok' : ' is-err') : '');
       msg.textContent = text;
     };
-    const payload = this.collectFormPayload();
+    let payload;
+    try {
+      payload = this.collectFormPayload();
+    } catch (e) {
+      setMsg('✗ ' + (e.message || 'Ungültige Eingabe.'), false);
+      return;
+    }
     if (!payload.first_name && !payload.last_name) {
       setMsg('✗ Vor- oder Nachname ist erforderlich.', false);
       return;

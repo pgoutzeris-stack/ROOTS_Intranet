@@ -59,6 +59,7 @@ type InvitePayload = {
   start_date?: string | null;
   weekly_hours?: number | null;
   urlaubstage?: number | null;
+  urlaubstage_jahr?: number | null;
   position?: string | null;
   hourly_rate?: number | null;
   reporting_line_id?: string | null;
@@ -136,6 +137,10 @@ Deno.serve(async (req) => {
   const last = (body.last_name || "").trim();
   const fullName = (body.full_name || [first, last].filter(Boolean).join(" ") || email.split("@")[0]).trim();
   const appRole = normalizeRole(body.app_role);
+  const annualVacationDays = Number(body.urlaubstage_jahr ?? body.urlaubstage ?? 30);
+  if (!Number.isInteger(annualVacationDays) || annualVacationDays < 0 || annualVacationDays > 365) {
+    return json({ error: "Der vertragliche Jahresurlaub muss eine ganze Zahl zwischen 0 und 365 sein." }, 400, c);
+  }
 
   const { data: listed } = await service.auth.admin.listUsers({ page: 1, perPage: 1000 });
   const existingAuth = listed?.users?.find((u) => (u.email || "").toLowerCase() === email);
@@ -166,7 +171,8 @@ Deno.serve(async (req) => {
     birthday: body.birthday || null,
     start_date: body.start_date || null,
     weekly_hours: body.weekly_hours ?? null,
-    urlaubstage: body.urlaubstage ?? 30,
+    urlaubstage: annualVacationDays,
+    urlaubstage_jahr: annualVacationDays,
     position: body.position || null,
     hourly_rate: body.hourly_rate ?? null,
     reporting_line_id: body.reporting_line_id || null,
@@ -180,7 +186,7 @@ Deno.serve(async (req) => {
   const { data: profile, error: upsertErr } = await usersDb
     .from("profiles")
     .upsert({ id: newUserId, ...profilePayload }, { onConflict: "id" })
-    .select("id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,app_role,app_settings,reporting_line_id,mentor_id")
+    .select("id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,urlaubstage_jahr,app_role,app_settings,reporting_line_id,mentor_id")
     .single();
   if (upsertErr) {
     console.error("[roots-admin-users] profile upsert", upsertErr.message);

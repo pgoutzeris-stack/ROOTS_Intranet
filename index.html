@@ -2809,7 +2809,7 @@ window.RootsAdminEmployee = {
         <div class="admin-form-grid">
           <div class="admin-field"><label for="aec-start-date">Einstiegsdatum</label><input class="modern-input" id="aec-start-date" type="date"></div>
           <div class="admin-field"><label for="aec-weekly-hours">Arbeitsstunden / Woche</label><input class="modern-input" id="aec-weekly-hours" type="number" min="0" step="0.5"></div>
-          <div class="admin-field"><label for="aec-urlaubstage">Vertraglicher Jahresurlaub</label><input class="modern-input" id="aec-urlaubstage" type="number" min="0" max="365" step="1" value="30">${this.hintHtml('Statischer Urlaubsanspruch pro Kalenderjahr. Resturlaub wird in der Urlaubsplanung berechnet.')}</div>
+          <div class="admin-field"><label for="aec-urlaubstage">Urlaubsanspruch</label><input class="modern-input" id="aec-urlaubstage" type="number" min="0" max="365" step="1" value="30"></div>
           <div class="admin-field"><label for="aec-position">Position / Rolle</label><select class="modern-select" id="aec-position">${this.positionOptions('')}</select></div>
           <div class="admin-field"><label for="aec-hourly-rate">Stundensatz (allgemein)</label><input class="modern-input" id="aec-hourly-rate" type="number" min="0" step="0.01" placeholder="€/h"></div>
           <div class="admin-field"><label for="aec-reporting">Reporting Line</label><select class="modern-select" id="aec-reporting">${this.reportingOptions(users, null, null)}</select></div>
@@ -2884,7 +2884,7 @@ window.RootsAdminEmployee = {
         <div class="admin-form-grid">
           <div class="admin-field"><label for="aec-start-date">Einstiegsdatum</label><input class="modern-input" id="aec-start-date" type="date" value="${this.fmtDateInput(u.start_date)}"></div>
           <div class="admin-field"><label for="aec-weekly-hours">Arbeitsstunden / Woche</label><input class="modern-input" id="aec-weekly-hours" type="number" min="0" step="0.5" value="${u.weekly_hours ?? ''}"></div>
-          <div class="admin-field"><label for="aec-urlaubstage">Vertraglicher Jahresurlaub</label><input class="modern-input" id="aec-urlaubstage" type="number" min="0" max="365" step="1" value="${u.urlaubstage_jahr ?? 30}">${this.hintHtml('Statischer Urlaubsanspruch pro Kalenderjahr. Genehmigungen verändern nur den Resturlaub im Urlaubsplanungstool.')}</div>
+          <div class="admin-field"><label for="aec-urlaubstage">Urlaubsanspruch</label><input class="modern-input" id="aec-urlaubstage" type="number" min="0" max="365" step="1" value="${u.urlaubstage_jahr ?? 30}"></div>
           <div class="admin-field"><label for="aec-position">Position / Rolle</label><select class="modern-select" id="aec-position">${this.positionOptions(u.position || '')}</select></div>
           <div class="admin-field"><label for="aec-hourly-rate">Stundensatz (allgemein)</label><input class="modern-input" id="aec-hourly-rate" type="number" min="0" step="0.01" value="${u.hourly_rate ?? ''}" placeholder="€/h"></div>
           <div class="admin-field"><label for="aec-reporting">Reporting Line</label><select class="modern-select" id="aec-reporting">${this.reportingOptions(users, u.reporting_line_id, u.id)}</select></div>

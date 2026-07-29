@@ -878,6 +878,12 @@
     .roots-notif-toast-body { min-width: 0; flex: 1; }
     .roots-notif-toast-title { font-size: .88rem; font-weight: 700; color: var(--ink); margin-bottom: .2rem; }
     .roots-notif-toast-msg { font-size: .8rem; color: var(--muted); line-height: 1.45; }
+    .roots-ui-toast { cursor: default; }
+    .roots-ui-toast--success { border-left-color: #16a34a; }
+    .roots-ui-toast--success .roots-notif-toast-icon { background: #ecfdf5; color: #15803d; }
+    .roots-ui-toast--error { border-left-color: #dc2626; }
+    .roots-ui-toast--error .roots-notif-toast-icon { background: #fef2f2; color: #dc2626; }
+    .roots-ui-toast--info { border-left-color: var(--brand); }
 
     @media (max-width: 900px) {
       .roots-notif-toast-stack {
@@ -2080,6 +2086,56 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+window.RootsUiToast = {
+  DURATION_MS: 4200,
+  _timer: null,
+
+  show(message, { title = 'Hinweis', tone = 'info' } = {}) {
+    const overlay = document.getElementById('roots-auth-overlay');
+    if (overlay && window.getComputedStyle(overlay).display !== 'none') return;
+    const stack = document.getElementById('roots-notif-toast-stack');
+    if (!stack) return;
+    if (this._timer) clearTimeout(this._timer);
+    window.RootsNotifications?.activeToastIds?.clear?.();
+    stack.replaceChildren();
+
+    const icons = {
+      success: 'fa-check',
+      error: 'fa-triangle-exclamation',
+      info: 'fa-circle-info',
+    };
+    const el = document.createElement('div');
+    el.className = `roots-notif-toast roots-ui-toast roots-ui-toast--${tone}`;
+    el.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+    el.innerHTML = `<span class="roots-notif-toast-icon"><i class="fa-solid ${icons[tone] || icons.info}"></i></span>
+      <span class="roots-notif-toast-body">
+        <div class="roots-notif-toast-title">${escapeHtml(title)}</div>
+        <div class="roots-notif-toast-msg">${escapeHtml(message)}</div>
+      </span>`;
+    stack.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('is-in'));
+    this._timer = setTimeout(() => {
+      this._timer = null;
+      if (!el.isConnected) return;
+      el.classList.remove('is-in');
+      el.classList.add('is-out');
+      setTimeout(() => el.remove(), 320);
+    }, this.DURATION_MS);
+  },
+
+  success(message, title = 'Gespeichert') {
+    this.show(message, { title, tone: 'success' });
+  },
+
+  error(message, title = 'Aktion fehlgeschlagen') {
+    this.show(message, { title, tone: 'error' });
+  },
+
+  info(message, title = 'Hinweis') {
+    this.show(message, { title, tone: 'info' });
+  },
+};
+
 window.RootsNotifications = {
   ORIGIN: 'https://pgoutzeris-stack.github.io',
   DASHBOARD_PREVIEW: 5,
@@ -2624,6 +2680,7 @@ window.IntranetAccess = {
     const dirty = users.filter(u => this.editsDirty(u.id, u));
     if (!dirty.length) {
       if (msg) { msg.style.color = 'var(--muted)'; msg.textContent = 'Keine Änderungen.'; }
+      window.RootsUiToast?.info('Es gibt keine ungespeicherten Änderungen.', 'Keine Änderungen');
       return;
     }
     if (btn) { btn.disabled = true; btn.textContent = 'Speichern…'; }
@@ -2655,6 +2712,14 @@ window.IntranetAccess = {
     if (msg) {
       if (errs) { msg.style.color = '#dc2626'; msg.textContent = `${errs} Fehler beim Speichern.`; }
       else { msg.style.color = '#10b981'; msg.textContent = `✓ ${saved} Nutzer gespeichert.`; }
+    }
+    if (errs) {
+      window.RootsUiToast?.error(
+        saved ? `${saved} Nutzer gespeichert, ${errs} Änderungen fehlgeschlagen.` : `${errs} Änderungen konnten nicht gespeichert werden.`,
+        saved ? 'Teilweise gespeichert' : 'Speichern fehlgeschlagen'
+      );
+    } else {
+      window.RootsUiToast?.success(`${saved} Nutzer erfolgreich gespeichert.`);
     }
     if (onDone) onDone();
   },
@@ -2698,15 +2763,26 @@ window.RootsAdminEmployee = {
           if (action !== 'reject') {
             await this.loadList(document.getElementById('roots-admin-user-list-page') ? 'roots-admin-user-list-page' : 'roots-admin-user-list');
           }
-        } catch (e) { alert(e.message || 'Aktion fehlgeschlagen'); btn.disabled = false; }
+          window.RootsUiToast?.success(
+            action === 'reject' ? 'Die Zugangsanfrage wurde abgelehnt.' : 'Der Zugang wurde freigegeben und die Einladung versendet.',
+            action === 'reject' ? 'Anfrage abgelehnt' : 'Zugang freigegeben'
+          );
+        } catch (e) {
+          window.RootsUiToast?.error(e.message || 'Die Aktion konnte nicht ausgeführt werden.');
+          btn.disabled = false;
+        }
       }));
     } catch (e) { list.innerHTML = `<div class="admin-state admin-state--error">${escapeHtml(e.message || 'Anfragen konnten nicht geladen werden.')}</div>`; }
   },
 
   async sendPasswordReset(email) {
     if (!email) return;
-    try { const data = await this.callAccess('send_password_reset', { email }); alert(data.message || 'Reset-Link wurde angefordert.'); }
-    catch (e) { alert(e.message || 'Passwort-Reset konnte nicht angefordert werden.'); }
+    try {
+      const data = await this.callAccess('send_password_reset', { email });
+      window.RootsUiToast?.success(data.message || 'Der Reset-Link wurde angefordert.', 'Passwort-Reset gesendet');
+    } catch (e) {
+      window.RootsUiToast?.error(e.message || 'Der Passwort-Reset konnte nicht angefordert werden.');
+    }
   },
 
   hintHtml(text, notice = false) {
@@ -2963,9 +3039,11 @@ window.RootsAdminEmployee = {
         if (wrap.querySelectorAll('.admin-client-rate-row').length <= 1) {
           row.querySelector('.aec-client-name').value = '';
           row.querySelector('.aec-client-rate').value = '';
+          window.RootsUiToast?.info('Der Kundensatz wurde geleert. Zum Übernehmen bitte speichern.', 'Änderung vorgemerkt');
           return;
         }
         row.remove();
+        window.RootsUiToast?.info('Der Kundensatz wurde entfernt. Zum Übernehmen bitte speichern.', 'Änderung vorgemerkt');
       };
     });
   },
@@ -3124,8 +3202,11 @@ window.RootsAdminEmployee = {
       await this.loadList('roots-admin-user-list-page');
       this.openEmployee(uid);
       setMsg('✓ Gespeichert', true);
+      window.RootsUiToast?.success(`${fullName || u.email || 'Der Mitarbeiter'} wurde erfolgreich gespeichert.`);
     } catch (e) {
-      setMsg('✗ ' + (e.message || 'Fehler beim Speichern'), false);
+      const message = e.message || 'Fehler beim Speichern';
+      setMsg('✗ ' + message, false);
+      window.RootsUiToast?.error(message, 'Speichern fehlgeschlagen');
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = orig || '<i class="fa-solid fa-floppy-disk"></i> Speichern'; }
     }
@@ -3176,15 +3257,19 @@ window.RootsAdminEmployee = {
     try {
       payload = this.collectFormPayload();
     } catch (e) {
-      setMsg('✗ ' + (e.message || 'Ungültige Eingabe.'), false);
+      const message = e.message || 'Ungültige Eingabe.';
+      setMsg('✗ ' + message, false);
+      window.RootsUiToast?.error(message, 'Eingabe prüfen');
       return;
     }
     if (!payload.first_name && !payload.last_name) {
       setMsg('✗ Vor- oder Nachname ist erforderlich.', false);
+      window.RootsUiToast?.error('Vor- oder Nachname ist erforderlich.', 'Eingabe prüfen');
       return;
     }
     if (!this.isRootsEmail(payload.email)) {
       setMsg('✗ E-Mail muss mit ' + window.ROOTS_EMPLOYEE_EMAIL_DOMAIN + ' enden.', false);
+      window.RootsUiToast?.error('Die E-Mail muss mit ' + window.ROOTS_EMPLOYEE_EMAIL_DOMAIN + ' enden.', 'Eingabe prüfen');
       return;
     }
     const orig = btn?.innerHTML;
@@ -3207,9 +3292,13 @@ window.RootsAdminEmployee = {
       } else {
         this.closeDetail();
       }
-      setMsg('✓ ' + (data?.message || 'Einladung versendet.'), true);
+      const message = data?.message || 'Einladung versendet.';
+      setMsg('✓ ' + message, true);
+      window.RootsUiToast?.success(message, 'Mitarbeiter angelegt');
     } catch (e) {
-      setMsg('✗ ' + (e.message || 'Anlegen fehlgeschlagen'), false);
+      const message = e.message || 'Anlegen fehlgeschlagen';
+      setMsg('✗ ' + message, false);
+      window.RootsUiToast?.error(message, 'Anlegen fehlgeschlagen');
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = orig || '<i class="fa-solid fa-paper-plane"></i> Anlegen & Einladung senden'; }
     }

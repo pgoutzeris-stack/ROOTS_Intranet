@@ -4517,6 +4517,8 @@ window.RootsAdmin = {
   let blockingSignOut=false;
   let sessionRecoveryTimer=null;
   let sessionRecoveryAttempt=0;
+  let authApplyRevision=0;
+  let authApplyQueue=Promise.resolve();
   const LOGIN_BTN_HTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
   const RESET_BTN_HTML='<i class="fa-solid fa-paper-plane"></i> Link senden';
   const REQUEST_BTN_HTML='<i class="fa-solid fa-paper-plane"></i> Anfrage senden';
@@ -4620,28 +4622,56 @@ window.RootsAdmin = {
       }
     },delay);
   }
-  async function applyAuthenticatedSession(session,{explicit=false}={}){
-    if(!session?.user?.id){showAuthOverlay();return false;}
-    if(explicit&&window.RootsUser){
-      window.RootsUser._explicitAuthTransition=true;
-      window.RootsUser._authBlocked=false;
-    }
-    await window.RootsUser?._loadAndMount(sb,session,{explicit});
-    const accepted=window.RootsUser?._uid===session.user.id;
-    if(accepted){
-      void requestPersistentEmbedStorage();
-      hideAuthOverlay();
-      resetLoginUi();
-      window.RootsNotifications?.start?.(session.user.id);
-    }else if(window.RootsUser?._lastAuthLoadRetryable===true){
-      showSessionRecovery();
-      scheduleSessionRecovery();
-    }else{
-      showAuthOverlay();
-      blockingSignOut=window.RootsUser?._authBlocked===true;
-      try{await sb.auth.signOut({scope:'local'});}catch(_){}
-    }
-    return accepted;
+  function applyAuthenticatedSession(requestedSession,{explicit=false}={}){
+    const revision=++authApplyRevision;
+    const explicitTransition=explicit||window.RootsUser?._explicitAuthTransition===true;
+    const run=async()=>{
+      if(revision!==authApplyRevision)return false;
+      let session=requestedSession;
+      if(!session?.user?.id){showAuthOverlay();return false;}
+
+      try{
+        const{data:{session:currentSession}}=await sb.auth.getSession();
+        if(revision!==authApplyRevision)return false;
+        if(currentSession?.user?.id&&currentSession.user.id!==session.user.id)return false;
+        if(currentSession?.user?.id===session.user.id&&currentSession.access_token){
+          session=currentSession;
+        }
+      }catch(_){}
+
+      if(revision!==authApplyRevision)return false;
+      if(explicitTransition&&window.RootsUser){
+        window.RootsUser._explicitAuthTransition=true;
+        window.RootsUser._authBlocked=false;
+      }
+      await window.RootsUser?._loadAndMount(sb,session,{explicit:explicitTransition});
+      if(revision!==authApplyRevision)return false;
+
+      const accepted=window.RootsUser?._uid===session.user.id;
+      if(accepted){
+        void requestPersistentEmbedStorage();
+        hideAuthOverlay();
+        resetLoginUi();
+        window.RootsNotifications?.start?.(session.user.id);
+      }else if(window.RootsUser?._lastAuthLoadRetryable===true){
+        showSessionRecovery();
+        scheduleSessionRecovery();
+      }else{
+        let currentSession=null;
+        try{
+          const result=await sb.auth.getSession();
+          currentSession=result.data.session;
+        }catch(_){}
+        if(revision!==authApplyRevision)return false;
+        if(currentSession?.access_token&&currentSession.access_token!==session.access_token)return false;
+        showAuthOverlay();
+        blockingSignOut=window.RootsUser?._authBlocked===true;
+        try{await sb.auth.signOut({scope:'local'});}catch(_){}
+      }
+      return accepted;
+    };
+    authApplyQueue=authApplyQueue.then(run,run);
+    return authApplyQueue;
   }
   showSessionRecovery();
   sb.auth.getSession().then(({data:{session}})=>{
@@ -4657,7 +4687,8 @@ window.RootsAdmin = {
       return;
     }
     if(session){
-      setTimeout(()=>void applyAuthenticatedSession(session),0);
+      const explicit=window.RootsUser?._explicitAuthTransition===true;
+      setTimeout(()=>void applyAuthenticatedSession(session,{explicit}),0);
     }
     else if(event==='SIGNED_OUT'){
       if(!completingPasswordRecovery)showAuthOverlay();

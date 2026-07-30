@@ -1779,7 +1779,6 @@
             fallbackTimer: null,
             hideTimer: null,
             pongTimer: null,
-            unloadRecoveryTimer: null,
             pingId: '',
             loadingStarted: 0,
             unloading: false,
@@ -1802,7 +1801,6 @@
           clearTimeout(entry.fallbackTimer);
           clearTimeout(entry.hideTimer);
           clearTimeout(entry.pongTimer);
-          clearTimeout(entry.unloadRecoveryTimer);
           entry.pingId = '';
           if (!options.preserveLifecycle) entry.supportsLifecycle = false;
           entry.loadingStarted = Date.now();
@@ -1825,16 +1823,11 @@
         recoverUnexpectedBlank(frame) {
           const entry = this.stateFor(frame);
           entry.unloading = false;
-          clearTimeout(entry.unloadRecoveryTimer);
-          if (!entry.panel?.classList.contains('is-active')) {
+          if (!entry.panel?.classList.contains('is-active') || !window.RootsUser?._uid) {
             this.markUsable(frame);
             return;
           }
           this.showLoading(frame, { preserveLifecycle: true });
-          delete frame.dataset.loaded;
-          delete frame.dataset.expectedUrl;
-          delete frame.dataset.identityUser;
-          delete frame.dataset.identityEpoch;
           setTimeout(() => {
             if (!entry.panel?.classList.contains('is-active')) return;
             window.intranetNavigateToView?.('dashboard', { historyMode: 'replace' });
@@ -1858,10 +1851,9 @@
             return;
           }
           if (entry.unloading && !intentional) {
-            clearTimeout(entry.unloadRecoveryTimer);
-            entry.unloadRecoveryTimer = setTimeout(() => {
-              if (entry.unloading) this.recoverUnexpectedBlank(frame);
-            }, 650);
+            entry.loadTimer = setTimeout(() => {
+              if (entry.unloading) this.showRecovery(frame);
+            }, 1200);
             return;
           }
           entry.unloading = false;
@@ -1885,7 +1877,6 @@
         ready(frame) {
           const entry = this.stateFor(frame);
           entry.unloading = false;
-          clearTimeout(entry.unloadRecoveryTimer);
           entry.supportsLifecycle = true;
           this.markUsable(frame);
           if (entry.panel?.classList.contains('is-active')) this.post(frame, { type: 'roots-tool-visible' });
@@ -1926,10 +1917,6 @@
             if (!entry.panel?.classList.contains('is-active') || frame.dataset.intentionalNavigation === '1') return;
             entry.unloading = true;
             this.showLoading(frame, { preserveLifecycle: true });
-            clearTimeout(entry.unloadRecoveryTimer);
-            entry.unloadRecoveryTimer = setTimeout(() => {
-              if (entry.unloading) this.recoverUnexpectedBlank(frame);
-            }, 900);
             return;
           }
           if (message.type === 'roots-tool-ready') {
@@ -2123,7 +2110,9 @@
         const iframe = document.getElementById('notes-iframe');
         if (!iframe) return;
         const ping = () => {
-          RootsToolLifecycle.post(iframe, { type: 'roots-notes-refresh' });
+          try {
+            iframe.contentWindow?.postMessage({ type: 'roots-notes-refresh' }, 'https://pgoutzeris-stack.github.io');
+          } catch (_) {}
         };
         if (iframe.contentWindow) ping();
         else iframe.addEventListener('load', ping, { once: true });
@@ -2661,12 +2650,10 @@ window.RootsNotifications = {
     if (iframe?.contentWindow) {
       this.activeToastIds.add(n.id);
       try {
-        const message = {
+        iframe.contentWindow.postMessage({
           type: 'roots-notification-toast',
           notification: this.toastPayload(n),
-        };
-        if (window.RootsToolLifecycle?.post) window.RootsToolLifecycle.post(iframe, message);
-        else iframe.contentWindow.postMessage(message, this.ORIGIN);
+        }, this.ORIGIN);
       } catch (_) {
         this.activeToastIds.delete(n.id);
       }
@@ -3779,7 +3766,7 @@ window.RootsUser = {
         return;
       }
 
-      let hintedUserId = session.user?.id || '';
+      const hintedUserId = session.user?.id || '';
       const previousUserId = this._uid;
       const explicitTransition = options.explicit === true || this._explicitAuthTransition;
       if (this._authBlocked && !explicitTransition) {
@@ -3792,28 +3779,10 @@ window.RootsUser = {
       }
       let verifiedUser = session.user;
       if (!previousUserId && !explicitTransition) {
-        let { data: verifiedData, error: verifiedError } = await sb.auth.getUser(session.access_token);
+        const { data: verifiedData, error: verifiedError } = await sb.auth.getUser(session.access_token);
         verifiedUser = verifiedData?.user;
-        let status = Number(verifiedError?.status) || 0;
-        if ((status === 401 || status === 403) && session.refresh_token) {
-          const { data: refreshedData, error: refreshError } = await sb.auth.refreshSession({
-            refresh_token: session.refresh_token,
-          });
-          const refreshedSession = refreshedData?.session || null;
-          if (!refreshError
-              && refreshedSession?.access_token
-              && refreshedSession.user?.id === hintedUserId) {
-            session = refreshedSession;
-            hintedUserId = refreshedSession.user.id;
-            ({ data: verifiedData, error: verifiedError } = await sb.auth.getUser(session.access_token));
-            verifiedUser = verifiedData?.user;
-            status = Number(verifiedError?.status) || 0;
-          } else {
-            verifiedError = refreshError || verifiedError;
-            status = Number(verifiedError?.status) || status;
-          }
-        }
         if (verifiedError || !verifiedUser || verifiedUser.id !== hintedUserId) {
+          const status = Number(verifiedError?.status) || 0;
           this._lastAuthLoadRetryable = !status || status === 429 || status >= 500;
           throw new Error('Die Anmeldung konnte nicht eindeutig bestätigt werden.');
         }
@@ -3948,7 +3917,7 @@ window.RootsUser = {
   },
 
   _broadcastAuthSignOut({ preserveBlock = false } = {}) {
-    document.querySelectorAll('iframe.tool-iframe:not([sandbox])').forEach((f) => {
+    document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
       try {
         f.contentWindow?.postMessage({
           type: 'roots-auth-sync',
@@ -3962,42 +3931,31 @@ window.RootsUser = {
     if (preserveBlock) this._authBlocked = true;
   },
 
-  async _sendAuthSessionToFrame(frame) {
-    const userId = this._uid;
-    const authEpoch = this._authEpoch;
-    if (!frame?.contentWindow || !userId || !authEpoch || frame.src === 'about:blank') return false;
-    if (String(frame.dataset.src || '').includes('authBroker=v1')) return false;
-    try {
-      const { data: { session }, error } = await this._sb.auth.getSession();
-      if (error || this._uid !== userId || this._authEpoch !== authEpoch) return false;
-      if (!session?.access_token || !session?.refresh_token || session.user?.id !== userId) return false;
-      frame.dataset.identityUser = userId;
-      frame.dataset.identityEpoch = String(authEpoch);
-      frame.contentWindow.postMessage({
-        type: 'roots-auth-sync',
-        userId,
-        authEpoch,
-        session: {
-          access_token: session.access_token,
-          refresh_token: session.refresh_token,
-          user: { id: userId, email: session.user.email || '' },
-        },
-      }, 'https://pgoutzeris-stack.github.io');
-      return true;
-    } catch (_) {
-      return false;
-    }
-  },
-
   _broadcastAuthSession() {
     const userId = this._uid;
     const authEpoch = this._authEpoch;
     if (!userId) return;
     const ping = async () => {
       if (this._uid !== userId || this._authEpoch !== authEpoch) return;
-      const frames = Array.from(document.querySelectorAll('iframe.tool-iframe'))
-        .filter(frame => frame.src !== 'about:blank');
-      await Promise.allSettled(frames.map(frame => this._sendAuthSessionToFrame(frame)));
+      const { data: { session } } = await this._sb.auth.getSession();
+      if (!session?.access_token || !session?.refresh_token || session.user?.id !== userId) return;
+      document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
+        if (f.src === 'about:blank') return;
+        try {
+          f.dataset.identityUser = userId;
+          f.dataset.identityEpoch = String(authEpoch);
+          f.contentWindow?.postMessage({
+            type: 'roots-auth-sync',
+            userId,
+            authEpoch,
+            session: {
+              access_token: session.access_token,
+              refresh_token: session.refresh_token,
+              user: { id: userId, email: session.user.email || '' },
+            },
+          }, 'https://pgoutzeris-stack.github.io');
+        } catch (_) {}
+      });
       this._broadcastProfile();
     };
     void ping();
@@ -4204,7 +4162,7 @@ window.RootsUser = {
     const profile = { ...this._p };
     const userId = this._uid;
     const authEpoch = this._authEpoch;
-    document.querySelectorAll('iframe.tool-iframe:not([sandbox])').forEach((f) => {
+    document.querySelectorAll('iframe').forEach((f) => {
       try {
         f.contentWindow?.postMessage({
           type: 'roots-profile-updated',
@@ -4456,7 +4414,7 @@ window.RootsAdmin = {
 };
 </script>
 
-<script src="roots-user-bridge.js?v=20260730-auth-handshake-v4"></script>
+<script src="roots-user-bridge.js?v=20260730-history-auth-v3"></script>
 
 <script>
 (function(){
@@ -4517,8 +4475,6 @@ window.RootsAdmin = {
   let blockingSignOut=false;
   let sessionRecoveryTimer=null;
   let sessionRecoveryAttempt=0;
-  let authApplyRevision=0;
-  let authApplyQueue=Promise.resolve();
   const LOGIN_BTN_HTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
   const RESET_BTN_HTML='<i class="fa-solid fa-paper-plane"></i> Link senden';
   const REQUEST_BTN_HTML='<i class="fa-solid fa-paper-plane"></i> Anfrage senden';
@@ -4622,56 +4578,28 @@ window.RootsAdmin = {
       }
     },delay);
   }
-  function applyAuthenticatedSession(requestedSession,{explicit=false}={}){
-    const revision=++authApplyRevision;
-    const explicitTransition=explicit||window.RootsUser?._explicitAuthTransition===true;
-    const run=async()=>{
-      if(revision!==authApplyRevision)return false;
-      let session=requestedSession;
-      if(!session?.user?.id){showAuthOverlay();return false;}
-
-      try{
-        const{data:{session:currentSession}}=await sb.auth.getSession();
-        if(revision!==authApplyRevision)return false;
-        if(currentSession?.user?.id&&currentSession.user.id!==session.user.id)return false;
-        if(currentSession?.user?.id===session.user.id&&currentSession.access_token){
-          session=currentSession;
-        }
-      }catch(_){}
-
-      if(revision!==authApplyRevision)return false;
-      if(explicitTransition&&window.RootsUser){
-        window.RootsUser._explicitAuthTransition=true;
-        window.RootsUser._authBlocked=false;
-      }
-      await window.RootsUser?._loadAndMount(sb,session,{explicit:explicitTransition});
-      if(revision!==authApplyRevision)return false;
-
-      const accepted=window.RootsUser?._uid===session.user.id;
-      if(accepted){
-        void requestPersistentEmbedStorage();
-        hideAuthOverlay();
-        resetLoginUi();
-        window.RootsNotifications?.start?.(session.user.id);
-      }else if(window.RootsUser?._lastAuthLoadRetryable===true){
-        showSessionRecovery();
-        scheduleSessionRecovery();
-      }else{
-        let currentSession=null;
-        try{
-          const result=await sb.auth.getSession();
-          currentSession=result.data.session;
-        }catch(_){}
-        if(revision!==authApplyRevision)return false;
-        if(currentSession?.access_token&&currentSession.access_token!==session.access_token)return false;
-        showAuthOverlay();
-        blockingSignOut=window.RootsUser?._authBlocked===true;
-        try{await sb.auth.signOut({scope:'local'});}catch(_){}
-      }
-      return accepted;
-    };
-    authApplyQueue=authApplyQueue.then(run,run);
-    return authApplyQueue;
+  async function applyAuthenticatedSession(session,{explicit=false}={}){
+    if(!session?.user?.id){showAuthOverlay();return false;}
+    if(explicit&&window.RootsUser){
+      window.RootsUser._explicitAuthTransition=true;
+      window.RootsUser._authBlocked=false;
+    }
+    await window.RootsUser?._loadAndMount(sb,session,{explicit});
+    const accepted=window.RootsUser?._uid===session.user.id;
+    if(accepted){
+      void requestPersistentEmbedStorage();
+      hideAuthOverlay();
+      resetLoginUi();
+      window.RootsNotifications?.start?.(session.user.id);
+    }else if(window.RootsUser?._lastAuthLoadRetryable===true){
+      showSessionRecovery();
+      scheduleSessionRecovery();
+    }else{
+      showAuthOverlay();
+      blockingSignOut=window.RootsUser?._authBlocked===true;
+      try{await sb.auth.signOut({scope:'local'});}catch(_){}
+    }
+    return accepted;
   }
   showSessionRecovery();
   sb.auth.getSession().then(({data:{session}})=>{
@@ -4687,8 +4615,7 @@ window.RootsAdmin = {
       return;
     }
     if(session){
-      const explicit=window.RootsUser?._explicitAuthTransition===true;
-      setTimeout(()=>void applyAuthenticatedSession(session,{explicit}),0);
+      setTimeout(()=>void applyAuthenticatedSession(session),0);
     }
     else if(event==='SIGNED_OUT'){
       if(!completingPasswordRecovery)showAuthOverlay();
@@ -5414,13 +5341,10 @@ window.addEventListener('message', (e) => {
   if (!isLifecycleMessage && !rootsIsActiveFrame(sourceFrame)) return;
   if (isLifecycleMessage) {
     window.RootsToolLifecycle?.receive(sourceFrame, e.data);
-    if (type === 'roots-tool-ready') {
-      void window.RootsUser?._sendAuthSessionToFrame?.(sourceFrame);
-    }
     return;
   }
   if (type === 'roots-auth-request') {
-    void window.RootsUser?._sendAuthSessionToFrame?.(sourceFrame);
+    window.RootsUser?._broadcastAuthSession?.();
     return;
   }
   if (type === 'roots-broker-request') {

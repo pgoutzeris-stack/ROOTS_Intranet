@@ -2123,9 +2123,7 @@
         const iframe = document.getElementById('notes-iframe');
         if (!iframe) return;
         const ping = () => {
-          try {
-            iframe.contentWindow?.postMessage({ type: 'roots-notes-refresh' }, 'https://pgoutzeris-stack.github.io');
-          } catch (_) {}
+          RootsToolLifecycle.post(iframe, { type: 'roots-notes-refresh' });
         };
         if (iframe.contentWindow) ping();
         else iframe.addEventListener('load', ping, { once: true });
@@ -2663,10 +2661,12 @@ window.RootsNotifications = {
     if (iframe?.contentWindow) {
       this.activeToastIds.add(n.id);
       try {
-        iframe.contentWindow.postMessage({
+        const message = {
           type: 'roots-notification-toast',
           notification: this.toastPayload(n),
-        }, this.ORIGIN);
+        };
+        if (window.RootsToolLifecycle?.post) window.RootsToolLifecycle.post(iframe, message);
+        else iframe.contentWindow.postMessage(message, this.ORIGIN);
       } catch (_) {
         this.activeToastIds.delete(n.id);
       }
@@ -3779,7 +3779,7 @@ window.RootsUser = {
         return;
       }
 
-      const hintedUserId = session.user?.id || '';
+      let hintedUserId = session.user?.id || '';
       const previousUserId = this._uid;
       const explicitTransition = options.explicit === true || this._explicitAuthTransition;
       if (this._authBlocked && !explicitTransition) {
@@ -3792,10 +3792,28 @@ window.RootsUser = {
       }
       let verifiedUser = session.user;
       if (!previousUserId && !explicitTransition) {
-        const { data: verifiedData, error: verifiedError } = await sb.auth.getUser(session.access_token);
+        let { data: verifiedData, error: verifiedError } = await sb.auth.getUser(session.access_token);
         verifiedUser = verifiedData?.user;
+        let status = Number(verifiedError?.status) || 0;
+        if ((status === 401 || status === 403) && session.refresh_token) {
+          const { data: refreshedData, error: refreshError } = await sb.auth.refreshSession({
+            refresh_token: session.refresh_token,
+          });
+          const refreshedSession = refreshedData?.session || null;
+          if (!refreshError
+              && refreshedSession?.access_token
+              && refreshedSession.user?.id === hintedUserId) {
+            session = refreshedSession;
+            hintedUserId = refreshedSession.user.id;
+            ({ data: verifiedData, error: verifiedError } = await sb.auth.getUser(session.access_token));
+            verifiedUser = verifiedData?.user;
+            status = Number(verifiedError?.status) || 0;
+          } else {
+            verifiedError = refreshError || verifiedError;
+            status = Number(verifiedError?.status) || status;
+          }
+        }
         if (verifiedError || !verifiedUser || verifiedUser.id !== hintedUserId) {
-          const status = Number(verifiedError?.status) || 0;
           this._lastAuthLoadRetryable = !status || status === 429 || status >= 500;
           throw new Error('Die Anmeldung konnte nicht eindeutig bestätigt werden.');
         }
@@ -3930,7 +3948,7 @@ window.RootsUser = {
   },
 
   _broadcastAuthSignOut({ preserveBlock = false } = {}) {
-    document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
+    document.querySelectorAll('iframe.tool-iframe:not([sandbox])').forEach((f) => {
       try {
         f.contentWindow?.postMessage({
           type: 'roots-auth-sync',
@@ -4186,7 +4204,7 @@ window.RootsUser = {
     const profile = { ...this._p };
     const userId = this._uid;
     const authEpoch = this._authEpoch;
-    document.querySelectorAll('iframe').forEach((f) => {
+    document.querySelectorAll('iframe.tool-iframe:not([sandbox])').forEach((f) => {
       try {
         f.contentWindow?.postMessage({
           type: 'roots-profile-updated',

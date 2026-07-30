@@ -144,7 +144,7 @@
 
   const SYNC_INTERVAL_MS = 20000;
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
-  const BRIDGE_VERSION = 'tokenless-broker-v3-20260730-history-auth';
+  const BRIDGE_VERSION = 'access-broker-v5-20260730';
   let lifecycleReadySent = false;
 
   function postLifecycle(type, detail = {}) {
@@ -1159,6 +1159,10 @@
   let _boundEpoch = 0;
   let _hadSession = false;
   let _syncInFlight = null;
+  let _syncResolve = null;
+  let _syncRequestTimer = null;
+  let _syncRequestId = '';
+  let _syncRequestAttempt = 0;
   let _authSerial = 0;
   const _brokerPending = new Map();
 
@@ -1195,28 +1199,72 @@
     return window.__rootsSupabaseClient || window.RootsUser?._sb || null;
   }
 
-  async function applyParentSession(message) {
-    const sb = getSupabaseClient();
-    if (!sb) return null;
+  function createRequestId() {
+    return globalThis.crypto?.randomUUID?.().replace(/-/g, '')
+      || (Date.now().toString(36) + Math.random().toString(36).slice(2));
+  }
+
+  function acknowledgeParentAuth(message) {
+    const requestId = typeof message.requestId === 'string' ? message.requestId.slice(0, 120) : '';
+    if (!requestId) return;
+    window.parent.postMessage({
+      type: 'roots-auth-ack',
+      requestId,
+      userId: _boundUserId,
+      authEpoch: _boundEpoch,
+    }, ORIGIN);
+  }
+
+  function finishAuthSync(message, session) {
+    clearTimeout(_syncRequestTimer);
+    _syncRequestTimer = null;
+    _syncRequestAttempt = 0;
+    acknowledgeParentAuth(message);
+    if (_syncResolve) _syncResolve(session || null);
+    _syncResolve = null;
+    _syncInFlight = null;
+    return session || null;
+  }
+
+  async function applyParentAccess(message) {
     const expectedUserId = typeof message.userId === 'string' ? message.userId : '';
     const authEpoch = Number(message.authEpoch) || 0;
-    const payload = message.session;
-    if (!expectedUserId || !authEpoch || !payload?.access_token || !payload?.refresh_token) {
+    const accessToken = message.accessToken || message.session?.access_token || '';
+    if (!expectedUserId || !authEpoch || !accessToken) {
       await applyAuthSignOut();
       return null;
     }
+    if (_boundEpoch && authEpoch < Number(_boundEpoch)) return null;
+    if (_boundEpoch && authEpoch === Number(_boundEpoch)
+        && _boundUserId && _boundUserId !== expectedUserId) return null;
     const serial = ++_authSerial;
-    const { data, error } = await sb.auth.setSession({
-      access_token: payload.access_token,
-      refresh_token: payload.refresh_token,
-    });
+    let session = null;
+    if (window.RootsEmbeddedAuth?.embedded) {
+      session = window.RootsEmbeddedAuth.applyParentAccess({
+        accessToken,
+        userId: expectedUserId,
+        email: message.email || message.session?.user?.email || '',
+        authEpoch,
+        expiresAt: message.expiresAt || message.session?.expires_at || 0,
+      });
+    } else {
+      const sb = getSupabaseClient();
+      const refreshToken = message.session?.refresh_token || '';
+      if (sb && refreshToken) {
+        const result = await sb.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (result.error) console.warn('RootsAuthBridge legacy setSession', result.error.message);
+        session = result.data?.session || null;
+      }
+    }
     if (serial !== _authSerial) return null;
-    if (error) {
-      console.warn('RootsAuthBridge applyParentSession', error.message);
+    if (!session) {
+      console.warn('RootsAuthBridge applyParentAccess: Token wurde nicht akzeptiert');
       await applyAuthSignOut();
       return null;
     }
-    const session = data?.session || null;
     if (session?.user?.id !== expectedUserId) {
       await applyAuthSignOut();
       return null;
@@ -1226,17 +1274,62 @@
     _boundEpoch = authEpoch;
     _hadSession = true;
     dispatchAuthReady(session);
-    return session;
+    return finishAuthSync(message, session);
   }
 
-  async function syncAuthFromParentStorage() {
-    if (TOKENLESS_EMBED) return null;
-    if (_syncInFlight) return _syncInFlight;
+  function applyParentIdentity(message) {
+    const expectedUserId = typeof message.userId === 'string' ? message.userId : '';
+    const expectedEpoch = Number(message.authEpoch) || 0;
+    if (!expectedUserId || !expectedEpoch) {
+      void applyAuthSignOut();
+      return null;
+    }
+    if (_boundEpoch && expectedEpoch < Number(_boundEpoch)) return null;
+    if (_boundEpoch && expectedEpoch === Number(_boundEpoch)
+        && _boundUserId && _boundUserId !== expectedUserId) return null;
+    const unchanged = _boundUserId === expectedUserId && Number(_boundEpoch) === expectedEpoch;
+    if (_boundUserId && !unchanged) dispatchAuthSignedOut();
+    _boundUserId = expectedUserId;
+    _boundEpoch = expectedEpoch;
+    _hadSession = true;
+    finishAuthSync(message, null);
+    if (unchanged) return null;
+    void brokerRequest('user-context').then((context) => {
+      if (context?.user?.id !== _boundUserId || Number(context?.authEpoch) !== Number(_boundEpoch)) {
+        throw new Error('Broker-Kontext gehört zu einer anderen Identität');
+      }
+      window.dispatchEvent(new CustomEvent('roots-broker-context-ready', { detail: context }));
+    }).catch(() => applyAuthSignOut());
+    return null;
+  }
+
+  function postAuthRequest() {
+    if (!IN_IFRAME) return;
+    window.parent.postMessage({
+      type: 'roots-auth-request',
+      protocol: TOKENLESS_EMBED || window.RootsEmbeddedAuth?.embedded ? 2 : 1,
+      requestId: _syncRequestId,
+      tokenless: TOKENLESS_EMBED,
+    }, ORIGIN);
+    const delay = Math.min(250 * Math.pow(2, Math.min(_syncRequestAttempt++, 5)), 8000);
+    clearTimeout(_syncRequestTimer);
+    _syncRequestTimer = setTimeout(postAuthRequest, delay);
+  }
+
+  function syncAuthFromParentStorage({ force = false } = {}) {
+    if (!IN_IFRAME) return Promise.resolve(null);
+    if (_hadSession && !force) {
+      return Promise.resolve(window.RootsEmbeddedAuth?.getSession?.() || null);
+    }
+    if (_syncInFlight) {
+      if (force) postAuthRequest();
+      return _syncInFlight;
+    }
+    _syncRequestId = createRequestId();
+    _syncRequestAttempt = 0;
     _syncInFlight = new Promise((resolve) => {
-      window.parent.postMessage({ type: 'roots-auth-request' }, ORIGIN);
-      setTimeout(() => resolve(null), 1000);
-    }).finally(() => {
-      _syncInFlight = null;
+      _syncResolve = resolve;
+      postAuthRequest();
     });
     return _syncInFlight;
   }
@@ -1246,13 +1339,12 @@
     _hadSession = false;
     _boundUserId = null;
     _boundEpoch = 0;
-    const sb = getSupabaseClient();
-    if (sb) {
-      try {
-        const { data: { session } } = await sb.auth.getSession();
-        if (session) await sb.auth.signOut({ scope: 'local' });
-      } catch (_) {}
-    }
+    clearTimeout(_syncRequestTimer);
+    _syncRequestTimer = null;
+    if (_syncResolve) _syncResolve(null);
+    _syncResolve = null;
+    _syncInFlight = null;
+    window.RootsEmbeddedAuth?.clear?.();
     if (window.RootsUser) {
       window.RootsUser._uid = null;
       window.RootsUser._p = null;
@@ -1275,6 +1367,7 @@
     }
     if (e.data.type === 'roots-tool-visible' || e.data.type === 'roots-tool-hidden') {
       dispatchLifecycleEvent(e.data.type);
+      if (e.data.type === 'roots-tool-visible') void syncAuthFromParentStorage({ force: true });
       return;
     }
     if (e.data.type === 'roots-broker-response') {
@@ -1311,40 +1404,29 @@
       if (e.data.signOut) {
         void applyAuthSignOut();
       } else if (TOKENLESS_EMBED) {
-        const expectedUserId = typeof e.data.userId === 'string' ? e.data.userId : '';
-        const expectedEpoch = Number(e.data.authEpoch) || 0;
-        if (!expectedUserId || !expectedEpoch) {
-          void applyAuthSignOut();
-          return;
-        }
-        if (_boundUserId && (_boundUserId !== expectedUserId || Number(_boundEpoch) !== expectedEpoch)) {
-          _boundUserId = null;
-          _boundEpoch = 0;
-          dispatchAuthSignedOut();
-        }
-        _boundUserId = expectedUserId;
-        _boundEpoch = expectedEpoch;
-        void brokerRequest('user-context').then((context) => {
-          if (context?.user?.id !== _boundUserId || Number(context?.authEpoch) !== Number(_boundEpoch)) {
-            throw new Error('Broker-Kontext gehört zu einer anderen Identität');
-          }
-          window.dispatchEvent(new CustomEvent('roots-broker-context-ready', { detail: context }));
-        }).catch(() => applyAuthSignOut());
+        applyParentIdentity(e.data);
       } else {
-        void applyParentSession(e.data);
+        void applyParentAccess(e.data);
       }
     }
     if (e.data?.type === 'roots-notes-refresh') {
-      void syncAuthFromParentStorage();
+      void syncAuthFromParentStorage({ force: true });
     }
   });
 
-  if (IN_IFRAME && !TOKENLESS_EMBED) {
+  if (IN_IFRAME) {
     const waitForClient = (n) => {
-      if (getSupabaseClient()) void syncAuthFromParentStorage();
+      if (TOKENLESS_EMBED || window.RootsEmbeddedAuth || getSupabaseClient()) {
+        void syncAuthFromParentStorage();
+      }
       else if (n < 120) setTimeout(() => waitForClient(n + 1), 50);
     };
     waitForClient(0);
+    window.addEventListener('pageshow', () => void syncAuthFromParentStorage({ force: true }));
+    window.addEventListener('roots-auth-reconnect', () => void syncAuthFromParentStorage({ force: true }));
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) void syncAuthFromParentStorage({ force: true });
+    });
   }
 
   function tryPatch() {

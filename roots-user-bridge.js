@@ -144,47 +144,7 @@
 
   const SYNC_INTERVAL_MS = 20000;
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
-  const BRIDGE_VERSION = 'access-broker-v5-20260730';
-  let lifecycleReadySent = false;
-
-  function postLifecycle(type, detail = {}) {
-    if (!IN_IFRAME) return;
-    try {
-      window.parent.postMessage({
-        type,
-        bridgeVersion: BRIDGE_VERSION,
-        ...detail,
-      }, ORIGIN);
-    } catch (_) {}
-  }
-
-  function announceLifecycleReady(force = false) {
-    if ((!force && lifecycleReadySent) || !IN_IFRAME) return;
-    lifecycleReadySent = true;
-    postLifecycle('roots-tool-ready');
-  }
-
-  function dispatchLifecycleEvent(type, detail = {}) {
-    try {
-      window.dispatchEvent(new CustomEvent(type, { detail }));
-    } catch (_) {}
-  }
-
-  function handleBeforeHide(requestId) {
-    const pending = [];
-    dispatchLifecycleEvent('roots-tool-before-hide', {
-      waitUntil(value) {
-        if (value && typeof value.then === 'function') pending.push(Promise.resolve(value));
-      },
-    });
-    const settled = pending.length ? Promise.allSettled(pending) : Promise.resolve();
-    Promise.race([
-      settled,
-      new Promise(resolve => setTimeout(resolve, 900)),
-    ]).finally(() => {
-      postLifecycle('roots-tool-hide-ready', { requestId });
-    });
-  }
+  const BRIDGE_VERSION = 'tokenless-broker-v1-20260522-hover';
 
   function escapeAttr(s) {
     return escapeHtml(s).replace(/"/g, '&quot;');
@@ -1159,10 +1119,6 @@
   let _boundEpoch = 0;
   let _hadSession = false;
   let _syncInFlight = null;
-  let _syncResolve = null;
-  let _syncRequestTimer = null;
-  let _syncRequestId = '';
-  let _syncRequestAttempt = 0;
   let _authSerial = 0;
   const _brokerPending = new Map();
 
@@ -1199,72 +1155,28 @@
     return window.__rootsSupabaseClient || window.RootsUser?._sb || null;
   }
 
-  function createRequestId() {
-    return globalThis.crypto?.randomUUID?.().replace(/-/g, '')
-      || (Date.now().toString(36) + Math.random().toString(36).slice(2));
-  }
-
-  function acknowledgeParentAuth(message) {
-    const requestId = typeof message.requestId === 'string' ? message.requestId.slice(0, 120) : '';
-    if (!requestId) return;
-    window.parent.postMessage({
-      type: 'roots-auth-ack',
-      requestId,
-      userId: _boundUserId,
-      authEpoch: _boundEpoch,
-    }, ORIGIN);
-  }
-
-  function finishAuthSync(message, session) {
-    clearTimeout(_syncRequestTimer);
-    _syncRequestTimer = null;
-    _syncRequestAttempt = 0;
-    acknowledgeParentAuth(message);
-    if (_syncResolve) _syncResolve(session || null);
-    _syncResolve = null;
-    _syncInFlight = null;
-    return session || null;
-  }
-
-  async function applyParentAccess(message) {
+  async function applyParentSession(message) {
+    const sb = getSupabaseClient();
+    if (!sb) return null;
     const expectedUserId = typeof message.userId === 'string' ? message.userId : '';
     const authEpoch = Number(message.authEpoch) || 0;
-    const accessToken = message.accessToken || message.session?.access_token || '';
-    if (!expectedUserId || !authEpoch || !accessToken) {
+    const payload = message.session;
+    if (!expectedUserId || !authEpoch || !payload?.access_token || !payload?.refresh_token) {
       await applyAuthSignOut();
       return null;
     }
-    if (_boundEpoch && authEpoch < Number(_boundEpoch)) return null;
-    if (_boundEpoch && authEpoch === Number(_boundEpoch)
-        && _boundUserId && _boundUserId !== expectedUserId) return null;
     const serial = ++_authSerial;
-    let session = null;
-    if (window.RootsEmbeddedAuth?.embedded) {
-      session = window.RootsEmbeddedAuth.applyParentAccess({
-        accessToken,
-        userId: expectedUserId,
-        email: message.email || message.session?.user?.email || '',
-        authEpoch,
-        expiresAt: message.expiresAt || message.session?.expires_at || 0,
-      });
-    } else {
-      const sb = getSupabaseClient();
-      const refreshToken = message.session?.refresh_token || '';
-      if (sb && refreshToken) {
-        const result = await sb.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (result.error) console.warn('RootsAuthBridge legacy setSession', result.error.message);
-        session = result.data?.session || null;
-      }
-    }
+    const { data, error } = await sb.auth.setSession({
+      access_token: payload.access_token,
+      refresh_token: payload.refresh_token,
+    });
     if (serial !== _authSerial) return null;
-    if (!session) {
-      console.warn('RootsAuthBridge applyParentAccess: Token wurde nicht akzeptiert');
+    if (error) {
+      console.warn('RootsAuthBridge applyParentSession', error.message);
       await applyAuthSignOut();
       return null;
     }
+    const session = data?.session || null;
     if (session?.user?.id !== expectedUserId) {
       await applyAuthSignOut();
       return null;
@@ -1274,62 +1186,17 @@
     _boundEpoch = authEpoch;
     _hadSession = true;
     dispatchAuthReady(session);
-    return finishAuthSync(message, session);
+    return session;
   }
 
-  function applyParentIdentity(message) {
-    const expectedUserId = typeof message.userId === 'string' ? message.userId : '';
-    const expectedEpoch = Number(message.authEpoch) || 0;
-    if (!expectedUserId || !expectedEpoch) {
-      void applyAuthSignOut();
-      return null;
-    }
-    if (_boundEpoch && expectedEpoch < Number(_boundEpoch)) return null;
-    if (_boundEpoch && expectedEpoch === Number(_boundEpoch)
-        && _boundUserId && _boundUserId !== expectedUserId) return null;
-    const unchanged = _boundUserId === expectedUserId && Number(_boundEpoch) === expectedEpoch;
-    if (_boundUserId && !unchanged) dispatchAuthSignedOut();
-    _boundUserId = expectedUserId;
-    _boundEpoch = expectedEpoch;
-    _hadSession = true;
-    finishAuthSync(message, null);
-    if (unchanged) return null;
-    void brokerRequest('user-context').then((context) => {
-      if (context?.user?.id !== _boundUserId || Number(context?.authEpoch) !== Number(_boundEpoch)) {
-        throw new Error('Broker-Kontext gehört zu einer anderen Identität');
-      }
-      window.dispatchEvent(new CustomEvent('roots-broker-context-ready', { detail: context }));
-    }).catch(() => applyAuthSignOut());
-    return null;
-  }
-
-  function postAuthRequest() {
-    if (!IN_IFRAME) return;
-    window.parent.postMessage({
-      type: 'roots-auth-request',
-      protocol: TOKENLESS_EMBED || window.RootsEmbeddedAuth?.embedded ? 2 : 1,
-      requestId: _syncRequestId,
-      tokenless: TOKENLESS_EMBED,
-    }, ORIGIN);
-    const delay = Math.min(250 * Math.pow(2, Math.min(_syncRequestAttempt++, 5)), 8000);
-    clearTimeout(_syncRequestTimer);
-    _syncRequestTimer = setTimeout(postAuthRequest, delay);
-  }
-
-  function syncAuthFromParentStorage({ force = false } = {}) {
-    if (!IN_IFRAME) return Promise.resolve(null);
-    if (_hadSession && !force) {
-      return Promise.resolve(window.RootsEmbeddedAuth?.getSession?.() || null);
-    }
-    if (_syncInFlight) {
-      if (force) postAuthRequest();
-      return _syncInFlight;
-    }
-    _syncRequestId = createRequestId();
-    _syncRequestAttempt = 0;
+  async function syncAuthFromParentStorage() {
+    if (TOKENLESS_EMBED) return null;
+    if (_syncInFlight) return _syncInFlight;
     _syncInFlight = new Promise((resolve) => {
-      _syncResolve = resolve;
-      postAuthRequest();
+      window.parent.postMessage({ type: 'roots-auth-request' }, ORIGIN);
+      setTimeout(() => resolve(null), 1000);
+    }).finally(() => {
+      _syncInFlight = null;
     });
     return _syncInFlight;
   }
@@ -1339,12 +1206,13 @@
     _hadSession = false;
     _boundUserId = null;
     _boundEpoch = 0;
-    clearTimeout(_syncRequestTimer);
-    _syncRequestTimer = null;
-    if (_syncResolve) _syncResolve(null);
-    _syncResolve = null;
-    _syncInFlight = null;
-    window.RootsEmbeddedAuth?.clear?.();
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) await sb.auth.signOut({ scope: 'local' });
+      } catch (_) {}
+    }
     if (window.RootsUser) {
       window.RootsUser._uid = null;
       window.RootsUser._p = null;
@@ -1355,21 +1223,6 @@
   window.addEventListener('message', (e) => {
     if (e.origin !== ORIGIN || e.source !== window.parent) return;
     if (!e.data || typeof e.data !== 'object' || Array.isArray(e.data)) return;
-    if (e.data.type === 'roots-tool-ping') {
-      postLifecycle('roots-tool-pong', {
-        requestId: typeof e.data.requestId === 'string' ? e.data.requestId.slice(0, 120) : '',
-      });
-      return;
-    }
-    if (e.data.type === 'roots-tool-before-hide') {
-      handleBeforeHide(typeof e.data.requestId === 'string' ? e.data.requestId.slice(0, 120) : '');
-      return;
-    }
-    if (e.data.type === 'roots-tool-visible' || e.data.type === 'roots-tool-hidden') {
-      dispatchLifecycleEvent(e.data.type);
-      if (e.data.type === 'roots-tool-visible') void syncAuthFromParentStorage({ force: true });
-      return;
-    }
     if (e.data.type === 'roots-broker-response') {
       const pending = _brokerPending.get(e.data.requestId);
       if (!pending) return;
@@ -1404,29 +1257,40 @@
       if (e.data.signOut) {
         void applyAuthSignOut();
       } else if (TOKENLESS_EMBED) {
-        applyParentIdentity(e.data);
+        const expectedUserId = typeof e.data.userId === 'string' ? e.data.userId : '';
+        const expectedEpoch = Number(e.data.authEpoch) || 0;
+        if (!expectedUserId || !expectedEpoch) {
+          void applyAuthSignOut();
+          return;
+        }
+        if (_boundUserId && (_boundUserId !== expectedUserId || Number(_boundEpoch) !== expectedEpoch)) {
+          _boundUserId = null;
+          _boundEpoch = 0;
+          dispatchAuthSignedOut();
+        }
+        _boundUserId = expectedUserId;
+        _boundEpoch = expectedEpoch;
+        void brokerRequest('user-context').then((context) => {
+          if (context?.user?.id !== _boundUserId || Number(context?.authEpoch) !== Number(_boundEpoch)) {
+            throw new Error('Broker-Kontext gehört zu einer anderen Identität');
+          }
+          window.dispatchEvent(new CustomEvent('roots-broker-context-ready', { detail: context }));
+        }).catch(() => applyAuthSignOut());
       } else {
-        void applyParentAccess(e.data);
+        void applyParentSession(e.data);
       }
     }
     if (e.data?.type === 'roots-notes-refresh') {
-      void syncAuthFromParentStorage({ force: true });
+      void syncAuthFromParentStorage();
     }
   });
 
-  if (IN_IFRAME) {
+  if (IN_IFRAME && !TOKENLESS_EMBED) {
     const waitForClient = (n) => {
-      if (TOKENLESS_EMBED || window.RootsEmbeddedAuth || getSupabaseClient()) {
-        void syncAuthFromParentStorage();
-      }
+      if (getSupabaseClient()) void syncAuthFromParentStorage();
       else if (n < 120) setTimeout(() => waitForClient(n + 1), 50);
     };
     waitForClient(0);
-    window.addEventListener('pageshow', () => void syncAuthFromParentStorage({ force: true }));
-    window.addEventListener('roots-auth-reconnect', () => void syncAuthFromParentStorage({ force: true }));
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) void syncAuthFromParentStorage({ force: true });
-    });
   }
 
   function tryPatch() {
@@ -1511,13 +1375,6 @@
    *   window.RootsUserBridge.downloadBlob(blob, 'MyFile.pdf');
    */
   function downloadBlob(blob, filename) {
-    // Safari keeps the user activation only for the synchronous click path.
-    // A regular web iframe is therefore safer downloading directly; Tauri
-    // continues to hand the bytes to its top-level WKWebView.
-    if (IN_IFRAME && !IN_TAURI) {
-      _directDownload(blob, filename);
-      return;
-    }
     if (IN_IFRAME && typeof blob.arrayBuffer === 'function') {
       blob.arrayBuffer().then(buf => {
         window.parent.postMessage(
@@ -1537,8 +1394,6 @@
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
-      a.rel = 'noopener';
-      a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
@@ -1565,18 +1420,6 @@
 
   DataSourceTracker.install();
   installLinkInterceptor();  // proxy external links to parent in WKWebView iframe
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => announceLifecycleReady(), { once: true });
-  } else {
-    queueMicrotask(announceLifecycleReady);
-  }
-  window.addEventListener('load', () => announceLifecycleReady(), { once: true });
-  window.addEventListener('pageshow', event => {
-    if (event.persisted) announceLifecycleReady(true);
-  });
-  window.addEventListener('pagehide', event => {
-    postLifecycle('roots-tool-unloading', { persisted: event.persisted === true });
-  });
 
   const bootSync = (n) => {
     if (window.RootsUser) patch(window.RootsUser);

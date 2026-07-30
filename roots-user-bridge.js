@@ -144,7 +144,7 @@
 
   const SYNC_INTERVAL_MS = 20000;
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
-  const BRIDGE_VERSION = 'tokenless-broker-v3-20260730-history-auth';
+  const BRIDGE_VERSION = 'tokenless-broker-v4-20260730-auth-handshake';
   let lifecycleReadySent = false;
 
   function postLifecycle(type, detail = {}) {
@@ -1159,6 +1159,10 @@
   let _boundEpoch = 0;
   let _hadSession = false;
   let _syncInFlight = null;
+  let _syncResolve = null;
+  let _syncRequestTimer = null;
+  let _sessionApplyInFlight = null;
+  let _queuedParentSession = null;
   let _authSerial = 0;
   const _brokerPending = new Map();
 
@@ -1195,6 +1199,14 @@
     return window.__rootsSupabaseClient || window.RootsUser?._sb || null;
   }
 
+  function finishAuthSync(session = null) {
+    clearTimeout(_syncRequestTimer);
+    _syncRequestTimer = null;
+    const resolve = _syncResolve;
+    _syncResolve = null;
+    if (resolve) resolve(session);
+  }
+
   async function applyParentSession(message) {
     const sb = getSupabaseClient();
     if (!sb) return null;
@@ -1202,10 +1214,18 @@
     const authEpoch = Number(message.authEpoch) || 0;
     const payload = message.session;
     if (!expectedUserId || !authEpoch || !payload?.access_token || !payload?.refresh_token) {
-      await applyAuthSignOut();
       return null;
     }
     const serial = ++_authSerial;
+    const current = await sb.auth.getSession().then(result => result.data?.session || null).catch(() => null);
+    if (current?.access_token === payload.access_token && current.user?.id === expectedUserId) {
+      _boundUserId = expectedUserId;
+      _boundEpoch = authEpoch;
+      _hadSession = true;
+      dispatchAuthReady(current);
+      finishAuthSync(current);
+      return current;
+    }
     const { data, error } = await sb.auth.setSession({
       access_token: payload.access_token,
       refresh_token: payload.refresh_token,
@@ -1213,7 +1233,6 @@
     if (serial !== _authSerial) return null;
     if (error) {
       console.warn('RootsAuthBridge applyParentSession', error.message);
-      await applyAuthSignOut();
       return null;
     }
     const session = data?.session || null;
@@ -1226,15 +1245,44 @@
     _boundEpoch = authEpoch;
     _hadSession = true;
     dispatchAuthReady(session);
+    finishAuthSync(session);
     return session;
+  }
+
+  function queueParentSession(message) {
+    _queuedParentSession = message;
+    if (_sessionApplyInFlight) return _sessionApplyInFlight;
+    _sessionApplyInFlight = (async () => {
+      let session = null;
+      while (_queuedParentSession) {
+        const next = _queuedParentSession;
+        _queuedParentSession = null;
+        session = await applyParentSession(next);
+      }
+      return session;
+    })().finally(() => {
+      _sessionApplyInFlight = null;
+      if (_queuedParentSession) void queueParentSession(_queuedParentSession);
+    });
+    return _sessionApplyInFlight;
   }
 
   async function syncAuthFromParentStorage() {
     if (TOKENLESS_EMBED) return null;
     if (_syncInFlight) return _syncInFlight;
     _syncInFlight = new Promise((resolve) => {
-      window.parent.postMessage({ type: 'roots-auth-request' }, ORIGIN);
-      setTimeout(() => resolve(null), 1000);
+      _syncResolve = resolve;
+      const startedAt = Date.now();
+      const request = () => {
+        if (!_syncResolve) return;
+        window.parent.postMessage({ type: 'roots-auth-request' }, ORIGIN);
+        if (Date.now() - startedAt >= 15000) {
+          finishAuthSync(null);
+          return;
+        }
+        _syncRequestTimer = setTimeout(request, Date.now() - startedAt < 2000 ? 350 : 1200);
+      };
+      request();
     }).finally(() => {
       _syncInFlight = null;
     });
@@ -1243,6 +1291,7 @@
 
   async function applyAuthSignOut() {
     ++_authSerial;
+    finishAuthSync(null);
     _hadSession = false;
     _boundUserId = null;
     _boundEpoch = 0;
@@ -1331,7 +1380,7 @@
           window.dispatchEvent(new CustomEvent('roots-broker-context-ready', { detail: context }));
         }).catch(() => applyAuthSignOut());
       } else {
-        void applyParentSession(e.data);
+        void queueParentSession(e.data);
       }
     }
     if (e.data?.type === 'roots-notes-refresh') {
@@ -1490,7 +1539,15 @@
   }
   window.addEventListener('load', () => announceLifecycleReady(), { once: true });
   window.addEventListener('pageshow', event => {
-    if (event.persisted) announceLifecycleReady(true);
+    if (event.persisted) {
+      announceLifecycleReady(true);
+      if (!TOKENLESS_EMBED) void syncAuthFromParentStorage();
+    }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && IN_IFRAME && !TOKENLESS_EMBED) {
+      void syncAuthFromParentStorage();
+    }
   });
   window.addEventListener('pagehide', event => {
     postLifecycle('roots-tool-unloading', { persisted: event.persisted === true });

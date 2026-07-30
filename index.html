@@ -1779,6 +1779,7 @@
             fallbackTimer: null,
             hideTimer: null,
             pongTimer: null,
+            unloadRecoveryTimer: null,
             pingId: '',
             loadingStarted: 0,
             unloading: false,
@@ -1801,6 +1802,7 @@
           clearTimeout(entry.fallbackTimer);
           clearTimeout(entry.hideTimer);
           clearTimeout(entry.pongTimer);
+          clearTimeout(entry.unloadRecoveryTimer);
           entry.pingId = '';
           if (!options.preserveLifecycle) entry.supportsLifecycle = false;
           entry.loadingStarted = Date.now();
@@ -1823,11 +1825,16 @@
         recoverUnexpectedBlank(frame) {
           const entry = this.stateFor(frame);
           entry.unloading = false;
-          if (!entry.panel?.classList.contains('is-active') || !window.RootsUser?._uid) {
+          clearTimeout(entry.unloadRecoveryTimer);
+          if (!entry.panel?.classList.contains('is-active')) {
             this.markUsable(frame);
             return;
           }
           this.showLoading(frame, { preserveLifecycle: true });
+          delete frame.dataset.loaded;
+          delete frame.dataset.expectedUrl;
+          delete frame.dataset.identityUser;
+          delete frame.dataset.identityEpoch;
           setTimeout(() => {
             if (!entry.panel?.classList.contains('is-active')) return;
             window.intranetNavigateToView?.('dashboard', { historyMode: 'replace' });
@@ -1851,9 +1858,10 @@
             return;
           }
           if (entry.unloading && !intentional) {
-            entry.loadTimer = setTimeout(() => {
-              if (entry.unloading) this.showRecovery(frame);
-            }, 1200);
+            clearTimeout(entry.unloadRecoveryTimer);
+            entry.unloadRecoveryTimer = setTimeout(() => {
+              if (entry.unloading) this.recoverUnexpectedBlank(frame);
+            }, 650);
             return;
           }
           entry.unloading = false;
@@ -1877,6 +1885,7 @@
         ready(frame) {
           const entry = this.stateFor(frame);
           entry.unloading = false;
+          clearTimeout(entry.unloadRecoveryTimer);
           entry.supportsLifecycle = true;
           this.markUsable(frame);
           if (entry.panel?.classList.contains('is-active')) this.post(frame, { type: 'roots-tool-visible' });
@@ -1917,6 +1926,10 @@
             if (!entry.panel?.classList.contains('is-active') || frame.dataset.intentionalNavigation === '1') return;
             entry.unloading = true;
             this.showLoading(frame, { preserveLifecycle: true });
+            clearTimeout(entry.unloadRecoveryTimer);
+            entry.unloadRecoveryTimer = setTimeout(() => {
+              if (entry.unloading) this.recoverUnexpectedBlank(frame);
+            }, 900);
             return;
           }
           if (message.type === 'roots-tool-ready') {
@@ -3931,31 +3944,42 @@ window.RootsUser = {
     if (preserveBlock) this._authBlocked = true;
   },
 
+  async _sendAuthSessionToFrame(frame) {
+    const userId = this._uid;
+    const authEpoch = this._authEpoch;
+    if (!frame?.contentWindow || !userId || !authEpoch || frame.src === 'about:blank') return false;
+    if (String(frame.dataset.src || '').includes('authBroker=v1')) return false;
+    try {
+      const { data: { session }, error } = await this._sb.auth.getSession();
+      if (error || this._uid !== userId || this._authEpoch !== authEpoch) return false;
+      if (!session?.access_token || !session?.refresh_token || session.user?.id !== userId) return false;
+      frame.dataset.identityUser = userId;
+      frame.dataset.identityEpoch = String(authEpoch);
+      frame.contentWindow.postMessage({
+        type: 'roots-auth-sync',
+        userId,
+        authEpoch,
+        session: {
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          user: { id: userId, email: session.user.email || '' },
+        },
+      }, 'https://pgoutzeris-stack.github.io');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
   _broadcastAuthSession() {
     const userId = this._uid;
     const authEpoch = this._authEpoch;
     if (!userId) return;
     const ping = async () => {
       if (this._uid !== userId || this._authEpoch !== authEpoch) return;
-      const { data: { session } } = await this._sb.auth.getSession();
-      if (!session?.access_token || !session?.refresh_token || session.user?.id !== userId) return;
-      document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
-        if (f.src === 'about:blank') return;
-        try {
-          f.dataset.identityUser = userId;
-          f.dataset.identityEpoch = String(authEpoch);
-          f.contentWindow?.postMessage({
-            type: 'roots-auth-sync',
-            userId,
-            authEpoch,
-            session: {
-              access_token: session.access_token,
-              refresh_token: session.refresh_token,
-              user: { id: userId, email: session.user.email || '' },
-            },
-          }, 'https://pgoutzeris-stack.github.io');
-        } catch (_) {}
-      });
+      const frames = Array.from(document.querySelectorAll('iframe.tool-iframe'))
+        .filter(frame => frame.src !== 'about:blank');
+      await Promise.allSettled(frames.map(frame => this._sendAuthSessionToFrame(frame)));
       this._broadcastProfile();
     };
     void ping();
@@ -4414,7 +4438,7 @@ window.RootsAdmin = {
 };
 </script>
 
-<script src="roots-user-bridge.js?v=20260730-history-auth-v3"></script>
+<script src="roots-user-bridge.js?v=20260730-auth-handshake-v4"></script>
 
 <script>
 (function(){
@@ -5341,10 +5365,13 @@ window.addEventListener('message', (e) => {
   if (!isLifecycleMessage && !rootsIsActiveFrame(sourceFrame)) return;
   if (isLifecycleMessage) {
     window.RootsToolLifecycle?.receive(sourceFrame, e.data);
+    if (type === 'roots-tool-ready') {
+      void window.RootsUser?._sendAuthSessionToFrame?.(sourceFrame);
+    }
     return;
   }
   if (type === 'roots-auth-request') {
-    window.RootsUser?._broadcastAuthSession?.();
+    void window.RootsUser?._sendAuthSessionToFrame?.(sourceFrame);
     return;
   }
   if (type === 'roots-broker-request') {

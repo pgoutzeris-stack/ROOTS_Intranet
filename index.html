@@ -4125,6 +4125,22 @@ window.RootsAdmin = {
   });
   document.getElementById('roots-login-form').addEventListener('submit',async(e)=>{
     e.preventDefault();
+  // Unterscheidet abgelehnte Zugangsdaten von einem Serverproblem. Ohne diese
+  // Trennung liest der Nutzer bei jedem Ausfall "falsches Passwort".
+  function rootsLoginErrorText(error){
+    if(!error) return 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.';
+    if(error.__timeout) return 'Der Server antwortet gerade nicht. Deine Zugangsdaten sind in Ordnung – bitte in einer Minute erneut versuchen.';
+    const status=Number(error.status||0);
+    const code=String(error.code||'');
+    const msg=String(error.message||'');
+    if(code==='invalid_credentials'||/invalid login credentials/i.test(msg)) return 'Ungültige E-Mail oder falsches Passwort.';
+    if(code==='email_not_confirmed'||/email not confirmed/i.test(msg)) return 'Diese E-Mail ist noch nicht bestätigt. Prüfe dein Postfach.';
+    if(status===429||code==='over_request_rate_limit') return 'Zu viele Anmeldeversuche. Bitte kurz warten und erneut versuchen.';
+    if(status>=500||status===0||/fetch|network|timeout|aborted/i.test(msg)) return 'Der Anmeldedienst ist gerade nicht erreichbar. Das liegt nicht an deinen Zugangsdaten – bitte in einer Minute erneut versuchen.';
+    if(status===403) return 'Deine Sitzung ist ungültig geworden. Bitte Seite neu laden und erneut anmelden.';
+    return `Anmeldung fehlgeschlagen (${status||code||'unbekannt'}). Bitte erneut versuchen.`;
+  }
+
     const email=document.getElementById('roots-email').value.trim();
     const pw=document.getElementById('roots-password').value;
     const btn=document.getElementById('roots-login-btn');
@@ -4134,10 +4150,17 @@ window.RootsAdmin = {
     btn.innerHTML='<i class="fa-solid fa-circle-notch roots-spin"></i> Anmelden...';
     errB.classList.remove('visible');
     if(window.RootsUser)window.RootsUser._explicitAuthTransition=true;
-    const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
+    // Am 3.8.2026 war die Datenbank so ausgelastet, dass die Anmeldung nach
+    // 13 Sekunden in eine Zeitueberschreitung lief - angezeigt wurde trotzdem
+    // "falsches Passwort", weil jeder Fehler auf dieselbe Meldung fiel. Der
+    // Nutzer sucht dann beim eigenen Passwort statt beim Server.
+    const {data,error}=await Promise.race([
+      sb.auth.signInWithPassword({email,password:pw}),
+      new Promise((resolve)=>setTimeout(()=>resolve({data:null,error:{__timeout:true}}),25000)),
+    ]);
     if(error){
       if(window.RootsUser)window.RootsUser._explicitAuthTransition=false;
-      errB.classList.add('visible');errT.textContent='Ungültige E-Mail oder falsches Passwort.';btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
+      errB.classList.add('visible');errT.textContent=rootsLoginErrorText(error);btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
     }
     else{
       resetLoginUi();

@@ -4135,6 +4135,38 @@ window.RootsAdmin = {
     e.preventDefault();
   // Unterscheidet abgelehnte Zugangsdaten von einem Serverproblem. Ohne diese
   // Trennung liest der Nutzer bei jedem Ausfall "falsches Passwort".
+  // Wenn die Anmeldung an einem technischen Problem scheitert, ist das Recruiting
+  // dennoch fuehrbar: die Notfallseite laeuft ohne Login, ohne Datenbank und ohne
+  // Netz, weil ihr Service Worker sie lokal vorhaelt. Bei falschen Zugangsdaten
+  // erscheint das Angebot nicht - dort waere es nur verwirrend.
+  const ROOTS_NOTBETRIEB_URL = 'https://pgoutzeris-stack.github.io/ROOTS_RecruitingApp/notfall.html';
+
+  function rootsIsTechnicalAuthError(error){
+    if(!error) return false;
+    if(error.__timeout) return true;
+    const status=Number(error.status||0);
+    const code=String(error.code||'');
+    const msg=String(error.message||'');
+    if(code==='invalid_credentials'||code==='email_not_confirmed') return false;
+    if(status===400||status===422) return false;
+    return status===0||status>=500||status===429||/fetch|network|timeout|abort|unavailable/i.test(msg);
+  }
+
+  function rootsOfferOfflineRecruiting(error){
+    if(!rootsIsTechnicalAuthError(error)) return;
+    if(document.getElementById('roots-notbetrieb-offer')) return;
+    const host=document.getElementById('roots-error-banner');
+    if(!host||!host.parentNode) return;
+    const box=document.createElement('div');
+    box.id='roots-notbetrieb-offer';
+    box.style.cssText='margin:.75rem 0 0;padding:.75rem .85rem;border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;font-size:.85rem;color:#92400e;line-height:1.5';
+    box.innerHTML='<b style="display:block;margin-bottom:.2rem">Gespräch trotzdem führen</b>'
+      +'Die Anmeldung ist gerade technisch nicht möglich. Du kannst ein Interview offline führen und am Ende als Markdown herunterladen.'
+      +'<div style="margin-top:.55rem"><a href="'+ROOTS_NOTBETRIEB_URL+'" target="_blank" rel="noopener" '
+      +'style="display:inline-block;padding:.4rem .8rem;background:#1d4ed8;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Notbetrieb öffnen</a></div>';
+    host.parentNode.insertBefore(box,host.nextSibling);
+  }
+
   function rootsLoginErrorText(error){
     if(!error) return 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.';
     if(error.__timeout) return 'Der Anmeldedienst antwortet nicht. Bitte in einer Minute erneut versuchen.';
@@ -4169,6 +4201,7 @@ window.RootsAdmin = {
     if(error){
       if(window.RootsUser)window.RootsUser._explicitAuthTransition=false;
       errB.classList.add('visible');errT.textContent=rootsLoginErrorText(error);btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
+      rootsOfferOfflineRecruiting(error);
     }
     else{
       resetLoginUi();

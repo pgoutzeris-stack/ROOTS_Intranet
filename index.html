@@ -2155,12 +2155,20 @@ window.RootsNotifications = {
     const type = String(n.type || '');
     const isUrlaub = type.startsWith('urlaub');
     const isOnboarding = type.startsWith('onboarding');
+    // Owner-Anfragen brauchen eine Entscheidung, nicht nur Kenntnisnahme -
+    // deshalb ein eigenes Symbol statt der allgemeinen Glocke.
+    const isOwnerRequest = type === 'interview_owner_request';
+    const isOwnerResult = type === 'interview_owner_request_result' || type === 'interview_owner';
     return {
       isUrlaub,
       isOnboarding,
       runde: isUrlaub ? 'Urlaubsplanung' : isOnboarding ? 'Onboarding' : (n.runde === 'zweit' ? 'Zweitgespräch' : 'Erstgespräch'),
       date: n.created_at ? new Date(n.created_at).toLocaleString('de-DE') : '',
-      icon: isUrlaub ? 'fa-umbrella-beach' : isOnboarding ? 'fa-list-check' : 'fa-bell',
+      icon: isUrlaub ? 'fa-umbrella-beach'
+        : isOnboarding ? 'fa-list-check'
+        : isOwnerRequest ? 'fa-hand'
+        : isOwnerResult ? 'fa-user-check'
+        : 'fa-bell',
     };
   },
 

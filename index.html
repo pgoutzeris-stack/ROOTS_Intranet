@@ -4129,14 +4129,14 @@ window.RootsAdmin = {
   // Trennung liest der Nutzer bei jedem Ausfall "falsches Passwort".
   function rootsLoginErrorText(error){
     if(!error) return 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.';
-    if(error.__timeout) return 'Der Server antwortet gerade nicht. Deine Zugangsdaten sind in Ordnung – bitte in einer Minute erneut versuchen.';
+    if(error.__timeout) return 'Der Anmeldedienst antwortet nicht. Bitte in einer Minute erneut versuchen.';
     const status=Number(error.status||0);
     const code=String(error.code||'');
     const msg=String(error.message||'');
     if(code==='invalid_credentials'||/invalid login credentials/i.test(msg)) return 'Ungültige E-Mail oder falsches Passwort.';
     if(code==='email_not_confirmed'||/email not confirmed/i.test(msg)) return 'Diese E-Mail ist noch nicht bestätigt. Prüfe dein Postfach.';
     if(status===429||code==='over_request_rate_limit') return 'Zu viele Anmeldeversuche. Bitte kurz warten und erneut versuchen.';
-    if(status>=500||status===0||/fetch|network|timeout|aborted/i.test(msg)) return 'Der Anmeldedienst ist gerade nicht erreichbar. Das liegt nicht an deinen Zugangsdaten – bitte in einer Minute erneut versuchen.';
+    if(status>=500||status===0||/fetch|network|timeout|aborted/i.test(msg)) return 'Der Anmeldedienst ist nicht erreichbar. Bitte in einer Minute erneut versuchen.';
     if(status===403) return 'Deine Sitzung ist ungültig geworden. Bitte Seite neu laden und erneut anmelden.';
     return `Anmeldung fehlgeschlagen (${status||code||'unbekannt'}). Bitte erneut versuchen.`;
   }

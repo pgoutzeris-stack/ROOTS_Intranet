@@ -2286,6 +2286,10 @@ window.RootsNotifications = {
       if (window.intranetNavigateToView) window.intranetNavigateToView('onboarding');
       return;
     }
+    if (type.startsWith('signal_layer')) {
+      if (window.intranetNavigateToView) window.intranetNavigateToView('signal-layer');
+      return;
+    }
     const recNav = document.querySelector('.nav-item[data-view="recruiting"]');
     if (recNav) recNav.click();
     else if (window.intranetNavigateToView) window.intranetNavigateToView('recruiting');

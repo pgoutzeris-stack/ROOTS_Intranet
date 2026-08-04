@@ -3318,6 +3318,8 @@ window.RootsUser = {
   _p: null, _sb: null, _uid: null,
   _authEpoch: Date.now(),
   _loadGeneration: 0,
+  _loadPromise: null,
+  _loadKey: '',
   _profileRealtimeChannel: null,
   _explicitAuthTransition: false,
   _authBlocked: false,
@@ -3338,7 +3340,34 @@ window.RootsUser = {
   _previewAvatar(url) { return this._avatarSpan(url || (this._p && this._p.avatar_url), this._p && this._p.full_name, 60); },
 
   async _loadAndMount(sb, sessionHint, options) {
-    return this._doLoadAndMount(sb, sessionHint, options);
+    const hintedUserId = sessionHint?.user?.id || '';
+    const accessToken = sessionHint?.access_token || '';
+    const explicit = options?.explicit === true;
+    const key = `${hintedUserId}:${accessToken}:${explicit ? 'explicit' : 'passive'}`;
+
+    // getSession() and INITIAL_SESSION commonly arrive together. Reusing the
+    // same promise prevents both paths from validating the same JWT and loading
+    // the same profile in parallel.
+    if (this._loadPromise && this._loadKey === key) return this._loadPromise;
+
+    // A later duplicate notification for the already mounted identity only
+    // needs to refresh the iframe hand-off. It must not repeat /auth/v1/user.
+    if (!explicit && hintedUserId && this._uid === hintedUserId && this._p) {
+      this._broadcastAuthSession();
+      return;
+    }
+
+    this._loadKey = key;
+    const task = this._doLoadAndMount(sb, sessionHint, options);
+    this._loadPromise = task;
+    try {
+      return await task;
+    } finally {
+      if (this._loadPromise === task) {
+        this._loadPromise = null;
+        this._loadKey = '';
+      }
+    }
   },
 
   async _doLoadAndMount(sb, sessionHint, options = {}) {
@@ -3999,7 +4028,7 @@ window.RootsAdmin = {
 };
 </script>
 
-<script src="roots-user-bridge.js?v=20260728-identity-guard-v1"></script>
+<script src="roots-user-bridge.js?v=20260804-auth-dedupe-v1"></script>
 
 <script>
 (function(){

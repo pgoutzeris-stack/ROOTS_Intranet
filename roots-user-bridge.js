@@ -1165,6 +1165,19 @@
       await applyAuthSignOut();
       return null;
     }
+
+    // The parent deliberately repeats the hand-off while an iframe starts.
+    // setSession() validates remotely, so processing every identical repeat
+    // creates an auth storm across all loaded tools. Once this exact identity
+    // epoch and token are installed, acknowledge it locally instead.
+    if (_boundUserId === expectedUserId && Number(_boundEpoch) === authEpoch) {
+      const { data: { session: current } } = await sb.auth.getSession();
+      if (current?.user?.id === expectedUserId && current.access_token === payload.access_token) {
+        _hadSession = true;
+        dispatchAuthReady(current);
+        return current;
+      }
+    }
     const serial = ++_authSerial;
     const { data, error } = await sb.auth.setSession({
       access_token: payload.access_token,

@@ -1690,11 +1690,17 @@
         const syncAuth = () => window.RootsUser?._broadcastAuthSession?.();
         if (!iframe.dataset.loaded) {
           iframe.dataset.loaded = '1';
+          iframe.dataset.bridgeReady = '0';
           iframe.dataset.identityUser = identityUser;
           iframe.dataset.identityEpoch = String(identityEpoch);
-          iframe.addEventListener('load', syncAuth, { once: true });
+          iframe.addEventListener('load', () => {
+            // Erst nach dem echten Tool-Load besitzt das Ziel seine GitHub-
+            // Pages-Origin. Das vorherige about:blank-Fenster hat Origin null.
+            iframe.dataset.bridgeReady = '1';
+            syncAuth();
+          }, { once: true });
           iframe.src = url;
-        } else {
+        } else if (iframe.dataset.bridgeReady === '1') {
           syncAuth();
         }
       }
@@ -2527,6 +2533,7 @@ window.IntranetAccess = {
       if (!frame) return;
       frame.src = 'about:blank';
       delete frame.dataset.loaded;
+      delete frame.dataset.bridgeReady;
       delete frame.dataset.identityEpoch;
       delete frame.dataset.identityUser;
     });
@@ -3514,6 +3521,7 @@ window.RootsUser = {
     document.querySelectorAll('iframe.tool-iframe').forEach((frame) => {
       frame.src = 'about:blank';
       delete frame.dataset.loaded;
+      delete frame.dataset.bridgeReady;
       delete frame.dataset.identityEpoch;
       delete frame.dataset.identityUser;
     });
@@ -3531,7 +3539,7 @@ window.RootsUser = {
   },
 
   _broadcastAuthSignOut({ preserveBlock = false } = {}) {
-    document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
+    document.querySelectorAll('iframe.tool-iframe[data-bridge-ready="1"]').forEach((f) => {
       try {
         f.contentWindow?.postMessage({
           type: 'roots-auth-sync',
@@ -3553,8 +3561,7 @@ window.RootsUser = {
       if (this._uid !== userId || this._authEpoch !== authEpoch) return;
       const { data: { session } } = await this._sb.auth.getSession();
       if (!session?.access_token || !session?.refresh_token || session.user?.id !== userId) return;
-      document.querySelectorAll('iframe.tool-iframe').forEach((f) => {
-        if (f.src === 'about:blank') return;
+      document.querySelectorAll('iframe.tool-iframe[data-bridge-ready="1"]').forEach((f) => {
         try {
           f.dataset.identityUser = userId;
           f.dataset.identityEpoch = String(authEpoch);
@@ -3776,7 +3783,7 @@ window.RootsUser = {
     const profile = { ...this._p };
     const userId = this._uid;
     const authEpoch = this._authEpoch;
-    document.querySelectorAll('iframe').forEach((f) => {
+    document.querySelectorAll('iframe.tool-iframe[data-bridge-ready="1"]').forEach((f) => {
       try {
         f.contentWindow?.postMessage({
           type: 'roots-profile-updated',

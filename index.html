@@ -1488,7 +1488,7 @@
           id="signal-layer-iframe"
           class="tool-iframe"
           title="Signal Layer"
-          data-src="https://pgoutzeris-stack.github.io/Signal-Layer/?v=20260821-0010"
+          data-src="https://pgoutzeris-stack.github.io/Signal-Layer/?v=20260821-0020"
           referrerpolicy="no-referrer"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
@@ -4375,12 +4375,80 @@ function rootsSafeExternalUrl(value) {
   }
   let parsed;
   try { parsed = new URL(value); } catch (_) { return null; }
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
+  // http bleibt erlaubt: viele Artikel im Signal-Layer-Bestand stammen von
+  // Seiten ohne TLS. Nur https zuzulassen hiess, dass ihre Originalquelle
+  // kommentarlos nicht aufging.
+  if ((parsed.protocol !== 'https:' && parsed.protocol !== 'http:') || parsed.username || parsed.password) return null;
   const host = parsed.hostname.toLowerCase();
   if (!host || host === 'localhost' || host.endsWith('.local') || host.endsWith('.internal')) return null;
   if (/^(127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)) return null;
   if (host === '::1' || host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) return null;
   return parsed.href;
+}
+
+/** Die Tauri-Bruecke, egal unter welchem Namen die Huelle sie bereitstellt. */
+function rootsTauriInvoker() {
+  const internals = window.__TAURI_INTERNALS__;
+  if (internals && typeof internals.invoke === 'function') return internals.invoke.bind(internals);
+  const global = window.__TAURI__;
+  if (global && global.core && typeof global.core.invoke === 'function') return global.core.invoke.bind(global.core);
+  if (global && typeof global.invoke === 'function') return global.invoke.bind(global);
+  return null;
+}
+
+/**
+ * Externen Link oeffnen und ehrlich melden, ob es geklappt hat. In der
+ * Tauri-App uebernimmt das Betriebssystem, im Browser ein neues Fenster.
+ * Faellt beides aus, bleibt der Klick nicht stumm, sondern der Frame erfaehrt
+ * es und kann den Link in die Zwischenablage legen.
+ */
+async function rootsOpenExternal(url) {
+  const direkt = window.__TAURI__ && window.__TAURI__.opener && window.__TAURI__.opener.openUrl;
+  if (typeof direkt === 'function') {
+    try { await direkt(url); return true; } catch (_) { /* weiter mit invoke */ }
+  }
+  const invoke = rootsTauriInvoker();
+  if (invoke) {
+    const versuche = [
+      ['plugin:opener|open_url', { url }],
+      ['plugin:shell|open', { path: url }],
+      ['plugin:opener|open_url', { path: url }],
+    ];
+    for (const [befehl, argumente] of versuche) {
+      try { await invoke(befehl, argumente); return true; } catch (_) { /* naechste Variante */ }
+    }
+  }
+  try {
+    const fenster = window.open(url, '_blank', 'noopener,noreferrer');
+    if (fenster) return true;
+  } catch (_) { /* Popup-Blocker */ }
+  try {
+    const anker = document.createElement('a');
+    anker.href = url;
+    anker.target = '_blank';
+    anker.rel = 'noopener noreferrer';
+    anker.style.display = 'none';
+    document.body.appendChild(anker);
+    anker.click();
+    setTimeout(() => anker.remove(), 0);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Antwort an den Tool-Frame, der den Link geschickt hat. Sandbox-Frames ohne
+ * allow-same-origin melden sich als "null" und koennen nur ueber "*"
+ * angesprochen werden; die Antwort traegt nichts Vertrauliches.
+ */
+function rootsReplyOpenUrl(frame, url, ok, frameOrigin) {
+  try {
+    frame?.contentWindow?.postMessage(
+      { type: 'roots-open-url-result', url: typeof url === 'string' ? url : '', ok: Boolean(ok) },
+      frameOrigin === 'null' ? '*' : ROOTS_TOOL_ORIGIN,
+    );
+  } catch (_) { /* Frame ist weg */ }
 }
 
 function rootsSafeFilename(value) {
@@ -4975,20 +5043,12 @@ window.addEventListener('message', (e) => {
 
   if (type === 'roots-open-url') {
     const url = rootsSafeExternalUrl(e.data.url);
-    if (!url) return;
-    const T = window.__TAURI_INTERNALS__;
-    const openInBrowser = () => {
-      try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (_) {}
-    };
-    if (T && typeof T.invoke === 'function') {
-      Promise.resolve()
-        .then(() => T.invoke('plugin:opener|open_url', { url }))
-        .catch(() => T.invoke('plugin:shell|open', { path: url }))
-        .catch(() => T.invoke('plugin:opener|open_url', { path: url }))
-        .catch(() => openInBrowser());
-    } else {
-      openInBrowser();
-    }
+    // Der Frame bekommt in jedem Fall eine Antwort. Ohne sie kann er nicht
+    // erkennen, dass hier nichts passiert ist, und der Nutzer steht vor einem
+    // Knopf ohne Wirkung.
+    const antwort = (ok) => rootsReplyOpenUrl(sourceFrame, e.data.url, ok, e.origin);
+    if (!url) { antwort(false); return; }
+    void rootsOpenExternal(url).then(antwort);
     return;
   }
 

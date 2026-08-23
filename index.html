@@ -941,10 +941,10 @@
     .roots-btn-primary{display:flex;align-items:center;justify-content:center;gap:.5rem;width:100%;padding:.8rem 1.6rem;background:#206efb;color:#fff;border:none;border-radius:999px;font-family:inherit;font-size:1rem;font-weight:500;cursor:pointer;box-shadow:0 6px 20px rgba(15,23,42,.08);transition:all .3s;margin-top:.25rem}
     .roots-btn-primary:hover{background:#165fd9;transform:translateY(-2px)}
     .roots-btn-primary:disabled{background:#cbd5e1;color:#64748b;box-shadow:none;transform:none;cursor:not-allowed}
-    .roots-alert{border-radius:8px;padding:.85rem 1rem;font-size:.9rem;display:none;align-items:flex-start;gap:.6rem;margin-bottom:1.25rem}
+    .roots-alert{border-radius:999px;padding:.6rem 1rem;font-size:.86rem;font-weight:600;display:none;align-items:center;gap:.55rem;margin-bottom:1.25rem;border:1px solid var(--line,#e2e8f0);background:#fff}
     .roots-alert.visible{display:flex}
-    .roots-alert-error{background:#f8fafc;border-left:4px solid #0f172a;color:#0f172a}
-    .roots-alert-success{background:#eff6ff;border-left:4px solid #206efb;color:#165fd9}
+    .roots-alert-error{background:#fef2f2;border-color:#fecaca;color:#dc2626}
+    .roots-alert-success{background:#eff6ff;border-color:#c7dbff;color:#165fd9}
     .roots-card-footer{margin-top:1.75rem;text-align:center;font-size:.85rem;color:var(--muted,#475569)}
     @keyframes roots-spin{to{transform:rotate(360deg)}}
     .roots-spin{animation:roots-spin .8s linear infinite}
@@ -4199,11 +4199,14 @@ window.RootsAdmin = {
     if(!host||!host.parentNode) return;
     const box=document.createElement('div');
     box.id='roots-notbetrieb-offer';
-    box.style.cssText='margin:.75rem 0 0;padding:.75rem .85rem;border:1px solid #fcd34d;background:#fffbeb;border-radius:10px;font-size:.85rem;color:#92400e;line-height:1.5';
-    box.innerHTML='<b style="display:block;margin-bottom:.2rem">Gespräch trotzdem führen</b>'
-      +'Die Anmeldung ist gerade technisch nicht möglich. Du kannst ein Interview offline führen und am Ende als Markdown herunterladen.'
-      +'<div style="margin-top:.55rem"><a href="'+ROOTS_NOTBETRIEB_URL+'" target="_blank" rel="noopener" '
-      +'style="display:inline-block;padding:.4rem .8rem;background:#1d4ed8;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Notbetrieb öffnen</a></div>';
+    box.style.cssText='margin:.75rem 0 0;font-size:.85rem;color:var(--muted,#475569);line-height:1.5';
+    // Nur die Liste der erreichbaren Werkzeuge: die Fehlermeldung steht schon
+    // in der Pille darueber, ein zweites Mal erklaert sie niemandem etwas.
+    box.innerHTML='Folgende Tools sind per Notbetrieb erreichbar:'
+      +'<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:.4rem"><a href="'+ROOTS_NOTBETRIEB_URL+'" target="_blank" rel="noopener" '
+      +'style="display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .9rem;border:1px solid var(--line,#e2e8f0);'
+      +'background:#fff;color:#0f172a;border-radius:999px;text-decoration:none;font-weight:600;font-size:.82rem">'
+      +'<i class="fa-solid fa-user-check"></i>Recruiting Tool öffnen</a></div>';
     host.parentNode.insertBefore(box,host.nextSibling);
   }
 

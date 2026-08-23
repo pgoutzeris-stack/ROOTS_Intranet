@@ -4181,6 +4181,58 @@ window.RootsAdmin = {
   // erscheint das Angebot nicht - dort waere es nur verwirrend.
   const ROOTS_NOTBETRIEB_URL = 'https://pgoutzeris-stack.github.io/ROOTS_RecruitingApp/notfall.html';
 
+  /**
+   * Warum die Anmeldung nicht durchkam. Ohne diese Trennung heisst jeder
+   * haengende Aufruf "Dienst antwortet nicht" - auch dann, wenn der Dienst
+   * antwortet und nur der Weg dorthin blockiert ist.
+   *
+   * Gemessen wird der schnellste Endpunkt des Anmeldedienstes. Antwortet er,
+   * liegt es nicht am Dienst; haengt auch er, blockiert etwas die Strecke.
+   */
+  async function rootsAuthDiagnose(){
+    const befund={ online: navigator.onLine !== false, healthMs: null, healthStatus: 0, serviceWorker: false };
+    try{
+      befund.serviceWorker = Boolean(navigator.serviceWorker && navigator.serviceWorker.controller);
+    }catch(_){ /* ohne Service-Worker-API bleibt es false */ }
+    if(!befund.online) return befund;
+    const start=Date.now();
+    try{
+      const ctrl=new AbortController();
+      const stop=setTimeout(()=>ctrl.abort(),4000);
+      const res=await fetch(SB_URL+'/auth/v1/health',{ method:'GET', cache:'no-store', signal:ctrl.signal });
+      clearTimeout(stop);
+      befund.healthStatus=res.status;
+      befund.healthMs=Date.now()-start;
+    }catch(_){
+      befund.healthMs=Date.now()-start;
+    }
+    return befund;
+  }
+
+  /** Ein Satz zur Ursache und ein Satz zum naechsten Schritt. */
+  function rootsDiagnoseText(befund){
+    if(!befund) return { grund:'Die Anmeldung kam nicht durch.', schritt:'Bitte erneut versuchen.' };
+    if(!befund.online){
+      return { grund:'Dein Gerät ist offline.', schritt:'Netz prüfen, dann erneut anmelden.' };
+    }
+    if(befund.healthMs === null || befund.healthStatus === 0){
+      return {
+        grund:'Der Anmeldedienst ist von diesem Gerät aus nicht erreichbar — die Anfrage verlässt den Browser nicht.',
+        schritt:'Häufigste Ursachen: VPN, Firmenproxy oder ein Inhaltsblocker auf supabase.co. Einmal ohne VPN oder im privaten Fenster versuchen.',
+      };
+    }
+    if(befund.serviceWorker){
+      return {
+        grund:`Der Anmeldedienst antwortet (${befund.healthMs} ms), nur die Anmeldung selbst hängt.`,
+        schritt:'Ein alter Zwischenspeicher der Seite blockiert sie. Unten den Zwischenspeicher leeren, dann erneut anmelden.',
+      };
+    }
+    return {
+      grund:`Der Anmeldedienst antwortet (${befund.healthMs} ms), die Anmeldung selbst kam nicht durch.`,
+      schritt:'Seite neu laden und erneut anmelden. Bleibt es dabei, im privaten Fenster versuchen.',
+    };
+  }
+
   function rootsIsTechnicalAuthError(error){
     if(!error) return false;
     if(error.__timeout) return true;
@@ -4190,6 +4242,49 @@ window.RootsAdmin = {
     if(code==='invalid_credentials'||code==='email_not_confirmed') return false;
     if(status===400||status===422) return false;
     return status===0||status>=500||status===429||/fetch|network|timeout|abort|unavailable/i.test(msg);
+  }
+
+  /**
+   * Der Befund unter der Meldung: ein Satz zum naechsten Schritt, die Messwerte
+   * zum Kopieren und - wenn ein Service Worker die Seite haelt - der Knopf, der
+   * ihn wegraeumt. Genau das war in den Logs nicht sichtbar, weil die Anfrage
+   * den Browser nie verlassen hat.
+   */
+  function rootsZeigeDiagnose(befund){
+    const host=document.getElementById('roots-error-banner');
+    if(!host||!host.parentNode) return;
+    document.getElementById('roots-auth-diagnose')?.remove();
+    const { schritt }=rootsDiagnoseText(befund);
+    const zeile='Diagnose: online='+(befund.online?'ja':'nein')
+      +' · Dienst='+(befund.healthStatus?befund.healthStatus+' in '+befund.healthMs+' ms':'keine Antwort')
+      +' · Service Worker='+(befund.serviceWorker?'aktiv':'keiner')
+      +' · '+new Date().toISOString();
+    try{ localStorage.setItem('roots-letzte-auth-diagnose', zeile); }catch(_){ /* privates Fenster */ }
+    const box=document.createElement('div');
+    box.id='roots-auth-diagnose';
+    box.style.cssText='margin:.6rem 0 0;font-size:.82rem;color:var(--muted,#475569);line-height:1.5';
+    const pille='display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .85rem;border:1px solid var(--line,#e2e8f0);'
+      +'background:#fff;color:#0f172a;border-radius:999px;font-weight:600;font-size:.8rem;cursor:pointer';
+    box.innerHTML=schritt
+      +'<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:.4rem">'
+      +(befund.serviceWorker?'<button type="button" data-roots-sw-reset style="'+pille+'"><i class="fa-solid fa-broom"></i>Zwischenspeicher leeren</button>':'')
+      +'<button type="button" data-roots-diag-copy style="'+pille+'"><i class="fa-regular fa-copy"></i>Diagnose kopieren</button></div>'
+      +'<div style="margin-top:.45rem;font-size:.74rem;color:#94a3b8">'+zeile+'</div>';
+    host.parentNode.insertBefore(box,host.nextSibling);
+    box.querySelector('[data-roots-diag-copy]')?.addEventListener('click',()=>{
+      void navigator.clipboard?.writeText(zeile);
+    });
+    box.querySelector('[data-roots-sw-reset]')?.addEventListener('click',async ()=>{
+      try{
+        const regs=await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((reg)=>reg.unregister()));
+        if(window.caches){
+          const namen=await caches.keys();
+          await Promise.all(namen.map((name)=>caches.delete(name)));
+        }
+      }catch(_){ /* dann bleibt das harte Neuladen */ }
+      location.reload();
+    });
   }
 
   function rootsOfferOfflineRecruiting(error){
@@ -4237,13 +4332,25 @@ window.RootsAdmin = {
     // 13 Sekunden in eine Zeitueberschreitung lief - angezeigt wurde trotzdem
     // "falsches Passwort", weil jeder Fehler auf dieselbe Meldung fiel. Der
     // Nutzer sucht dann beim eigenen Passwort statt beim Server.
-    const {data,error}=await Promise.race([
+    const anmelden=(ms)=>Promise.race([
       sb.auth.signInWithPassword({email,password:pw}),
-      new Promise((resolve)=>setTimeout(()=>resolve({data:null,error:{__timeout:true}}),25000)),
+      new Promise((resolve)=>setTimeout(()=>resolve({data:null,error:{__timeout:true}}),ms)),
     ]);
+    // Erst acht Sekunden, dann ein stiller zweiter Versuch: ein kalt gestarteter
+    // Dienst braucht manchmal einen Moment, ein blockierter Weg bleibt blockiert.
+    let {data,error}=await anmelden(8000);
+    if(error && error.__timeout){
+      btn.innerHTML='<i class="fa-solid fa-circle-notch roots-spin"></i> Zweiter Versuch...';
+      ({data,error}=await anmelden(12000));
+    }
     if(error){
       if(window.RootsUser)window.RootsUser._explicitAuthTransition=false;
       errB.classList.add('visible');errT.textContent=rootsLoginErrorText(error);btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
+      if(rootsIsTechnicalAuthError(error)){
+        const befund=await rootsAuthDiagnose();
+        errT.textContent=rootsDiagnoseText(befund).grund;
+        rootsZeigeDiagnose(befund);
+      }
       rootsOfferOfflineRecruiting(error);
     }
     else{

@@ -4347,7 +4347,12 @@ window.RootsAdmin = {
       if(window.RootsUser)window.RootsUser._explicitAuthTransition=false;
       errB.classList.add('visible');errT.textContent=rootsLoginErrorText(error);btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
       if(rootsIsTechnicalAuthError(error)){
-        const befund=await rootsAuthDiagnose();
+        // Auch die Diagnose bekommt eine Obergrenze: haengt der Weg nach
+        // draussen vollstaendig, darf die Meldung nicht mit ihr haengen.
+        const befund=await Promise.race([
+          rootsAuthDiagnose(),
+          new Promise((resolve)=>setTimeout(()=>resolve({ online: navigator.onLine !== false, healthMs: null, healthStatus: 0, serviceWorker: Boolean(navigator.serviceWorker && navigator.serviceWorker.controller) }),5000)),
+        ]);
         errT.textContent=rootsDiagnoseText(befund).grund;
         rootsZeigeDiagnose(befund);
       }

@@ -5067,6 +5067,75 @@ async function rootsHandleTeamCalendarRequest(sb, input) {
   return data;
 }
 
+/**
+ * Broker fuer ROOTS Print.
+ *
+ * Die Print-Kachel laeuft im sandboxed iframe und hat deshalb keine eigene
+ * Supabase-Sitzung. Sie schickt ihre Anfragen hierher; ausgefuehrt werden sie mit
+ * der Sitzung des angemeldeten Nutzers, also greift dieselbe RLS wie sonst.
+ */
+const ROOTS_PRINT_MAX_BASE64 = 34 * 1024 * 1024; // 25 MB binaer, base64 ist ein Drittel groesser
+
+async function rootsHandlePrintRequest(sb, payload) {
+  const op = String(payload?.op || '');
+  const uuid = (v) => {
+    const s = String(v || '');
+    if (!/^[0-9a-f-]{36}$/i.test(s)) throw new Error('Ungueltige Kennung');
+    return s;
+  };
+  const unwrap = ({ data, error }) => {
+    if (error) throw new Error(error.message || 'Anfrage fehlgeschlagen');
+    return data;
+  };
+
+  switch (op) {
+    case 'printers':
+      return { printers: unwrap(await sb.from('print_printers').select('*').order('display_name')) || [] };
+    case 'agents':
+      return { agents: unwrap(await sb.rpc('print_list_agents')) || [] };
+    case 'jobs':
+      return { jobs: unwrap(await sb.from('print_jobs').select('*').order('created_at', { ascending: false }).limit(25)) || [] };
+    case 'job': {
+      const id = uuid(payload.jobId);
+      const job = unwrap(await sb.from('print_jobs').select('*').eq('id', id).maybeSingle());
+      if (!job) throw new Error('Auftrag nicht gefunden');
+      const pages = unwrap(await sb.from('print_job_pages').select('*').eq('job_id', id).order('idx')) || [];
+      return { job: { ...job, pages } };
+    }
+    case 'submit_print': {
+      const data = String(payload.data || '');
+      if (!data) throw new Error('Es kam keine Datei an');
+      if (data.length > ROOTS_PRINT_MAX_BASE64) throw new Error('Die Datei ist groesser als 25 MB');
+      return {
+        jobId: unwrap(await sb.rpc('print_submit_print_job', {
+          p_printer_id: uuid(payload.printerId),
+          p_filename: String(payload.filename || 'druck.bin').slice(0, 120),
+          p_data: data,
+          p_settings: payload.settings && typeof payload.settings === 'object' ? payload.settings : {},
+        })),
+      };
+    }
+    case 'submit_scan':
+      return {
+        jobId: unwrap(await sb.rpc('print_submit_scan_job', {
+          p_printer_id: uuid(payload.printerId),
+          p_settings: payload.settings && typeof payload.settings === 'object' ? payload.settings : {},
+        })),
+      };
+    case 'page':
+      return { data: unwrap(await sb.rpc('print_job_page', { p_page_id: uuid(payload.pageId) })) };
+    case 'register_agent':
+      return {
+        agentId: unwrap(await sb.rpc('print_register_agent', {
+          p_name: String(payload.name || 'Agent').slice(0, 80),
+          p_token_hash: String(payload.tokenHash || '').trim().toLowerCase(),
+        })),
+      };
+    default:
+      throw new Error('Unbekannte Print-Anfrage');
+  }
+}
+
 async function rootsHandleBrokerRequest(frame, message) {
   const requestId = typeof message.requestId === 'string' ? message.requestId : '';
   if (!/^[a-z0-9_-]{8,80}$/i.test(requestId)) return;
@@ -5118,6 +5187,11 @@ async function rootsHandleBrokerRequest(frame, message) {
     }
     if (message.action === 'vacation' && frameUrl.includes('/urlaubsplanung/')) {
       const result = await rootsHandleVacationRequest(sb, message.payload);
+      rootsBrokerReply(frame, requestId, result);
+      return;
+    }
+    if (message.action === 'print' && frameUrl.includes('/drucken/')) {
+      const result = await rootsHandlePrintRequest(sb, message.payload);
       rootsBrokerReply(frame, requestId, result);
       return;
     }

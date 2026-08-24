@@ -1233,6 +1233,9 @@
           <a href="#livepoll" class="nav-item" data-view="livepoll" data-tool-id="livepoll">
             <i class="fa-solid fa-signal"></i><span class="nav-label-text"> Live Poll</span>
           </a>
+          <a href="#drucken" class="nav-item" data-view="drucken" data-tool-id="drucken">
+            <i class="fa-solid fa-print"></i><span class="nav-label-text"> Drucken &amp; Scannen</span>
+          </a>
           <a href="#signal-layer" class="nav-item" data-view="signal-layer" data-tool-id="signal-layer">
             <i class="fa-solid fa-broadcast-tower"></i><span class="nav-label-text"> Signal Layer</span>
           </a>
@@ -1406,6 +1409,19 @@
               </div>
             </article>
 
+            <article class="tool-launch-card" data-tool-id="drucken">
+              <span class="card-chip"><i class="fa-solid fa-print"></i> Produktivität</span>
+              <div class="tool-card-copy">
+                <h3>Drucken &amp; Scannen</h3>
+                <p>Dateien an den Bürodrucker geben und Vorlagen scannen – Vorschau und Download im Browser.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#drucken" class="btn-primary" data-open-view="drucken">
+                  <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Öffnen
+                </a>
+              </div>
+            </article>
+
             <article class="tool-launch-card" data-tool-id="signal-layer">
               <span class="card-chip"><i class="fa-solid fa-broadcast-tower"></i> In Aufbau</span>
               <div class="tool-card-copy">
@@ -1479,6 +1495,16 @@
           class="tool-iframe"
           title="ROOTS Live Poll"
           data-src="https://pgoutzeris-stack.github.io/roots-livepoll/"
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
+      </section>
+
+      <section class="app-view" data-view-panel="drucken">
+        <iframe
+          class="tool-iframe"
+          title="ROOTS Drucken · Drucken und Scannen"
+          data-src="https://pgoutzeris-stack.github.io/drucken/?v=20260824-1"
+          sandbox="allow-scripts allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"
           referrerpolicy="no-referrer"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
@@ -2454,6 +2480,7 @@ window.INTRANET_TOOL_DEFAULTS = [
   { id: 'whiteboard', label: 'Whiteboard', icon: 'fa-solid fa-chalkboard-user' },
   { id: 'livepoll', label: 'Live Poll', icon: 'fa-solid fa-signal' },
   { id: 'signal-layer', label: 'Signal Layer', icon: 'fa-solid fa-broadcast-tower' },
+  { id: 'drucken', label: 'Drucken & Scannen', icon: 'fa-solid fa-print' },
 ];
 
 window.refreshIntranetToolRegistry = function refreshIntranetToolRegistry() {
@@ -4439,7 +4466,7 @@ const ROOTS_ALLOWED_MESSAGE_TYPES = new Set([
 const ROOTS_ALLOWED_VIEWS = new Set([
   'dashboard', 'upcoming', 'teamkalender', 'vacation', 'sop', 'wissenshub',
   'slide-writing', 'recruiting', 'image', 'onboarding', 'notes',
-  'whiteboard', 'livepoll', 'signal-layer', 'admin',
+  'whiteboard', 'livepoll', 'signal-layer', 'drucken', 'admin',
 ]);
 const ROOTS_MAX_MESSAGE_BYTES = 4096;
 const ROOTS_MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;

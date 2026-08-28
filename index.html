@@ -4178,10 +4178,49 @@ window.RootsAdmin = {
     }
     return accepted;
   }
-  sb.auth.getSession().then(({data:{session}})=>{
-    if(session)void applyAuthenticatedSession(session);
+  /**
+   * Ein abgelaufener Zugriffstoken ist kein Ausfall, sondern ein Zustand mit
+   * genau einer richtigen Antwort: erneuern. Der Fall ist eindeutig erkennbar
+   * - die Sitzung liegt vor, ihr Ablauf ist ueberschritten, und ein
+   * Erneuerungstoken ist da. Nur dann wird erneuert, hoechstens einmal je
+   * Minute und ohne Neuladen der Seite: eine Schleife kann so nicht
+   * entstehen, und schlaegt die Erneuerung fehl, greift wie bisher die
+   * Anmeldemaske.
+   */
+  const ROOTS_ERNEUERT_KEY='roots-token-erneuert-am';
+  function rootsTokenAbgelaufen(session){
+    if(!session||!session.refresh_token) return false;
+    const ablauf=Number(session.expires_at||0);
+    if(!ablauf) return false;
+    return ablauf * 1000 <= Date.now() + 5000;
+  }
+  function rootsDarfErneuern(){
+    try{
+      const zuletzt=Number(sessionStorage.getItem(ROOTS_ERNEUERT_KEY)||0);
+      if(Date.now()-zuletzt < 60000) return false;
+      sessionStorage.setItem(ROOTS_ERNEUERT_KEY,String(Date.now()));
+    }catch(_){ /* privates Fenster: dann eben ohne Sperre */ }
+    return true;
+  }
+  async function rootsSitzungHerstellen(){
+    let session=null;
+    try{
+      ({ data:{ session } } = await sb.auth.getSession());
+    }catch(_){
+      showAuthOverlay();
+      return;
+    }
+    if(session && rootsTokenAbgelaufen(session) && rootsDarfErneuern()){
+      try{
+        const { data, error } = await sb.auth.refreshSession();
+        if(!error && data?.session) session=data.session;
+      }catch(_){ /* dann zaehlt die abgelaufene Sitzung als keine */ }
+      if(rootsTokenAbgelaufen(session)) session=null;
+    }
+    if(session) void applyAuthenticatedSession(session);
     else resetLoginUi();
-  }).catch(()=>showAuthOverlay());
+  }
+  void rootsSitzungHerstellen();
   sb.auth.onAuthStateChange((event,session)=>{
     if(event==='PASSWORD_RECOVERY'){
       showPasswordReset();
@@ -4226,7 +4265,12 @@ window.RootsAdmin = {
     try{
       const ctrl=new AbortController();
       const stop=setTimeout(()=>ctrl.abort(),4000);
-      const res=await fetch(SB_URL+'/auth/v1/health',{ method:'GET', cache:'no-store', signal:ctrl.signal });
+      // Ohne apikey antwortet der Endpunkt mit 401. Die Diagnose zeigte
+      // dadurch "Dienst=401" und liess einen Ausfall vermuten, wo keiner war.
+      const res=await fetch(SB_URL+'/auth/v1/health',{
+        method:'GET', cache:'no-store', signal:ctrl.signal,
+        headers:{ apikey: SB_ANON },
+      });
       clearTimeout(stop);
       befund.healthStatus=res.status;
       befund.healthMs=Date.now()-start;
@@ -4281,7 +4325,6 @@ window.RootsAdmin = {
     const host=document.getElementById('roots-error-banner');
     if(!host||!host.parentNode) return;
     document.getElementById('roots-auth-diagnose')?.remove();
-    const { schritt }=rootsDiagnoseText(befund);
     const zeile='Diagnose: online='+(befund.online?'ja':'nein')
       +' · Dienst='+(befund.healthStatus?befund.healthStatus+' in '+befund.healthMs+' ms':'keine Antwort')
       +' · Service Worker='+(befund.serviceWorker?'aktiv':'keiner')
@@ -4292,11 +4335,12 @@ window.RootsAdmin = {
     box.style.cssText='margin:.6rem 0 0;font-size:.82rem;color:var(--muted,#475569);line-height:1.5';
     const pille='display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .85rem;border:1px solid var(--line,#e2e8f0);'
       +'background:#fff;color:#0f172a;border-radius:999px;font-weight:600;font-size:.8rem;cursor:pointer';
-    box.innerHTML=schritt
-      +'<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:.4rem">'
+    // Nur die Knoepfe. Der Anweisungssatz stand ueber der Fehlerpille schon
+    // einmal, und die Diagnosezeile hilft niemandem beim Lesen - sie gehoert
+    // in die Zwischenablage, nicht auf den Bildschirm.
+    box.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:.4rem">'
       +(befund.serviceWorker?'<button type="button" data-roots-sw-reset style="'+pille+'"><i class="fa-solid fa-broom"></i>Zwischenspeicher leeren</button>':'')
-      +'<button type="button" data-roots-diag-copy style="'+pille+'"><i class="fa-regular fa-copy"></i>Diagnose kopieren</button></div>'
-      +'<div style="margin-top:.45rem;font-size:.74rem;color:#94a3b8">'+zeile+'</div>';
+      +'<button type="button" data-roots-diag-copy style="'+pille+'"><i class="fa-regular fa-copy"></i>Diagnose kopieren</button></div>';
     host.parentNode.insertBefore(box,host.nextSibling);
     box.querySelector('[data-roots-diag-copy]')?.addEventListener('click',()=>{
       void navigator.clipboard?.writeText(zeile);

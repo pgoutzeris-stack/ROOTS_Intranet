@@ -4205,7 +4205,20 @@ window.RootsAdmin = {
   async function rootsSitzungHerstellen(){
     let session=null;
     try{
-      ({ data:{ session } } = await sb.auth.getSession());
+      // getSession() wartet auf dieselbe Sperre. Haengt sie, stuende die Seite
+      // ohne Frist still - mit Frist zeigt sie wenigstens die Anmeldemaske.
+      const geladen=await Promise.race([
+        sb.auth.getSession(),
+        new Promise((resolve)=>setTimeout(()=>resolve({ __timeout:true }),6000)),
+      ]);
+      if(geladen?.__timeout){
+        const sperre=await rootsAuthSperre();
+        console.warn('Anmeldung: Sitzung nicht lesbar.',
+          sperre.verfuegbar ? `Sperre: ${sperre.gehalten} gehalten, ${sperre.wartend} wartend.` : 'Sperrstand unbekannt.');
+        showAuthOverlay();
+        return;
+      }
+      session=geladen?.data?.session||null;
     }catch(_){
       showAuthOverlay();
       return;
@@ -4255,8 +4268,30 @@ window.RootsAdmin = {
    * Gemessen wird der schnellste Endpunkt des Anmeldedienstes. Antwortet er,
    * liegt es nicht am Dienst; haengt auch er, blockiert etwas die Strecke.
    */
+  /**
+   * Haengt die Anmeldung an der Sperre der Bibliothek?
+   *
+   * supabase-js koordiniert Tabs derselben Adresse ueber Web Locks. Der Name
+   * der Sperre steht fest, deshalb ist der Fall messbar statt vermutet:
+   * navigator.locks.query() nennt Halter und Wartende. Haelt jemand die Sperre
+   * und warten weitere darauf, kommt aus diesem Tab keine Anfrage heraus.
+   */
+  async function rootsAuthSperre(){
+    const befund={ verfuegbar:false, gehalten:0, wartend:0 };
+    try{
+      if(!navigator.locks?.query) return befund;
+      befund.verfuegbar=true;
+      const stand=await navigator.locks.query();
+      const passt=(eintrag)=>/auth-token/.test(String(eintrag?.name||''));
+      befund.gehalten=(stand.held||[]).filter(passt).length;
+      befund.wartend=(stand.pending||[]).filter(passt).length;
+    }catch(_){ /* ohne Auskunft bleibt es bei den Nullen */ }
+    return befund;
+  }
+
   async function rootsAuthDiagnose(){
-    const befund={ online: navigator.onLine !== false, healthMs: null, healthStatus: 0, serviceWorker: false };
+    const befund={ online: navigator.onLine !== false, healthMs: null, healthStatus: 0, serviceWorker: false, sperre: null };
+    befund.sperre=await rootsAuthSperre();
     try{
       befund.serviceWorker = Boolean(navigator.serviceWorker && navigator.serviceWorker.controller);
     }catch(_){ /* ohne Service-Worker-API bleibt es false */ }
@@ -4328,6 +4363,7 @@ window.RootsAdmin = {
     const zeile='Diagnose: online='+(befund.online?'ja':'nein')
       +' · Dienst='+(befund.healthStatus?befund.healthStatus+' in '+befund.healthMs+' ms':'keine Antwort')
       +' · Service Worker='+(befund.serviceWorker?'aktiv':'keiner')
+      +' · Sperre='+(befund.sperre?.verfuegbar?(befund.sperre.gehalten+' gehalten/'+befund.sperre.wartend+' wartend'):'unbekannt')
       +' · '+new Date().toISOString();
     try{ localStorage.setItem('roots-letzte-auth-diagnose', zeile); }catch(_){ /* privates Fenster */ }
     const box=document.createElement('div');
@@ -4422,7 +4458,12 @@ window.RootsAdmin = {
     // Zeitueberschreitungen, also nie bei einem falschen Passwort und nie in
     // Folge - ein Fehlschlag endet in derselben Meldung wie zuvor.
     if(error && error.__timeout){
-      btn.innerHTML='<i class="fa-solid fa-circle-notch roots-spin"></i> Direkte Anmeldung...';
+      // Der Umweg braucht einen Grund, keinen Verdacht: entweder haelt jemand
+      // die Sperre der Bibliothek, oder der Browser kennt gar keine Sperren -
+      // dann bleibt die Zeitueberschreitung selbst der Grund.
+      const sperre=await rootsAuthSperre();
+      const gesperrt=!sperre.verfuegbar || sperre.gehalten > 0 || sperre.wartend > 0;
+      if(gesperrt) btn.innerHTML='<i class="fa-solid fa-circle-notch roots-spin"></i> Direkte Anmeldung...';
       try{
         const ctrl=new AbortController();
         const stop=setTimeout(()=>ctrl.abort(),10000);

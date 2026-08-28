@@ -4414,6 +4414,39 @@ window.RootsAdmin = {
       btn.innerHTML='<i class="fa-solid fa-circle-notch roots-spin"></i> Zweiter Versuch...';
       ({data,error}=await anmelden(12000));
     }
+    // Bleibt es bei der Zeitueberschreitung, ohne dass beim Dienst je eine
+    // Anfrage ankommt, haengt die Bibliothek an ihrer eigenen Sperre: sie
+    // koordiniert Tabs derselben Adresse ueber Web Locks, und ein haengender
+    // Tab blockiert alle anderen. Der Umweg spricht den Dienst direkt an und
+    // uebergibt die fertige Sitzung an die Bibliothek. Er laeuft nur nach zwei
+    // Zeitueberschreitungen, also nie bei einem falschen Passwort und nie in
+    // Folge - ein Fehlschlag endet in derselben Meldung wie zuvor.
+    if(error && error.__timeout){
+      btn.innerHTML='<i class="fa-solid fa-circle-notch roots-spin"></i> Direkte Anmeldung...';
+      try{
+        const ctrl=new AbortController();
+        const stop=setTimeout(()=>ctrl.abort(),10000);
+        const res=await fetch(SB_URL+'/auth/v1/token?grant_type=password',{
+          method:'POST', cache:'no-store', signal:ctrl.signal,
+          headers:{ 'Content-Type':'application/json', apikey: SB_ANON },
+          body: JSON.stringify({ email, password: pw }),
+        });
+        clearTimeout(stop);
+        const koerper=await res.json().catch(()=>null);
+        if(res.ok && koerper?.access_token && koerper?.refresh_token){
+          const gesetzt=await sb.auth.setSession({
+            access_token: koerper.access_token,
+            refresh_token: koerper.refresh_token,
+          });
+          data=gesetzt?.data||null;
+          error=gesetzt?.error||null;
+        }else{
+          error={ status: res.status, code: String(koerper?.error_code||koerper?.error||''), message: String(koerper?.msg||koerper?.error_description||'') };
+        }
+      }catch(fehler){
+        error={ __timeout:true };
+      }
+    }
     if(error){
       if(window.RootsUser)window.RootsUser._explicitAuthTransition=false;
       errB.classList.add('visible');errT.textContent=rootsLoginErrorText(error);btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';

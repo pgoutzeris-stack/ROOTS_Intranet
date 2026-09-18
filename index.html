@@ -2187,6 +2187,10 @@ window.RootsNotifications = {
     const type = String(n.type || '');
     const isUrlaub = type.startsWith('urlaub');
     const isOnboarding = type.startsWith('onboarding');
+    // Ohne eigenen Zweig fiel jede fremde Art auf "Erstgespräch" zurück: eine
+    // Werkzeugfreigabe stand damit unter der Zeile eines Bewerbungsgesprächs.
+    const isToolAccess = type === 'tool_access';
+    const isSignalLayer = type.startsWith('signal_layer');
     // Owner-Anfragen brauchen eine Entscheidung, nicht nur Kenntnisnahme -
     // deshalb ein eigenes Symbol statt der allgemeinen Glocke.
     const isOwnerRequest = type === 'interview_owner_request';
@@ -2194,10 +2198,16 @@ window.RootsNotifications = {
     return {
       isUrlaub,
       isOnboarding,
-      runde: isUrlaub ? 'Urlaubsplanung' : isOnboarding ? 'Onboarding' : (n.runde === 'zweit' ? 'Zweitgespräch' : 'Erstgespräch'),
+      runde: isUrlaub ? 'Urlaubsplanung'
+        : isOnboarding ? 'Onboarding'
+        : isToolAccess ? 'Werkzeuge'
+        : isSignalLayer ? 'Signal Layer'
+        : (n.runde === 'zweit' ? 'Zweitgespräch' : 'Erstgespräch'),
       date: n.created_at ? new Date(n.created_at).toLocaleString('de-DE') : '',
       icon: isUrlaub ? 'fa-umbrella-beach'
         : isOnboarding ? 'fa-list-check'
+        : isToolAccess ? 'fa-toolbox'
+        : isSignalLayer ? 'fa-bolt'
         : isOwnerRequest ? 'fa-hand'
         : isOwnerResult ? 'fa-user-check'
         : 'fa-bell',
@@ -2314,6 +2324,16 @@ window.RootsNotifications = {
     }
     if (type.startsWith('signal_layer')) {
       if (window.intranetNavigateToView) window.intranetNavigateToView('signal-layer');
+      return;
+    }
+    if (type === 'tool_access') {
+      // Direkt in das Werkzeug, das dazugekommen ist. Wurde nur etwas
+      // entfernt, bleibt der Nutzer auf dem Dashboard.
+      const dazu = Array.isArray(n.meta?.tool_ids) ? n.meta.tool_ids : [];
+      const ziel = dazu.find(id => window.INTRANET_TOOL_IDS.includes(id));
+      if (ziel && window.IntranetAccess?.canAccessTool(ziel) && window.intranetNavigateToView) {
+        window.intranetNavigateToView(ziel);
+      }
       return;
     }
     const recNav = document.querySelector('.nav-item[data-view="recruiting"]');
@@ -2719,6 +2739,42 @@ window.IntranetAccess = {
     return a !== b;
   },
 
+  /**
+   * Wer ein Werkzeug bekommt oder verliert, erfährt es sonst erst beim
+   * nächsten Blick in die Navigation. Die Nachricht geht in dieselbe Tabelle
+   * wie alle anderen im Intranet: recruiting.notifications, gelesen von der
+   * Glocke und dem Toast auf dem Dashboard.
+   */
+  async notifyToolAccessChange(userId, vorher, nachher) {
+    const alt = new Set(Array.isArray(vorher) ? vorher : []);
+    const neu = new Set(Array.isArray(nachher) ? nachher : []);
+    const dazu = [...neu].filter(id => !alt.has(id));
+    const weg = [...alt].filter(id => !neu.has(id));
+    if (!dazu.length && !weg.length) return;
+    // Wer selbst umstellt, sieht das Ergebnis vor sich.
+    if (userId === window.RootsUser?._uid) return;
+    const sb = window.RootsUser?._sb;
+    if (!sb) return;
+    const name = id => window.INTRANET_TOOLS.find(tool => tool.id === id)?.label || id;
+    const wer = String(window.RootsUser?._p?.full_name || '').trim() || 'Ein Admin';
+    const teile = [];
+    if (dazu.length) teile.push(`${dazu.map(name).join(', ')} freigeschaltet`);
+    if (weg.length) teile.push(`${weg.map(name).join(', ')} entfernt`);
+    const titel = !weg.length
+      ? (dazu.length === 1 ? `${name(dazu[0])} freigeschaltet` : 'Neue Werkzeuge freigeschaltet')
+      : !dazu.length
+        ? (weg.length === 1 ? `${name(weg[0])} entfernt` : 'Werkzeuge entfernt')
+        : 'Werkzeuge geändert';
+    const { error } = await sb.schema('recruiting').from('notifications').insert({
+      user_id: userId,
+      type: 'tool_access',
+      title: titel,
+      message: `${wer} hat ${teile.join(' und ')}.`,
+      meta: { tool_ids: dazu, removed_tool_ids: weg, changed_by: window.RootsUser?._uid || null },
+    });
+    if (error) console.error('Benachrichtigung zur Werkzeugfreigabe fehlgeschlagen:', error.message);
+  },
+
   async saveAdminUserEdits(btnId, msgId, onDone) {
     const btn = document.getElementById(btnId);
     const msg = document.getElementById(msgId);
@@ -2735,6 +2791,10 @@ window.IntranetAccess = {
     let saved = 0;
     for (const u of dirty) {
       const edits = window._adminUserEdits[u.id];
+      // Der alte Stand muss vor dem Schreiben feststehen: u.app_settings wird
+      // gleich ueberschrieben, und toolsForUi loest dabei auch den Fall auf,
+      // dass null fuer "alle Werkzeuge" steht.
+      const vorherTools = this.toolsForUi(u);
       const storedTools = this.toolsToSave(edits.allowed_tools);
       const app_settings = { ...(u.app_settings && typeof u.app_settings === 'object' ? u.app_settings : {}), allowed_tools: storedTools };
       const { error } = await window.RootsUser._sb.schema('users').from('profiles')
@@ -2743,6 +2803,7 @@ window.IntranetAccess = {
       if (error) errs++;
       else {
         saved++;
+        void this.notifyToolAccessChange(u.id, vorherTools, edits.allowed_tools);
         u.app_role = edits.app_role;
         u.app_settings = app_settings;
         if (u.id === window.RootsUser._uid) {

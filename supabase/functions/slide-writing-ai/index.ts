@@ -53,6 +53,22 @@ async function getGeminiKey(): Promise<string | null> {
   if (!error && data) return data as string;
   return Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY") || null;
 }
+function geminiUsage(data: Record<string, any>) {
+  const usage = data?.usageMetadata || {};
+  const input = Number(usage.promptTokenCount || 0);
+  const cached = Number(usage.cachedContentTokenCount || 0);
+  const output = Number(usage.candidatesTokenCount || 0);
+  const thinking = Number(usage.thoughtsTokenCount || 0);
+  return { input_tokens: Math.max(0, input - cached), cached_input_tokens: cached, output_tokens: output, thinking_tokens: thinking };
+}
+async function logProviderUsage(userId: string, status: "success" | "error" | "incomplete", data: Record<string, any>, durationMs: number, errorCode?: string) {
+  const { error } = await adminClient().schema("shared").from("ai_provider_usage").insert({
+    app: "slide-writing", operation: "draft_slides", provider: "google", model: MODEL,
+    status, user_id: userId, ...geminiUsage(data), duration_ms: durationMs,
+    error_code: errorCode || null,
+  });
+  if (error) throw new Error(`Usage tracking failed: ${error.message}`);
+}
 function validatePayload(body: Payload) {
   const raw = JSON.stringify(body);
   if (raw.length > 1024 * 1024) throw new Error("Anfrage ist zu groß.");
@@ -76,12 +92,14 @@ function buildPrompt(body: Payload) {
     "Vorhandene draft_spec weiterentwickeln:", JSON.stringify(body.draft_spec || {}),
   ].join("\n");
 }
-async function callGemini(prompt: string, apiKey: string) {
+async function callGemini(prompt: string, apiKey: string, userId: string) {
+  const startedAt = Date.now();
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.35, responseMimeType: "application/json" } }),
   });
-  const data = await response.json();
+  const data = await response.json() as Record<string, any>;
+  await logProviderUsage(userId, response.ok ? "success" : "error", data, Date.now() - startedAt, response.ok ? undefined : `http_${response.status}`);
   if (!response.ok) throw new Error(data?.error?.message || `Gemini error ${response.status}`);
   const text = data?.candidates?.[0]?.content?.parts?.find((part: { text?: string }) => part.text)?.text;
   if (!text) throw new Error("Gemini returned no text payload.");
@@ -111,6 +129,6 @@ Deno.serve(async (req) => {
   if (action !== "chat") return json(req, { error: "Unsupported action" }, 400);
   const key = await getGeminiKey();
   if (!key) return json(req, { error: "Kein Gemini API-Schlüssel konfiguriert." }, 500);
-  try { return json(req, await callGemini(buildPrompt(body), key)); }
+  try { return json(req, await callGemini(buildPrompt(body), key, user.id)); }
   catch (error) { return json(req, { error: error instanceof Error ? error.message : String(error) }, 500); }
 });

@@ -880,7 +880,7 @@
       const meta = resolveToolMeta();
       const stamp = this._state.lastCheck
         ? new Date(this._state.lastCheck).toLocaleTimeString('de-DE')
-        : '—';
+        : '-';
       return [
         'roots sync monitor',
         ...databaseTermLines(meta),
@@ -923,7 +923,7 @@
       const lines = (this._state.lines || []).map(termLineHtml).join('');
       const stamp = this._state.lastCheck
         ? new Date(this._state.lastCheck).toLocaleTimeString('de-DE')
-        : '—';
+        : '-';
       slot.innerHTML = `
         <div class="roots-sync-pill ${cls}" title="Supabase Sync-Status">
           <span class="roots-sync-dot" aria-hidden="true"></span>
@@ -1329,7 +1329,7 @@
    * does nothing or navigates the iframe itself, breaking the app.
    * Solution: capture every external-link click in the iframe, prevent
    * the default, and postMessage the URL to the Intranet parent which opens
-   * it via window.open() from the top-level browsing context — which most
+   * it via window.open() from the top-level browsing context - which most
    * native macOS apps are configured to forward to the system browser.
    *
    * Covers: https:// http:// mailto: tel: links and any target="_blank".
@@ -1343,7 +1343,7 @@
    * clicks via invoke('plugin:opener|open_url') → open::that(url) → system browser.
    *
    * We only ensure every external link has target="_blank" so the opener-plugin
-   * catches it. Nothing else needed — no stopPropagation, no window.open.
+   * catches it. Nothing else needed - no stopPropagation, no window.open.
    */
   function installLinkInterceptor() {
     if (!IN_TAURI && !IN_IFRAME) return;
@@ -1355,7 +1355,7 @@
       if (link.target !== '_blank') { link.target = '_blank'; link.rel = link.rel || 'noopener noreferrer'; }
     }
 
-    // Synchronous in capture phase — runs before opener-plugin bubble listener
+    // Synchronous in capture phase - runs before opener-plugin bubble listener
     document.addEventListener('click', (e) => {
       const link = e.target.closest('a[href]');
       if (link) ensureBlank(link);
@@ -1392,7 +1392,7 @@
         window.parent.postMessage(
           { type: 'roots-download-file', filename, mimeType: blob.type || 'application/octet-stream', buffer: buf },
           ORIGIN,
-          [buf]   // transfer ownership — zero-copy
+          [buf]   // transfer ownership - zero-copy
         );
       }).catch(() => _directDownload(blob, filename));
       return;

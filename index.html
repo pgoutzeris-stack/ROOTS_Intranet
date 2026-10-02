@@ -1090,7 +1090,7 @@
     </div>
     <div id="roots-view-forgot" style="display:none">
       <h1 class="roots-card-title">Passwort zurücksetzen</h1>
-      <p class="roots-card-sub">Gib deine E-Mail ein – wir schicken dir einen Link.</p>
+      <p class="roots-card-sub">Gib deine E-Mail ein - wir schicken dir einen Link.</p>
       <div id="roots-reset-error" class="roots-alert roots-alert-error">
         <i class="fa-solid fa-circle-exclamation"></i><span id="roots-reset-error-text"></span>
       </div>
@@ -1331,7 +1331,7 @@
               <span class="card-chip"><i class="fa-solid fa-wand-magic-sparkles"></i> Produktiv-Tool</span>
               <div class="tool-card-copy">
                 <h3>Bildgenerierung (KI)</h3>
-                <p>Visuals für Präsentationen, Inhalte und Kampagnen — direkt im Browser.</p>
+                <p>Visuals für Präsentationen, Inhalte und Kampagnen - direkt im Browser.</p>
               </div>
               <div class="card-actions">
                 <a href="#image" class="btn-primary" data-open-view="image">
@@ -1344,7 +1344,7 @@
               <span class="card-chip"><i class="fa-solid fa-calendar-days"></i> Planung &amp; Team</span>
               <div class="tool-card-copy">
                 <h3>Team-Kalender</h3>
-                <p>Abwesenheiten, Urlaub und Dienstreisen – synchron mit der Team-Datenbank.</p>
+                <p>Abwesenheiten, Urlaub und Dienstreisen - synchron mit der Team-Datenbank.</p>
               </div>
               <div class="card-actions">
                 <a href="#teamkalender" class="btn-primary" data-open-view="teamkalender">
@@ -1357,7 +1357,7 @@
               <span class="card-chip"><i class="fa-solid fa-umbrella-beach"></i> Planung &amp; Team</span>
               <div class="tool-card-copy">
                 <h3>Urlaubsplanung</h3>
-                <p>Urlaub einreichen, freigeben lassen – genehmigte Tage erscheinen automatisch im Team-Kalender.</p>
+                <p>Urlaub einreichen, freigeben lassen - genehmigte Tage erscheinen automatisch im Team-Kalender.</p>
               </div>
               <div class="card-actions">
                 <a href="#vacation" class="btn-primary" data-open-view="vacation">
@@ -1370,7 +1370,7 @@
               <span class="card-chip"><i class="fa-solid fa-note-sticky"></i> Produktivität</span>
               <div class="tool-card-copy">
                 <h3>Notes Tool</h3>
-                <p>Visuelle Notizen mit Formen, Tabellen, Verbindern und Export – pro Nutzer geschützt.</p>
+                <p>Visuelle Notizen mit Formen, Tabellen, Verbindern und Export - pro Nutzer geschützt.</p>
               </div>
               <div class="card-actions">
                 <a href="#notes" class="btn-primary" data-open-view="notes">
@@ -1409,7 +1409,7 @@
               <span class="card-chip"><i class="fa-solid fa-print"></i> Produktivität</span>
               <div class="tool-card-copy">
                 <h3>Print</h3>
-                <p>Dateien an den Bürodrucker geben und Vorlagen scannen – Vorschau und Download im Browser.</p>
+                <p>Dateien an den Bürodrucker geben und Vorlagen scannen - Vorschau und Download im Browser.</p>
               </div>
               <div class="card-actions">
                 <a href="#drucken" class="btn-primary" data-open-view="drucken">
@@ -1422,7 +1422,7 @@
               <span class="card-chip"><i class="fa-solid fa-broadcast-tower"></i> In Aufbau</span>
               <div class="tool-card-copy">
                 <h3>Signal Layer</h3>
-                <p>Neues Tool im Aufbau — Inhalt folgt.</p>
+                <p>Neues Tool im Aufbau - Inhalt folgt.</p>
               </div>
               <div class="card-actions">
                 <a href="#signal-layer" class="btn-primary" data-open-view="signal-layer">
@@ -2062,8 +2062,8 @@
 
       <span class="ob-section-label" style="margin-top:.25rem">Deine Angaben</span>
       <div class="ob-summary">
-        <div class="ob-summary-row"><span>Position</span><span id="rps-sum-pos">–</span></div>
-        <div class="ob-summary-row" id="rps-sum-phone-row"><span>Telefon</span><span id="rps-sum-phone">–</span></div>
+        <div class="ob-summary-row"><span>Position</span><span id="rps-sum-pos">-</span></div>
+        <div class="ob-summary-row" id="rps-sum-phone-row"><span>Telefon</span><span id="rps-sum-phone">-</span></div>
       </div>
 
       <div id="rps-error" class="profile-setup-alert">
@@ -2692,7 +2692,7 @@ window.IntranetAccess = {
     return `<button type="button" class="admin-user-row ${u.id === activeId ? 'is-active' : ''}" data-uid="${u.id}">
       ${av}
       <span class="admin-user-row-meta">
-        <span class="admin-user-row-name">${escapeHtml(u.full_name || u.email || '—')}</span>
+        <span class="admin-user-row-name">${escapeHtml(u.full_name || u.email || '-')}</span>
         <span class="admin-user-row-sub">${escapeHtml(sub)}</span>
       </span>
       <span class="admin-role-badge ${badgeCls}">${escapeHtml(this.roleLabel(role))}</span>
@@ -2711,8 +2711,8 @@ window.IntranetAccess = {
       <div class="admin-user-head">
         ${av}
         <div class="admin-user-meta">
-          <div class="admin-user-name">${escapeHtml(u.full_name || '—')}</div>
-          <div class="admin-user-email">${escapeHtml(u.position || '—')}</div>
+          <div class="admin-user-name">${escapeHtml(u.full_name || '-')}</div>
+          <div class="admin-user-email">${escapeHtml(u.position || '-')}</div>
         </div>
         <div class="admin-user-role">
           <select data-uid="${u.id}" data-field="role">
@@ -2995,7 +2995,7 @@ window.RootsAdminEmployee = {
         <div class="admin-form-grid">
           <div class="admin-field"><label for="aec-salutation">Ansprache</label>
             <select class="modern-select" id="aec-salutation">
-              <option value="" selected>—</option>
+              <option value="" selected>-</option>
               <option value="Herr">Herr</option>
               <option value="Frau">Frau</option>
             </select>
@@ -3041,7 +3041,7 @@ window.RootsAdminEmployee = {
           <div class="admin-field span-2">
             ${this.toolsHeadingHtml()}
             <div class="admin-tool-groups" id="aec-tools">${this.toolChecksHtml({}, true)}</div>
-            ${this.hintHtml('Nur ausgewählte Tools werden angezeigt – auch bei Admins. Änderungen werden in geöffneten Sitzungen direkt übernommen.')}
+            ${this.hintHtml('Nur ausgewählte Tools werden angezeigt - auch bei Admins. Änderungen werden in geöffneten Sitzungen direkt übernommen.')}
           </div>
         </div>
         <div class="admin-detail-actions">
@@ -3067,10 +3067,10 @@ window.RootsAdminEmployee = {
       <form id="roots-admin-employee-form" autocomplete="off">
         <div class="admin-section-title">Personal</div>
         <div class="admin-form-grid">
-          <div class="admin-field span-2"><label for="aec-personal-id">Personal-ID</label><input class="modern-input admin-readonly" id="aec-personal-id" type="text" value="${escapeHtml(u.id)}" readonly tabindex="-1">${this.hintHtml('Einzigartige Supabase-UUID — automatisch in der Datenbank generiert.')}</div>
+          <div class="admin-field span-2"><label for="aec-personal-id">Personal-ID</label><input class="modern-input admin-readonly" id="aec-personal-id" type="text" value="${escapeHtml(u.id)}" readonly tabindex="-1">${this.hintHtml('Einzigartige Supabase-UUID - automatisch in der Datenbank generiert.')}</div>
           <div class="admin-field"><label for="aec-salutation">Ansprache</label>
             <select class="modern-select" id="aec-salutation">
-              <option value="" ${!u.salutation ? 'selected' : ''}>—</option>
+              <option value="" ${!u.salutation ? 'selected' : ''}>-</option>
               <option value="Herr" ${u.salutation === 'Herr' ? 'selected' : ''}>Herr</option>
               <option value="Frau" ${u.salutation === 'Frau' ? 'selected' : ''}>Frau</option>
             </select>
@@ -3112,7 +3112,7 @@ window.RootsAdminEmployee = {
           <div class="admin-field span-2">
             ${this.toolsHeadingHtml()}
             <div class="admin-tool-groups" id="aec-tools">${this.toolChecksHtml(u)}</div>
-            ${this.hintHtml('Nur ausgewählte Tools werden angezeigt – auch bei Admins. Änderungen werden in geöffneten Sitzungen direkt übernommen.')}
+            ${this.hintHtml('Nur ausgewählte Tools werden angezeigt - auch bei Admins. Änderungen werden in geöffneten Sitzungen direkt übernommen.')}
           </div>
         </div>
         <div class="admin-detail-actions">
@@ -3771,8 +3771,8 @@ window.RootsUser = {
     const phone = document.getElementById('rps-phone')?.value?.trim() || '';
     const posEl = document.getElementById('rps-sum-pos');
     const phoneEl = document.getElementById('rps-sum-phone');
-    if (posEl) posEl.textContent = this._profileSetupPosition || '–';
-    if (phoneEl) phoneEl.textContent = phone || '–';
+    if (posEl) posEl.textContent = this._profileSetupPosition || '-';
+    if (phoneEl) phoneEl.textContent = phone || '-';
   },
 
   goProfileSetupStep(step) {
@@ -3851,7 +3851,7 @@ window.RootsUser = {
   async saveProfileSetup() {
     const btn = document.getElementById('rps-save');
     this._hideProfileSetupError();
-    if (!this._sb || !this._uid) { this._showProfileSetupError('Nicht angemeldet — bitte neu einloggen.'); return; }
+    if (!this._sb || !this._uid) { this._showProfileSetupError('Nicht angemeldet - bitte neu einloggen.'); return; }
     const pos = this._profileSetupPosition || '';
     const phoneVal = document.getElementById('rps-phone')?.value.trim() || '';
     if (!pos) { this._showProfileSetupError('Bitte wähle deine Position.'); this.goProfileSetupStep(1); return; }
@@ -4117,7 +4117,7 @@ window.RootsUser = {
     const btn = document.getElementById('rus-save');
     const msg = document.getElementById('rus-msg');
     const showMsg = (text, ok) => { if (!msg) return; msg.style.cssText = 'display:block;font-size:.85rem;text-align:center;margin-top:.5rem;padding:.5rem;border-radius:8px;background:' + (ok ? '#ecfdf5' : '#fef2f2') + ';color:' + (ok ? '#10b981' : '#dc2626'); msg.textContent = text; };
-    if (!this._sb || !this._uid) { showMsg('Nicht angemeldet — bitte neu einloggen', false); return; }
+    if (!this._sb || !this._uid) { showMsg('Nicht angemeldet - bitte neu einloggen', false); return; }
     const orig = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Speichern…'; }
     if (msg) msg.style.display = 'none';
@@ -4432,7 +4432,7 @@ window.RootsAdmin = {
     }
     if(befund.healthMs === null || befund.healthStatus === 0){
       return {
-        grund:'Der Anmeldedienst ist von diesem Gerät aus nicht erreichbar — die Anfrage verlässt den Browser nicht.',
+        grund:'Der Anmeldedienst ist von diesem Gerät aus nicht erreichbar - die Anfrage verlässt den Browser nicht.',
         schritt:'Häufigste Ursachen: VPN, Firmenproxy oder ein Inhaltsblocker auf supabase.co. Einmal ohne VPN oder im privaten Fenster versuchen.',
       };
     }

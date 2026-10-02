@@ -1941,7 +1941,7 @@
 <!-- ===== ROOTS USER MODULE ===== -->
 <!-- Settings Modal -->
 <div id="roots-user-settings-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:1rem;font-family:'Circular Std',system-ui,sans-serif">
-  <div style="background:var(--bg,#fff);border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,.2);width:100%;max-width:480px;padding:0;overflow:hidden">
+  <div style="background:var(--bg,#fff);border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,.2);width:100%;max-width:480px;max-height:calc(100vh - 2rem);padding:0;overflow-y:auto">
     <div style="display:flex;align-items:center;gap:1rem;padding:1.5rem 1.75rem 1rem;border-bottom:1px solid var(--line,#e2e8f0)">
       <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-light,#eff6ff);color:var(--brand,#206efb);display:flex;align-items:center;justify-content:center;font-size:1.05rem;flex-shrink:0"><i class="fa-solid fa-user"></i></div>
       <div style="flex:1;min-width:0">
@@ -1974,6 +1974,24 @@
       <div><label style="display:block;font-size:.875rem;font-weight:500;color:var(--muted,#475569);margin-bottom:.4rem">E-Mail</label><input id="rus-email" type="email" style="width:100%;height:44px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font-family:inherit;font-size:.9rem;color:var(--ink,#0f172a);background:var(--bg,#fff);outline:none;box-sizing:border-box"><p style="font-size:.72rem;color:var(--muted,#475569);margin:.25rem 0 0">Änderung erfordert E-Mail-Bestätigung.</p></div>
       <div><label style="display:block;font-size:.875rem;font-weight:500;color:var(--muted,#475569);margin-bottom:.4rem">Position</label><select id="rus-position" style="width:100%;height:42px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font-family:inherit;font-size:.9rem;color:var(--ink,#0f172a);background:var(--bg,#fff);outline:none;box-sizing:border-box;appearance:none"><option value="">Position wählen …</option><option value="Praktikant">Praktikant</option><option value="Junior Consultant">Junior Consultant</option><option value="Consultant">Consultant</option><option value="Senior Consultant">Senior Consultant</option><option value="Director">Director</option><option value="Partner">Partner</option></select></div>
       <div><label style="display:block;font-size:.875rem;font-weight:500;color:var(--muted,#475569);margin-bottom:.4rem">LinkedIn</label><input id="rus-linkedin" type="url" placeholder="https://linkedin.com/in/..." style="width:100%;height:44px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:8px;font-family:inherit;font-size:.9rem;color:var(--ink,#0f172a);background:var(--bg,#fff);outline:none;box-sizing:border-box"></div>
+    </div>
+    <style>
+      #rus-sig { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line, #e2e8f0); }
+      #rus-sig .rus-sig-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .65rem; }
+      #rus-sig .rus-sig-title { font-size: .875rem; font-weight: 600; color: var(--ink, #0f172a); }
+      #rus-sig .rus-sig-copy { display: inline-flex; align-items: center; gap: .4rem; height: 34px; padding: 0 .9rem; border: none; border-radius: 999px; background: var(--brand-light, #eff6ff); color: var(--brand, #206efb); font-family: inherit; font-size: .82rem; font-weight: 600; cursor: pointer; }
+      #rus-sig .rus-sig-copy:hover { filter: brightness(.97); }
+      #rus-sig .rus-sig-missing { margin-bottom: .65rem; padding: .55rem .75rem; border-radius: 10px; background: #fff7ed; color: #9a3412; font-size: .8rem; }
+      #rus-sig .rus-sig-preview { padding: 1rem 1.1rem; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px var(--line, #e2e8f0); overflow-x: auto; }
+      #rus-sig .rus-sig-preview img { display: block; }
+    </style>
+    <div id="rus-sig">
+      <div class="rus-sig-head">
+        <span class="rus-sig-title">E-Mail-Signatur</span>
+        <button type="button" class="rus-sig-copy" onclick="window.RootsUser.copySignature()"><i class="fa-solid fa-copy"></i> Kopieren</button>
+      </div>
+      <div id="rus-sig-missing" class="rus-sig-missing" hidden></div>
+      <div id="rus-sig-preview" class="rus-sig-preview"></div>
     </div>
     <div style="display:flex;gap:.75rem;margin-top:1.5rem">
       <button id="rus-save" onclick="window.RootsUser.saveSettings()" style="flex:1;height:44px;background:#206efb;color:#fff;border:none;border-radius:999px;font-family:inherit;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .2s">Speichern</button>
@@ -4072,6 +4090,8 @@ window.RootsUser = {
     document.getElementById('rus-linkedin').value = p.linkedin_url || '';
     document.getElementById('rus-msg').style.display = 'none';
     document.getElementById('roots-user-settings-modal').style.display = 'flex';
+    this._bindSignatureInputs();
+    this.renderSignature();
     this._cs=null;
     const _sl=document.getElementById('rus-zoom-slider');
     const _rb=document.getElementById('rus-reset-zoom');
@@ -4085,6 +4105,45 @@ window.RootsUser = {
   },
 
   closeSettings() { document.getElementById('roots-user-settings-modal').style.display = 'none'; },
+
+  _signatureProfile() {
+    const p = this._p || {};
+    return {
+      full_name: document.getElementById('rus-name')?.value.trim() || p.full_name || '',
+      email: document.getElementById('rus-email')?.value.trim() || p.email || '',
+      linkedin_url: document.getElementById('rus-linkedin')?.value.trim() || '',
+      phone: p.phone || '',
+    };
+  },
+
+  _bindSignatureInputs() {
+    if (this._signatureInputsBound) return;
+    this._signatureInputsBound = true;
+    ['rus-name', 'rus-email', 'rus-linkedin'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', () => this.renderSignature());
+    });
+  },
+
+  renderSignature() {
+    const preview = document.getElementById('rus-sig-preview');
+    const missingEl = document.getElementById('rus-sig-missing');
+    if (!preview || !window.RootsSignature) return;
+    const sig = window.RootsSignature.build(this._signatureProfile());
+    preview.innerHTML = sig.html;
+    if (missingEl) {
+      const labels = sig.missing.map((m) => (m === 'Telefon' && !this.isAdmin?.() ? 'Telefon (trägt die Verwaltung ein)' : m));
+      missingEl.textContent = labels.length ? 'Fehlt: ' + labels.join(', ') : '';
+      missingEl.hidden = !labels.length;
+    }
+  },
+
+  async copySignature() {
+    if (!window.RootsSignature) return;
+    const sig = window.RootsSignature.build(this._signatureProfile());
+    const ok = await window.RootsSignature.copy(sig.html, sig.plain);
+    if (ok) window.RootsUiToast?.success('In Outlook unter Einstellungen > Signaturen mit Cmd+V einfügen.', 'Signatur kopiert');
+    else window.RootsUiToast?.error('Bitte die Vorschau markieren und manuell kopieren.', 'Kopieren fehlgeschlagen');
+  },
 
   async saveSettings() {
     const btn = document.getElementById('rus-save');
@@ -4148,6 +4207,7 @@ window.RootsAdmin = {
 </script>
 
 <script src="roots-user-bridge.js?v=20261002-toast-v1"></script>
+<script src="roots-signature.js?v=20261002-sig-v1"></script>
 
 <script>
 (function(){

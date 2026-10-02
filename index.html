@@ -4186,6 +4186,16 @@ window.RootsAdmin = {
   const SB_URL='https://csmguwcvzreefluhahyu.supabase.co';
   const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNzbWd1d2N2enJlZWZsdWhhaHl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjM0ODcsImV4cCI6MjA5MjUzOTQ4N30.Fiafx7XBaQZXUX3bKQIBH7znBHx3B51yL-bftOHsL4Q';
   const INTRANET_REDIRECT='https://pgoutzeris-stack.github.io/ROOTS_Intranet/';
+  // Typ des Auth-Links vor createClient lesen: detectSessionInUrl entfernt den
+  // Hash sofort, und die nachgereichte Sitzung wuerde das Passwortformular
+  // sonst wieder schliessen.
+  const authLinkType=(()=>{
+    try{
+      return new URLSearchParams(location.hash.replace(/^#/,'')).get('type')
+        ||new URLSearchParams(location.search).get('type');
+    }catch(_){return null;}
+  })();
+  let passwordSetPending=authLinkType==='recovery'||authLinkType==='invite';
   const {createClient}=window.supabase;
   const sb=createClient(SB_URL,SB_ANON,{
     auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage}
@@ -4273,6 +4283,7 @@ window.RootsAdmin = {
   }
   async function applyAuthenticatedSession(session,{explicit=false}={}){
     if(!session?.user?.id){showAuthOverlay();return false;}
+    if(passwordSetPending){showPasswordReset();return false;}
     if(explicit&&window.RootsUser){
       window.RootsUser._explicitAuthTransition=true;
       window.RootsUser._authBlocked=false;
@@ -4349,6 +4360,7 @@ window.RootsAdmin = {
   void rootsSitzungHerstellen();
   sb.auth.onAuthStateChange((event,session)=>{
     if(event==='PASSWORD_RECOVERY'){
+      passwordSetPending=true;
       showPasswordReset();
       return;
     }
@@ -4667,6 +4679,7 @@ window.RootsAdmin = {
     if(error){errText.textContent=error.message;errEl.classList.add('visible');btn.disabled=false;btn.innerHTML='<i class="fa-solid fa-key"></i> Passwort speichern';return;}
     okEl.classList.add('visible');
     configurePasswordReturn();
+    passwordSetPending=false;
     completingPasswordRecovery=true;
     await sb.auth.signOut();
     if(currentEmbedReturn()){

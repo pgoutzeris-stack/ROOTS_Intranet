@@ -52,7 +52,6 @@
         padding: 14px 16px;
         border-radius: 14px;
         border: 1px solid #e2e8f0;
-        border-left: 4px solid #206efb;
         background: #fff;
         box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
         cursor: pointer;

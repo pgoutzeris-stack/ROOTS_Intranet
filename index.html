@@ -849,7 +849,6 @@
       padding: 14px 16px;
       border-radius: 14px;
       border: 1px solid var(--line);
-      border-left: 4px solid var(--brand);
       background: #fff;
       box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
       cursor: pointer;
@@ -879,11 +878,8 @@
     .roots-notif-toast-title { font-size: .88rem; font-weight: 700; color: var(--ink); margin-bottom: .2rem; }
     .roots-notif-toast-msg { font-size: .8rem; color: var(--muted); line-height: 1.45; }
     .roots-ui-toast { cursor: default; }
-    .roots-ui-toast--success { border-left-color: #16a34a; }
     .roots-ui-toast--success .roots-notif-toast-icon { background: #ecfdf5; color: #15803d; }
-    .roots-ui-toast--error { border-left-color: #dc2626; }
     .roots-ui-toast--error .roots-notif-toast-icon { background: #fef2f2; color: #dc2626; }
-    .roots-ui-toast--info { border-left-color: var(--brand); }
 
     @media (max-width: 900px) {
       .roots-notif-toast-stack {
@@ -2118,6 +2114,27 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Liest die Fehlermeldung aus der Antwort einer Edge Function.
+// supabase-js liefert sonst nur "Edge Function returned a non-2xx status code".
+window.rootsFunctionError = async function (error, fallback) {
+  const res = error?.context;
+  if (res && typeof res.clone === 'function') {
+    try {
+      const body = await res.clone().json();
+      if (body?.error) return new Error(body.error);
+      if (body?.message) return new Error(body.message);
+    } catch (_) {}
+    const byStatus = {
+      401: 'Sitzung abgelaufen. Bitte neu anmelden.',
+      403: 'Keine Berechtigung für diese Aktion.',
+      409: 'Eintrag existiert bereits.',
+    };
+    if (byStatus[res.status]) return new Error(byStatus[res.status]);
+    if (res.status >= 500) return new Error((fallback || 'Serverfehler') + ' (HTTP ' + res.status + ').');
+  }
+  return new Error(error?.message || fallback || 'Unbekannter Fehler');
+};
+
 window.RootsUiToast = {
   DURATION_MS: 4200,
   _timer: null,
@@ -2843,7 +2860,7 @@ window.RootsAdminEmployee = {
 
   async callAccess(action, payload = {}) {
     const { data, error } = await window.RootsUser._sb.functions.invoke('roots-access-requests', { body: { action, ...payload } });
-    if (error) throw error;
+    if (error) throw await window.rootsFunctionError(error, 'Zugangsanfrage fehlgeschlagen');
     if (data?.error) throw new Error(data.error);
     return data || {};
   },
@@ -3386,7 +3403,7 @@ window.RootsAdminEmployee = {
       const { data, error } = await window.RootsUser._sb.functions.invoke('roots-admin-users', {
         body: { action: 'invite_employee', ...payload },
       });
-      if (error) throw error;
+      if (error) throw await window.rootsFunctionError(error, 'Anlegen fehlgeschlagen');
       if (data?.error) throw new Error(data.error);
       const profile = data?.profile;
       await this.loadList('roots-admin-user-list-page');
@@ -4593,7 +4610,7 @@ window.RootsAdmin = {
     btn.disabled=true;btn.innerHTML='<i class="fa-solid fa-circle-notch roots-spin"></i> Wird gesendet…';
     try{
       const {data,error}=await sb.functions.invoke('roots-access-requests',{body:{action:'request_access',full_name:name,email}});
-      if(error) throw error;
+      if(error) throw await window.rootsFunctionError(error,'Anfrage konnte nicht gesendet werden');
       if(data?.error) throw new Error(data.error);
       ok.classList.add('visible');document.getElementById('roots-request-form').reset();
     }catch(error){document.getElementById('roots-request-error-text').textContent=error.message||'Anfrage konnte nicht gesendet werden.';err.classList.add('visible');}
@@ -5109,7 +5126,7 @@ function rootsValidateSlideWritingRequest(input) {
 async function rootsHandleSlideWritingRequest(sb, input) {
   const body = rootsValidateSlideWritingRequest(input);
   const { data, error } = await sb.functions.invoke('slide-writing-ai', { body });
-  if (error) throw new Error(error.message || 'Slide-Writing-Funktion fehlgeschlagen');
+  if (error) throw await window.rootsFunctionError(error, 'Slide-Writing-Funktion fehlgeschlagen');
   return data;
 }
 

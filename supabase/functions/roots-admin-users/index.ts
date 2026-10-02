@@ -215,7 +215,9 @@ Deno.serve(async (req) => {
     .single();
   if (upsertErr) {
     console.error("[roots-admin-users] profile upsert", upsertErr.message);
-    return json({ error: "Profil konnte nicht angelegt werden: " + upsertErr.message }, 500, c);
+    return json({
+      error: `Einladung an ${email} ist versendet, die Stammdaten wurden aber nicht gespeichert. Bitte über „Bearbeiten“ nachtragen. (${upsertErr.message})`,
+    }, 500, c);
   }
 
   return json({

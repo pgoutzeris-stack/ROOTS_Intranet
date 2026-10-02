@@ -148,15 +148,32 @@ Deno.serve(async (req) => {
     return json({ error: "Ein Auth-Nutzer mit dieser E-Mail existiert bereits." }, 409, c);
   }
 
+  // Anlegen mit roots_admin_provisioned, damit der Trigger
+  // users.reject_uninvited_auth_user den Insert durchlaesst. Die Einladung
+  // laeuft danach auf den bestehenden, unbestaetigten Nutzer (Update, kein Insert).
+  const userMeta = {
+    full_name: fullName,
+    first_name: first || null,
+    last_name: last || null,
+  };
+  const { data: created, error: createErr } = await service.auth.admin.createUser({
+    email,
+    email_confirm: false,
+    user_metadata: userMeta,
+    app_metadata: { roots_admin_provisioned: true },
+  });
+  if (createErr || !created?.user?.id) {
+    console.error("[roots-admin-users] createUser", createErr?.message);
+    return json({ error: createErr?.message || "Nutzer konnte nicht angelegt werden." }, 500, c);
+  }
+
   const { data: invited, error: inviteErr } = await service.auth.admin.inviteUserByEmail(email, {
-    data: {
-      full_name: fullName,
-      first_name: first || null,
-      last_name: last || null,
-    },
+    data: userMeta,
     redirectTo: INTRANET_REDIRECT,
   });
   if (inviteErr || !invited?.user?.id) {
+    console.error("[roots-admin-users] invite", inviteErr?.message);
+    await service.auth.admin.deleteUser(created.user.id);
     return json({ error: inviteErr?.message || "Einladung konnte nicht versendet werden." }, 500, c);
   }
 

@@ -148,32 +148,32 @@ Deno.serve(async (req) => {
     return json({ error: "Ein Auth-Nutzer mit dieser E-Mail existiert bereits." }, 409, c);
   }
 
-  // Anlegen mit roots_admin_provisioned, damit der Trigger
-  // users.reject_uninvited_auth_user den Insert durchlaesst. Die Einladung
-  // laeuft danach auf den bestehenden, unbestaetigten Nutzer (Update, kein Insert).
-  const userMeta = {
-    full_name: fullName,
-    first_name: first || null,
-    last_name: last || null,
-  };
-  const { data: created, error: createErr } = await service.auth.admin.createUser({
-    email,
-    email_confirm: false,
-    user_metadata: userMeta,
-    app_metadata: { roots_admin_provisioned: true },
-  });
-  if (createErr || !created?.user?.id) {
-    console.error("[roots-admin-users] createUser", createErr?.message);
-    return json({ error: createErr?.message || "Nutzer konnte nicht angelegt werden." }, 500, c);
+  // Freigabe-Ticket fuer den Trigger users.reject_uninvited_auth_user.
+  // Nur service_role darf in users.provision_tickets schreiben; der Trigger
+  // verbraucht das Ticket beim Insert in auth.users.
+  const { error: ticketErr } = await usersDb
+    .from("provision_tickets")
+    .upsert({
+      email,
+      created_by: caller.id,
+      expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    }, { onConflict: "email" });
+  if (ticketErr) {
+    console.error("[roots-admin-users] ticket", ticketErr.message);
+    return json({ error: "Freigabe konnte nicht angelegt werden: " + ticketErr.message }, 500, c);
   }
 
   const { data: invited, error: inviteErr } = await service.auth.admin.inviteUserByEmail(email, {
-    data: userMeta,
+    data: {
+      full_name: fullName,
+      first_name: first || null,
+      last_name: last || null,
+    },
     redirectTo: INTRANET_REDIRECT,
   });
   if (inviteErr || !invited?.user?.id) {
     console.error("[roots-admin-users] invite", inviteErr?.message);
-    await service.auth.admin.deleteUser(created.user.id);
+    await usersDb.from("provision_tickets").delete().eq("email", email);
     return json({ error: inviteErr?.message || "Einladung konnte nicht versendet werden." }, 500, c);
   }
 

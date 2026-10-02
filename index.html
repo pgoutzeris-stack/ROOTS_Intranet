@@ -3081,7 +3081,7 @@ window.RootsAdminEmployee = {
           <div class="admin-field"><label for="aec-weekly-hours">Arbeitsstunden / Woche</label><input class="modern-input" id="aec-weekly-hours" type="number" min="0" step="0.5" value="${u.weekly_hours ?? ''}"></div>
           <div class="admin-field"><label for="aec-urlaubstage">Urlaubsanspruch</label><input class="modern-input" id="aec-urlaubstage" type="number" min="0" max="365" step="1" value="${u.urlaubstage_jahr ?? 30}"></div>
           <div class="admin-field"><label for="aec-position">Position / Rolle</label><select class="modern-select" id="aec-position">${this.positionOptions(u.position || '')}</select></div>
-          <div class="admin-field"><label for="aec-hourly-rate">Stundensatz (allgemein)</label><input class="modern-input" id="aec-hourly-rate" type="number" min="0" step="0.01" value="${u.hourly_rate ?? ''}" placeholder="€/h"></div>
+          <div class="admin-field"><label for="aec-hourly-rate">Stundensatz (allgemein)</label><input class="modern-input" id="aec-hourly-rate" type="number" min="0" step="0.01" value="${u.hourly_rate ?? ''}" placeholder="${u.hourly_rate == null && u.id ? 'n/a' : '€/h'}"></div>
           <div class="admin-field"><label for="aec-reporting">Reporting Line</label><select class="modern-select" id="aec-reporting">${this.reportingOptions(users, u.reporting_line_id, u.id)}</select></div>
           <div class="admin-field"><label for="aec-mentor">Onboarding-Mentor</label><select class="modern-select" id="aec-mentor">${this.reportingOptions(users, u.mentor_id, u.id)}</select></div>
           <div class="admin-field span-2">
@@ -3737,6 +3737,9 @@ window.RootsUser = {
   isProfileComplete(p) {
     if (!p) return false;
     if (!p.position || String(p.position).trim() === '') return false;
+    // Onboarding-Teilnehmer: Stundensatz und Telefon pflegt der Admin.
+    // prevent_role_escalation laesst Nicht-Admins diese Felder nicht schreiben.
+    if (p.app_role === 'reader') return true;
     if (p.hourly_rate === null || p.hourly_rate === undefined || p.hourly_rate === '') return false;
     const hr = Number(p.hourly_rate);
     if (!Number.isFinite(hr) || hr < 0) return false;

@@ -200,9 +200,17 @@ Deno.serve(async (req) => {
     app_settings: body.app_settings && typeof body.app_settings === "object" ? body.app_settings : {},
   };
 
-  const { data: profile, error: upsertErr } = await usersDb
+  // Mit dem JWT des Admins schreiben: users.prevent_role_escalation prueft
+  // auth.uid() und wuerde service_role als Nicht-Admin abweisen.
+  // Die Profilzeile legt users.handle_new_user beim Insert in auth.users an.
+  const callerDb = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+    db: { schema: "users" },
+  });
+  const { data: profile, error: upsertErr } = await callerDb
     .from("profiles")
-    .upsert({ id: newUserId, ...profilePayload }, { onConflict: "id" })
+    .update(profilePayload)
+    .eq("id", newUserId)
     .select("id,email,full_name,first_name,last_name,salutation,kuerzel,position,avatar_url,linkedin_url,phone,birthday,start_date,hourly_rate,weekly_hours,urlaubstage,urlaubstage_jahr,app_role,app_settings,reporting_line_id,mentor_id")
     .single();
   if (upsertErr) {

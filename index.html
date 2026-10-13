@@ -1236,6 +1236,9 @@
           <a href="#drucken" class="nav-item" data-view="drucken" data-tool-id="drucken">
             <i class="fa-solid fa-print"></i><span class="nav-label-text"> Print</span>
           </a>
+          <a href="#rechnungen" class="nav-item nav-item--hidden" data-view="rechnungen" data-tool-id="rechnungen" aria-hidden="true">
+            <i class="fa-solid fa-file-invoice"></i><span class="nav-label-text"> Rechnungen</span>
+          </a>
           <a href="#signal-layer" class="nav-item" data-view="signal-layer" data-tool-id="signal-layer">
             <i class="fa-solid fa-broadcast-tower"></i><span class="nav-label-text"> Signal Layer</span>
           </a>
@@ -1422,6 +1425,19 @@
               </div>
             </article>
 
+            <article class="tool-launch-card is-hidden" data-tool-id="rechnungen">
+              <span class="card-chip"><i class="fa-solid fa-file-invoice"></i> Finanzen</span>
+              <div class="tool-card-copy">
+                <h3>Rechnungen</h3>
+                <p>E-Rechnungen nach EN 16931 als Factur-X / ZUGFeRD.</p>
+              </div>
+              <div class="card-actions">
+                <a href="#rechnungen" class="btn-primary" data-open-view="rechnungen">
+                  <i class="fa-solid fa-up-right-and-down-left-from-center"></i> Öffnen
+                </a>
+              </div>
+            </article>
+
             <article class="tool-launch-card" data-tool-id="signal-layer">
               <span class="card-chip"><i class="fa-solid fa-broadcast-tower"></i> In Aufbau</span>
               <div class="tool-card-copy">
@@ -1505,6 +1521,16 @@
           title="ROOTS Print · Drucken und Scannen"
           data-src="https://pgoutzeris-stack.github.io/drucken/?authBroker=v1"
           sandbox="allow-scripts allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"
+          referrerpolicy="no-referrer"
+          allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
+      </section>
+
+      <section class="app-view" data-view-panel="rechnungen">
+        <iframe
+          class="tool-iframe"
+          title="ROOTS Rechnungen"
+          data-src="https://pgoutzeris-stack.github.io/ROOTS_Rechnungen/?authBroker=v1&v=20261013-1"
+          sandbox="allow-scripts allow-forms allow-downloads allow-modals"
           referrerpolicy="no-referrer"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
       </section>
@@ -2528,7 +2554,14 @@ window.INTRANET_TOOL_DEFAULTS = [
   { id: 'livepoll', label: 'Live Poll', icon: 'fa-solid fa-signal' },
   { id: 'signal-layer', label: 'Signal Layer', icon: 'fa-solid fa-broadcast-tower' },
   { id: 'drucken', label: 'Print', icon: 'fa-solid fa-print' },
+  { id: 'rechnungen', label: 'Rechnungen', icon: 'fa-solid fa-file-invoice' },
 ];
+
+/* Tools, die unabhaengig von allowed_tools nur bestimmte Personen sehen.
+   Die eigentliche Sperre liegt in Supabase (public.rg_members, RLS). */
+window.INTRANET_RESTRICTED_TOOLS = {
+  rechnungen: ['pgoutzeris@roots-consultants.com', 'mstankovic@roots-consultants.com', 'rerbler@roots-consultants.com'],
+};
 
 window.refreshIntranetToolRegistry = function refreshIntranetToolRegistry() {
   const defaults = new Map(window.INTRANET_TOOL_DEFAULTS.map(tool => [tool.id, tool]));
@@ -2588,6 +2621,8 @@ window.IntranetAccess = {
 
   canAccessTool(toolId, profile = window.RootsUser?._p) {
     if (!toolId) return true;
+    const restricted = window.INTRANET_RESTRICTED_TOOLS?.[toolId];
+    if (restricted && !restricted.includes(String(profile?.email || '').trim().toLowerCase())) return false;
     const allowed = this.getAllowedTools(profile);
     if (allowed === null) return true;
     return allowed.includes(toolId);
@@ -4711,7 +4746,7 @@ const ROOTS_ALLOWED_MESSAGE_TYPES = new Set([
 const ROOTS_ALLOWED_VIEWS = new Set([
   'dashboard', 'upcoming', 'teamkalender', 'vacation', 'sop', 'wissenshub',
   'slide-writing', 'recruiting', 'image', 'onboarding', 'notes',
-  'whiteboard', 'livepoll', 'signal-layer', 'drucken', 'admin',
+  'whiteboard', 'livepoll', 'signal-layer', 'drucken', 'rechnungen', 'admin',
 ]);
 const ROOTS_MAX_MESSAGE_BYTES = 4096;
 const ROOTS_MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
@@ -4719,6 +4754,7 @@ const ROOTS_ALLOWED_DOWNLOAD_TYPES = new Set([
   'application/octet-stream',
   'application/pdf',
   'application/json',
+  'application/xml',
   'application/zip',
   'application/vnd.ms-excel',
   'application/vnd.ms-powerpoint',
@@ -5381,6 +5417,115 @@ async function rootsHandlePrintRequest(sb, payload) {
   }
 }
 
+/**
+ * Rechnungen (ROOTS_Rechnungen). Laeuft mit der Sitzung des angemeldeten
+ * Nutzers; wer nicht in public.rg_members steht, sieht ueber RLS nichts.
+ * Endgueltig wird eine Rechnung nur ueber rg_finalize, das XML und PDF selbst prueft.
+ */
+const ROOTS_RG_MAX_PDF_BASE64 = 11 * 1024 * 1024;
+
+async function rootsHandleRechnungenRequest(sb, payload) {
+  const op = String(payload?.op || '');
+  const uuid = (v) => {
+    const s = String(v || '');
+    if (!/^[0-9a-f-]{36}$/i.test(s)) throw new Error('Ungueltige Kennung');
+    return s;
+  };
+  const unwrap = ({ data, error }) => {
+    if (error) throw new Error(error.message || 'Anfrage fehlgeschlagen');
+    return data;
+  };
+  const plain = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+  const LIST = 'id,number,status,customer_name,issue_date,tax_case,net_cents,tax_cents,gross_cents,created_at,updated_at,finalized_at,cancelled_at,project:data->>project';
+
+  switch (op) {
+    case 'context': {
+      const member = unwrap(await sb.rpc('rg_is_member')) === true;
+      const settings = member ? unwrap(await sb.from('rg_settings').select('seller,number_prefix,number_last,number_step').eq('id', 1).maybeSingle()) : null;
+      return { member, settings };
+    }
+    case 'list':
+      return { invoices: unwrap(await sb.from('rg_invoices').select(LIST).order('created_at', { ascending: false }).limit(1000)) || [] };
+    case 'get':
+      return { invoice: unwrap(await sb.from('rg_invoices').select('id,number,status,data,customer_name,issue_date,tax_case,net_cents,tax_cents,gross_cents,created_at,finalized_at,xml,xml_sha256,pdf_sha256,validation,cancelled_at,cancel_reason').eq('id', uuid(payload.id)).single()) };
+    case 'pdf': {
+      const row = unwrap(await sb.from('rg_invoices').select('pdf_base64,status').eq('id', uuid(payload.id)).single());
+      if (!row?.pdf_base64 || row.status === 'draft') throw new Error('Nur endgueltige Rechnungen haben ein PDF');
+      return { pdf: row.pdf_base64 };
+    }
+    case 'save': {
+      const r = plain(payload.row);
+      const row = {
+        number: String(r.number || '').trim().slice(0, 40),
+        data: plain(r.data),
+        customer_name: r.customer_name == null ? null : String(r.customer_name).slice(0, 200),
+        issue_date: r.issue_date || null,
+        tax_case: ['S19', 'AE', 'O'].includes(r.tax_case) ? r.tax_case : null,
+        net_cents: Number.isFinite(r.net_cents) ? r.net_cents : null,
+        tax_cents: Number.isFinite(r.tax_cents) ? r.tax_cents : null,
+        gross_cents: Number.isFinite(r.gross_cents) ? r.gross_cents : null,
+      };
+      if (!row.number) throw new Error('Rechnungsnummer fehlt');
+      if (payload.id) {
+        const data = unwrap(await sb.from('rg_invoices').update(row).eq('id', uuid(payload.id)).eq('status', 'draft').select('id').single());
+        return { id: data.id };
+      }
+      const data = unwrap(await sb.from('rg_invoices').insert({ ...row, status: 'draft' }).select('id').single());
+      return { id: data.id };
+    }
+    case 'delete':
+      unwrap(await sb.from('rg_invoices').delete().eq('id', uuid(payload.id)).eq('status', 'draft'));
+      return { ok: true };
+    case 'finalize': {
+      const pdf = String(payload.pdf || '');
+      if (!pdf || pdf.length > ROOTS_RG_MAX_PDF_BASE64) throw new Error('PDF fehlt oder ist zu gross');
+      return unwrap(await sb.rpc('rg_finalize', {
+        p_id: uuid(payload.id),
+        p_xml: String(payload.xml || ''),
+        p_pdf_base64: pdf,
+        p_validation: plain(payload.validation),
+      }));
+    }
+    case 'cancel':
+      return unwrap(await sb.rpc('rg_cancel', { p_id: uuid(payload.id), p_reason: String(payload.reason || '').slice(0, 500) }));
+    case 'customers':
+      return { customers: unwrap(await sb.from('rg_customers').select('id,name,data').order('name')) || [] };
+    case 'customer_save': {
+      const row = { name: String(payload.name || '').trim().slice(0, 200), data: plain(payload.data), updated_at: new Date().toISOString() };
+      if (!row.name) throw new Error('Firma fehlt');
+      if (payload.id) return { customer: unwrap(await sb.from('rg_customers').update(row).eq('id', uuid(payload.id)).select('id,name,data').single()) };
+      return { customer: unwrap(await sb.from('rg_customers').insert(row).select('id,name,data').single()) };
+    }
+    case 'customer_delete':
+      unwrap(await sb.from('rg_customers').delete().eq('id', uuid(payload.id)));
+      return { ok: true };
+    case 'templates':
+      return { templates: unwrap(await sb.from('rg_templates').select('id,name,sort,data').order('sort').order('name')) || [] };
+    case 'template_save': {
+      const row = { name: String(payload.name || '').trim().slice(0, 120), sort: Math.floor(Number(payload.sort) || 0), data: plain(payload.data), updated_at: new Date().toISOString() };
+      if (!row.name) throw new Error('Name fehlt');
+      if (payload.id) return { template: unwrap(await sb.from('rg_templates').update(row).eq('id', uuid(payload.id)).select('id,name,sort,data').single()) };
+      return { template: unwrap(await sb.from('rg_templates').insert(row).select('id,name,sort,data').single()) };
+    }
+    case 'template_delete':
+      unwrap(await sb.from('rg_templates').delete().eq('id', uuid(payload.id)));
+      return { ok: true };
+    case 'settings_save': {
+      const s = plain(payload.settings);
+      const row = {
+        seller: plain(s.seller),
+        number_prefix: String(s.number_prefix || '').slice(0, 20),
+        number_last: Math.max(0, Math.floor(Number(s.number_last) || 0)),
+        number_step: Math.max(1, Math.floor(Number(s.number_step) || 1)),
+        updated_at: new Date().toISOString(),
+      };
+      return { settings: unwrap(await sb.from('rg_settings').update(row).eq('id', 1).select('seller,number_prefix,number_last,number_step').single()) };
+    }
+    default:
+      throw new Error('Unbekannte Rechnungs-Anfrage');
+  }
+}
+
 async function rootsHandleBrokerRequest(frame, message) {
   const requestId = typeof message.requestId === 'string' ? message.requestId : '';
   if (!/^[a-z0-9_-]{8,80}$/i.test(requestId)) return;
@@ -5437,6 +5582,11 @@ async function rootsHandleBrokerRequest(frame, message) {
     }
     if (message.action === 'print' && frameUrl.includes('/drucken/')) {
       const result = await rootsHandlePrintRequest(sb, message.payload);
+      rootsBrokerReply(frame, requestId, result);
+      return;
+    }
+    if (message.action === 'rechnungen' && frameUrl.includes('/ROOTS_Rechnungen/')) {
+      const result = await rootsHandleRechnungenRequest(sb, message.payload);
       rootsBrokerReply(frame, requestId, result);
       return;
     }

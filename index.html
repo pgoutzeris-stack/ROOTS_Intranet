@@ -1529,7 +1529,7 @@
         <iframe
           class="tool-iframe"
           title="ROOTS Rechnungen"
-          data-src="https://pgoutzeris-stack.github.io/ROOTS_Rechnungen/?authBroker=v1&v=20261013-13"
+          data-src="https://pgoutzeris-stack.github.io/ROOTS_Rechnungen/?authBroker=v1&v=20261014-14"
           sandbox="allow-scripts allow-forms allow-downloads allow-modals"
           referrerpolicy="no-referrer"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
@@ -5456,7 +5456,6 @@ async function rootsHandleRechnungenRequest(sb, payload) {
     case 'save': {
       const r = plain(payload.row);
       const row = {
-        number: String(r.number || '').trim().slice(0, 40),
         data: plain(r.data),
         customer_name: r.customer_name == null ? null : String(r.customer_name).slice(0, 200),
         issue_date: r.issue_date || null,
@@ -5465,7 +5464,6 @@ async function rootsHandleRechnungenRequest(sb, payload) {
         tax_cents: Number.isFinite(r.tax_cents) ? r.tax_cents : null,
         gross_cents: Number.isFinite(r.gross_cents) ? r.gross_cents : null,
       };
-      if (!row.number) throw new Error('Rechnungsnummer fehlt');
       if (payload.id) {
         const data = unwrap(await sb.from('rg_invoices').update(row).eq('id', uuid(payload.id)).eq('status', 'draft').select('id').single());
         return { id: data.id };
@@ -5499,6 +5497,20 @@ async function rootsHandleRechnungenRequest(sb, payload) {
     case 'customer_delete':
       unwrap(await sb.from('rg_customers').delete().eq('id', uuid(payload.id)));
       return { ok: true };
+    case 'sequences':
+      return { sequences: unwrap(await sb.from('rg_sequences').select('id,name,prefix,next_number,step,confirmed_at,confirmed_by').order('name')) || [] };
+    case 'sequence_save':
+      return { sequence: unwrap(await sb.rpc('rg_sequence_save', {
+        p_id: payload.id ? uuid(payload.id) : null,
+        p_name: String(payload.name || '').slice(0, 80),
+        p_prefix: String(payload.prefix || '').slice(0, 20),
+        p_next: payload.next == null || payload.next === '' ? null : Math.max(0, Math.floor(Number(payload.next) || 0)),
+        p_step: Math.max(1, Math.floor(Number(payload.step) || 1)),
+      })) };
+    case 'sequence_confirm':
+      return { sequence: unwrap(await sb.rpc('rg_sequence_confirm', { p_id: uuid(payload.id) })) };
+    case 'reserve':
+      return { number: unwrap(await sb.rpc('rg_reserve_number', { p_invoice: uuid(payload.id) })) };
     case 'templates':
       return { templates: unwrap(await sb.from('rg_templates').select('id,name,sort,data').order('sort').order('name')) || [] };
     case 'template_save': {

@@ -1529,7 +1529,7 @@
         <iframe
           class="tool-iframe"
           title="ROOTS Rechnungen"
-          data-src="https://pgoutzeris-stack.github.io/ROOTS_Rechnungen/?authBroker=v1&v=20261014-14"
+          data-src="https://pgoutzeris-stack.github.io/ROOTS_Rechnungen/?authBroker=v1&v=20261025-15"
           sandbox="allow-scripts allow-forms allow-downloads allow-modals"
           referrerpolicy="no-referrer"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
@@ -5423,6 +5423,7 @@ async function rootsHandlePrintRequest(sb, payload) {
  * Endgueltig wird eine Rechnung nur ueber rg_finalize, das XML und PDF selbst prueft.
  */
 const ROOTS_RG_MAX_PDF_BASE64 = 11 * 1024 * 1024;
+const ROOTS_RG_JOURNAL = 'seq,invoice_id,version,event,status,number,data_sha256,gross_cents,xml_sha256,pdf_sha256,note,actor_email,at,prev_hash,hash';
 
 async function rootsHandleRechnungenRequest(sb, payload) {
   const op = String(payload?.op || '');
@@ -5486,6 +5487,28 @@ async function rootsHandleRechnungenRequest(sb, payload) {
     }
     case 'cancel':
       return unwrap(await sb.rpc('rg_cancel', { p_id: uuid(payload.id), p_reason: String(payload.reason || '').slice(0, 500) }));
+    case 'file_put': {
+      const b64 = String(payload.base64 || '');
+      if (!b64 || b64.length > 7 * 1024 * 1024) throw new Error('Datei fehlt oder ist zu gross');
+      const sha256 = unwrap(await sb.rpc('rg_file_put', { p_name: String(payload.name || '').slice(0, 200), p_mime: String(payload.mime || ''), p_base64: b64 }));
+      return { sha256 };
+    }
+    case 'file_get': {
+      const sha = String(payload.sha || '');
+      if (!/^[0-9a-f]{64}$/.test(sha)) throw new Error('Ungueltige Kennung');
+      return unwrap(await sb.rpc('rg_file_get', { p_sha: sha }));
+    }
+    case 'journal':
+      return { entries: unwrap(await sb.from('rg_journal').select(ROOTS_RG_JOURNAL).eq('invoice_id', uuid(payload.id)).order('version')) || [] };
+    case 'journal_all':
+      return { entries: unwrap(await sb.from('rg_journal').select(ROOTS_RG_JOURNAL).order('seq').limit(50000)) || [] };
+    case 'journal_entry': {
+      const seq = Math.floor(Number(payload.seq));
+      if (!Number.isFinite(seq) || seq < 1) throw new Error('Ungueltige Kennung');
+      return { entry: unwrap(await sb.from('rg_journal').select('seq,invoice_id,version,event,status,number,data,gross_cents,actor_email,at,hash').eq('seq', seq).single()) };
+    }
+    case 'verify':
+      return unwrap(await sb.rpc('rg_verify', { p_invoice: payload.id ? uuid(payload.id) : null }));
     case 'customers':
       return { customers: unwrap(await sb.from('rg_customers').select('id,name,data').order('name')) || [] };
     case 'customer_save': {

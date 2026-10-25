@@ -1235,6 +1235,14 @@
   window.addEventListener('message', (e) => {
     if (e.origin !== ORIGIN || e.source !== window.parent) return;
     if (!e.data || typeof e.data !== 'object' || Array.isArray(e.data)) return;
+    if (e.data.type === 'roots-download-result') {
+      const done = _downloadPending.get(e.data.downloadId);
+      if (done) {
+        _downloadPending.delete(e.data.downloadId);
+        done({ ok: !!e.data.ok, via: 'intranet', reason: typeof e.data.reason === 'string' ? e.data.reason : '' });
+      }
+      return;
+    }
     if (e.data.type === 'roots-broker-response') {
       const pending = _brokerPending.get(e.data.requestId);
       if (!pending) return;
@@ -1386,18 +1394,38 @@
    * Usage (in any ROOTS tool):
    *   window.RootsUserBridge.downloadBlob(blob, 'MyFile.pdf');
    */
+  /*
+   * Liefert ein Promise: { ok, via, reason }. Das Intranet quittiert jeden
+   * Download (roots-download-result). Kommt keine Quittung (aelteres Intranet,
+   * Nachricht verworfen), meldet das Promise nach 4 s ok:false, via:'timeout',
+   * damit das Tool einen Ersatzweg anbieten kann. Aufrufer, die das Ergebnis
+   * ignorieren, verhalten sich wie bisher.
+   */
+  const _downloadPending = new Map();
   function downloadBlob(blob, filename) {
     if (IN_IFRAME && typeof blob.arrayBuffer === 'function') {
-      blob.arrayBuffer().then(buf => {
-        window.parent.postMessage(
-          { type: 'roots-download-file', filename, mimeType: blob.type || 'application/octet-stream', buffer: buf },
-          ORIGIN,
-          [buf]   // transfer ownership - zero-copy
-        );
-      }).catch(() => _directDownload(blob, filename));
-      return;
+      const downloadId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          _downloadPending.delete(downloadId);
+          resolve({ ok: false, via: 'timeout', reason: 'Keine Bestaetigung vom Intranet' });
+        }, 4000);
+        _downloadPending.set(downloadId, (r) => { clearTimeout(timer); resolve(r); });
+        blob.arrayBuffer().then(buf => {
+          window.parent.postMessage(
+            { type: 'roots-download-file', downloadId, filename, mimeType: blob.type || 'application/octet-stream', buffer: buf },
+            ORIGIN,
+            [buf]   // transfer ownership - zero-copy
+          );
+        }).catch((err) => {
+          clearTimeout(timer);
+          _downloadPending.delete(downloadId);
+          resolve({ ok: false, via: 'buffer', reason: String(err && err.message || err) });
+        });
+      });
     }
-    _directDownload(blob, filename);
+    const ok = _directDownload(blob, filename);
+    return Promise.resolve({ ok, via: 'direct', reason: ok ? '' : 'Download im Fenster fehlgeschlagen' });
   }
 
   function _directDownload(blob, filename) {
@@ -1409,7 +1437,8 @@
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
-    } catch (_) {}
+      return true;
+    } catch (_) { return false; }
   }
 
   window.RootsUserBridge = {
@@ -1420,6 +1449,7 @@
     ORIGIN,
     showBridgeToast,
     downloadBlob,
+    directDownload: _directDownload,
     request: brokerRequest,
     TOKENLESS_EMBED,
     syncAuthFromParentStorage,

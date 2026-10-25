@@ -4214,7 +4214,7 @@ window.RootsAdmin = {
 };
 </script>
 
-<script src="roots-user-bridge.js?v=20261002-toast-v1"></script>
+<script src="roots-user-bridge.js?v=20261025-download-ack"></script>
 <script src="roots-signature.js?v=20261002-sig-v1"></script>
 
 <script>
@@ -5709,8 +5709,17 @@ window.addEventListener('message', (e) => {
       ? e.data.mimeType.toLowerCase().split(';', 1)[0].trim()
       : '';
     const buffer = e.data.buffer;
-    if (!filename || !ROOTS_ALLOWED_DOWNLOAD_TYPES.has(mimeType)) return;
-    if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 1 || buffer.byteLength > ROOTS_MAX_DOWNLOAD_BYTES) return;
+    // Antwort an das Tool, damit es bei Ablehnung selbst einen Ersatzweg starten kann
+    const quittung = (ok, reason = '') => {
+      if (typeof e.data.downloadId !== 'string') return;
+      const sandboxed = sourceFrame.hasAttribute('sandbox') && !sourceFrame.sandbox.contains('allow-same-origin');
+      try {
+        sourceFrame.contentWindow?.postMessage({ type: 'roots-download-result', downloadId: e.data.downloadId, ok, reason }, sandboxed ? '*' : ROOTS_TOOL_ORIGIN);
+      } catch (_) {}
+    };
+    if (!filename) { quittung(false, 'Dateiname ungueltig'); return; }
+    if (!ROOTS_ALLOWED_DOWNLOAD_TYPES.has(mimeType)) { quittung(false, 'Dateityp nicht erlaubt: ' + mimeType); return; }
+    if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 1 || buffer.byteLength > ROOTS_MAX_DOWNLOAD_BYTES) { quittung(false, 'Datei leer oder zu gross'); return; }
     try {
       const blob = new Blob([buffer], { type: mimeType });
       const url = URL.createObjectURL(blob);
@@ -5724,7 +5733,10 @@ window.addEventListener('message', (e) => {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }, 1500);
-    } catch (_) {}
+      quittung(true);
+    } catch (err) {
+      quittung(false, String(err && err.message || err).slice(0, 200));
+    }
   }
 });
 </script>

@@ -760,6 +760,16 @@
     .placeholder-tile strong { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; }
     .placeholder-tile span { color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
 
+    .memo-ziel { display: flex; align-items: center; gap: 1.5rem; padding: 1.1rem 1.25rem; border-radius: 14px; background: #f7f9fc; }
+    .memo-ziel-zahl { font-size: 1.6rem; font-weight: 700; color: var(--text, #0f172a); white-space: nowrap; }
+    .memo-ziel-zahl small { font-size: .9rem; font-weight: 500; color: var(--muted); }
+    .memo-ziel-mitte { flex: 1; min-width: 0; display: grid; gap: .45rem; }
+    .memo-ziel-balken { height: 6px; border-radius: 999px; background: #e6ebf2; overflow: hidden; }
+    .memo-ziel-balken span { display: block; height: 100%; border-radius: inherit; background: #206efb; }
+    .memo-ziel-text { font-size: .85rem; color: var(--muted); }
+    .memo-ziel.is-erreicht .memo-ziel-balken span { background: #16a34a; }
+    @media (max-width: 640px) { .memo-ziel { flex-wrap: wrap; } }
+
     .intranet-notif-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1178,11 +1188,6 @@
           <a href="#dashboard" class="nav-item active" data-view="dashboard">
             <i class="fa-solid fa-house"></i><span class="nav-label-text"> Dashboard</span>
           </a>
-          <a href="#bulletin" class="nav-item is-disabled" data-view="upcoming"
-            data-feature-title="Schwarzes Brett"
-            data-feature-description="Dieser Bereich ist bereits vorgesehen und kann im gleichen Stil als nächstes Modul ausgebaut werden.">
-            <i class="fa-solid fa-newspaper"></i><span class="nav-label-text"> Schwarzes Brett</span>
-          </a>
         </div>
 
         <div class="nav-group">
@@ -1292,6 +1297,11 @@
             <div class="intranet-notif-footer">
               <button type="button" class="btn-ghost intranet-notif-more" id="intranet-notif-more" hidden>Mehr anzeigen</button>
             </div>
+          </div>
+
+          <div class="content-block" id="memo-ziel-section" hidden>
+            <div class="stage-label"><i class="fa-solid fa-paper-plane"></i> Executive Memos</div>
+            <div class="memo-ziel" id="memo-ziel"></div>
           </div>
 
           <div class="tools-grid">
@@ -2221,6 +2231,33 @@ window.RootsUiToast = {
   },
 };
 
+/* Monatsziel Executive Memos aus dem Signal Layer. Sichtbar fuer alle mit
+   Zugang zum Signal Layer; gezaehlt wird jedes als abgeschickt markierte Memo. */
+const MemoZiel = {
+  MONATE: ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
+  async render() {
+    const section = document.getElementById('memo-ziel-section');
+    const box = document.getElementById('memo-ziel');
+    if (!section || !box) return;
+    if (!window.IntranetAccess?.canAccessTool('signal-layer') || !window.RootsUser?._sb) { section.hidden = true; return; }
+    const { data, error } = await window.RootsUser._sb.schema('signal_layer').rpc('memo_monatsstand');
+    if (error || !data) { section.hidden = true; if (error) console.error('MemoZiel', error); return; }
+    const gesendet = Number(data.gesendet || 0);
+    const ziel = Math.max(1, Number(data.ziel || 5));
+    const offen = Math.max(0, ziel - gesendet);
+    const monat = this.MONATE[new Date().getMonth()];
+    box.classList.toggle('is-erreicht', offen === 0);
+    box.innerHTML = `
+      <div class="memo-ziel-zahl">${gesendet} <small>von ${ziel}</small></div>
+      <div class="memo-ziel-mitte">
+        <div class="memo-ziel-balken"><span style="width:${Math.min(100, Math.round(gesendet / ziel * 100))}%"></span></div>
+        <div class="memo-ziel-text">${escapeHtml(monat)} · ${offen ? `noch ${offen} abzuschicken` : 'Monatsziel erreicht'}${data.verantwortlich_name ? ' · ' + escapeHtml(data.verantwortlich_name) : ''}</div>
+      </div>
+      <a href="#signal-layer" class="btn-ghost" data-open-view="signal-layer">Signal Layer</a>`;
+    section.hidden = false;
+  },
+};
+
 window.RootsNotifications = {
   ORIGIN: 'https://pgoutzeris-stack.github.io',
   DASHBOARD_PREVIEW: 5,
@@ -2499,6 +2536,7 @@ window.RootsNotifications = {
       if (latest) this.showToast(latest);
       if (document.querySelector('.app-view.is-active[data-view-panel="dashboard"]')) {
         this.renderDashboard();
+        void MemoZiel.render();
       }
     } catch (e) {
       console.error('RootsNotifications.poll', e);

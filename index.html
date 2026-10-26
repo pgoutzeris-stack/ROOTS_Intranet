@@ -760,15 +760,10 @@
     .placeholder-tile strong { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; }
     .placeholder-tile span { color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
 
-    .memo-ziel { display: flex; align-items: center; gap: 1.5rem; padding: 1.1rem 1.25rem; border-radius: 14px; background: #f7f9fc; }
-    .memo-ziel-zahl { font-size: 1.6rem; font-weight: 700; color: var(--text, #0f172a); white-space: nowrap; }
-    .memo-ziel-zahl small { font-size: .9rem; font-weight: 500; color: var(--muted); }
-    .memo-ziel-mitte { flex: 1; min-width: 0; display: grid; gap: .45rem; }
-    .memo-ziel-balken { height: 6px; border-radius: 999px; background: #e6ebf2; overflow: hidden; }
-    .memo-ziel-balken span { display: block; height: 100%; border-radius: inherit; background: #206efb; }
-    .memo-ziel-text { font-size: .85rem; color: var(--muted); }
-    .memo-ziel.is-erreicht .memo-ziel-balken span { background: #16a34a; }
-    @media (max-width: 640px) { .memo-ziel { flex-wrap: wrap; } }
+    .memo-ziel { display: flex; align-items: center; gap: 12px; padding: 1rem 1.1rem; border-radius: 14px; border: 1px solid var(--line); background: #fff; }
+    .memo-ziel-mitte { flex: 1; min-width: 0; display: grid; gap: 2px; }
+    .memo-ziel-titel { font-weight: 600; font-size: .92rem; }
+    .memo-ziel-text { font-size: .82rem; color: var(--muted); }
 
     .intranet-notif-grid {
       display: grid;
@@ -2231,28 +2226,26 @@ window.RootsUiToast = {
   },
 };
 
-/* Monatsziel Executive Memos aus dem Signal Layer. Sichtbar fuer alle mit
-   Zugang zum Signal Layer; gezaehlt wird jedes als abgeschickt markierte Memo. */
+/* Monatsziel Executive Memos aus dem Signal Layer. Nur der Verantwortliche
+   (memo_ziel, heute Jannik) sieht den Hinweis, und nur solange etwas offen ist. */
 const MemoZiel = {
-  MONATE: ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
   async render() {
     const section = document.getElementById('memo-ziel-section');
     const box = document.getElementById('memo-ziel');
     if (!section || !box) return;
     if (!window.IntranetAccess?.canAccessTool('signal-layer') || !window.RootsUser?._sb) { section.hidden = true; return; }
     const { data, error } = await window.RootsUser._sb.schema('signal_layer').rpc('memo_monatsstand');
-    if (error || !data) { section.hidden = true; if (error) console.error('MemoZiel', error); return; }
-    const gesendet = Number(data.gesendet || 0);
-    const ziel = Math.max(1, Number(data.ziel || 5));
+    if (error) console.error('MemoZiel', error);
+    const gesendet = Number(data?.gesendet || 0);
+    const ziel = Number(data?.ziel || 5);
     const offen = Math.max(0, ziel - gesendet);
-    const monat = this.MONATE[new Date().getMonth()];
-    box.classList.toggle('is-erreicht', offen === 0);
+    if (error || !data || data.verantwortlich_id !== window.RootsUser._uid || offen === 0) { section.hidden = true; return; }
     box.innerHTML = `
-      <div class="memo-ziel-zahl">${gesendet} <small>von ${ziel}</small></div>
-      <div class="memo-ziel-mitte">
-        <div class="memo-ziel-balken"><span style="width:${Math.min(100, Math.round(gesendet / ziel * 100))}%"></span></div>
-        <div class="memo-ziel-text">${escapeHtml(monat)} · ${offen ? `noch ${offen} abzuschicken` : 'Monatsziel erreicht'}${data.verantwortlich_name ? ' · ' + escapeHtml(data.verantwortlich_name) : ''}</div>
-      </div>
+      <span class="intranet-notif-card-icon"><i class="fa-solid fa-paper-plane"></i></span>
+      <span class="memo-ziel-mitte">
+        <span class="memo-ziel-titel">Noch ${offen} Executive ${offen === 1 ? 'Memo' : 'Memos'} als abgeschickt markieren</span>
+        <span class="memo-ziel-text">${gesendet} von ${ziel} diesen Monat</span>
+      </span>
       <a href="#signal-layer" class="btn-ghost" data-open-view="signal-layer">Signal Layer</a>`;
     section.hidden = false;
   },

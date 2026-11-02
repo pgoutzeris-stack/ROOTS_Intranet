@@ -622,6 +622,23 @@
       background: #fff;
     }
 
+    /* Eigene Meldung ueber der GitHub-Fehlerseite eines Tools. */
+    .app-view[data-view-panel] { position: relative; }
+    .tool-stoerung {
+      position: absolute; inset: 0; z-index: 2;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; background: var(--app-bg);
+    }
+    .tool-stoerung[hidden] { display: none; }
+    .tool-stoerung-karte {
+      max-width: 440px; padding: 32px 28px; text-align: center;
+      background: var(--bg); border-radius: var(--radius); box-shadow: var(--shadow-dash);
+    }
+    .tool-stoerung-karte > i { font-size: 1.6rem; color: var(--brand); }
+    .tool-stoerung-karte h3 { margin: 14px 0 6px; color: var(--ink); font-size: 1.15rem; font-weight: 700; }
+    .tool-stoerung-karte p { margin: 0 0 20px; color: var(--muted); font-size: .88rem; }
+    .tool-stoerung-karte .btn-primary { border: 0; cursor: pointer; font: inherit; font-weight: 600; }
+
     /* ── Placeholder (Bildgenerierung noch nicht live) ── */
     .tool-placeholder {
       flex: 1;
@@ -1726,6 +1743,80 @@
         navItems.forEach(item => item.classList.toggle('active', item === activeItem));
       }
 
+      // GitHub Pages liefert bei Stoerungen eine eigene Fehlerseite (Einhorn,
+      // "Site not found"). Die Tools liegen auf derselben Herkunft wie das
+      // Intranet, ihr Dokument ist also lesbar: erkennen, eigene Meldung
+      // darueberlegen und selbst neu laden, bis das Tool wieder antwortet.
+      const GITHUB_FEHLERSEITE = /really bad day|unicorns have taken over|isn't a GitHub Pages site|· GitHub Pages|Unicorn! · GitHub|429 Too Many Requests|50[234] (Bad Gateway|Service Unavailable|Gateway Time-?out)/i;
+      const STOERUNG_WARTEN = [15, 30, 60, 120];
+
+      function istGithubFehlerseite(iframe) {
+        let doc = null;
+        try { doc = iframe.contentDocument; } catch (_) { return false; }
+        if (!doc || !doc.location || doc.location.href === 'about:blank') return false;
+        const text = `${doc.title || ''} ${String(doc.body?.textContent || '').slice(0, 2000)}`;
+        return GITHUB_FEHLERSEITE.test(text);
+      }
+
+      function toolNeuLaden(iframe) {
+        const base = iframe.dataset.src;
+        if (!base) return;
+        const url = base + (base.includes('?') ? '&' : '?') + 'cb=' + Date.now().toString(36);
+        iframe.src = url;
+      }
+
+      function toolStoerungAus(iframe) {
+        clearInterval(Number(iframe.dataset.stoerungTakt || 0));
+        delete iframe.dataset.stoerungTakt;
+        delete iframe.dataset.stoerungVersuch;
+        const box = iframe.parentElement?.querySelector('.tool-stoerung');
+        if (box) box.hidden = true;
+      }
+
+      function toolStoerungAn(iframe) {
+        const panel = iframe.parentElement;
+        if (!panel) return;
+        let box = panel.querySelector('.tool-stoerung');
+        if (!box) {
+          box = document.createElement('div');
+          box.className = 'tool-stoerung';
+          box.setAttribute('role', 'status');
+          box.innerHTML = '<div class="tool-stoerung-karte"><i class="fa-solid fa-plug-circle-exclamation" aria-hidden="true"></i><h3></h3><p></p><button type="button" class="btn-primary">Jetzt neu laden</button></div>';
+          box.querySelector('button').addEventListener('click', () => toolNeuLaden(iframe));
+          panel.appendChild(box);
+        }
+        const name = iframe.title || 'Das Tool';
+        box.querySelector('h3').textContent = `${name} ist gerade nicht erreichbar`;
+        box.hidden = false;
+        const versuch = Number(iframe.dataset.stoerungVersuch || 0);
+        iframe.dataset.stoerungVersuch = String(versuch + 1);
+        let rest = STOERUNG_WARTEN[Math.min(versuch, STOERUNG_WARTEN.length - 1)];
+        const zeile = box.querySelector('p');
+        const zeichne = () => { zeile.textContent = `GitHub Pages meldet eine Störung · neuer Versuch in ${rest} s`; };
+        zeichne();
+        clearInterval(Number(iframe.dataset.stoerungTakt || 0));
+        const takt = setInterval(() => {
+          rest -= 1;
+          if (rest > 0) { zeichne(); return; }
+          clearInterval(takt);
+          zeile.textContent = 'GitHub Pages meldet eine Störung · wird neu geladen';
+          toolNeuLaden(iframe);
+        }, 1000);
+        iframe.dataset.stoerungTakt = String(takt);
+      }
+
+      function bewacheToolIframe(iframe) {
+        if (iframe.dataset.stoerungWache === '1') return;
+        iframe.dataset.stoerungWache = '1';
+        iframe.addEventListener('load', () => {
+          if (istGithubFehlerseite(iframe)) { toolStoerungAn(iframe); return; }
+          const warGestoert = Boolean(iframe.dataset.stoerungVersuch);
+          toolStoerungAus(iframe);
+          // Nach einem Neuladen braucht das Tool die Sitzung erneut.
+          if (warGestoert && iframe.dataset.bridgeReady === '1') window.RootsUser?._broadcastAuthSession?.();
+        });
+      }
+
       function ensureToolIframe(viewName) {
         const panel = document.querySelector(`.app-view[data-view-panel="${viewName}"]`);
         const iframe = panel?.querySelector('iframe.tool-iframe');
@@ -1739,6 +1830,7 @@
         }
         const base = iframe.dataset.src;
         if (!base) return;
+        bewacheToolIframe(iframe);
         // Per-app-launch cache-bust: the native Tauri WKWebView caches iframe
         // content aggressively, so a static ?v= could pin a tool to a stale
         // build. Appending a fresh token each launch guarantees the current

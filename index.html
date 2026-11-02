@@ -291,6 +291,7 @@
       padding: .18rem .42rem; border-radius: 999px; background: var(--brand-light);
     }
     .admin-tool-groups { display: grid; gap: .7rem; }
+    .admin-tool-groups + .admin-tools-head { margin-top: .9rem; }
     .admin-tool-group { display: grid; gap: .35rem; }
     .admin-tool-group[hidden] { display: none; }
     .admin-tool-group-head {
@@ -2806,6 +2807,9 @@ window.IntranetAccess = {
     return {
       app_role: this.normalizeRole(u.app_role),
       allowed_tools: this.toolsForUi(u),
+      // Wer im Signal Layer LinkedIn-Assets unter dem Absender ROOTS anlegt.
+      // Geschuetzt wie allowed_tools: nur Admins duerfen den Schluessel setzen.
+      roots_assets: u.app_settings?.signal_layer_roots_assets === true,
     };
   },
 
@@ -2890,6 +2894,8 @@ window.IntranetAccess = {
       </div>
       <div class="admin-tools-head"><span class="admin-tools-label">Sichtbare Tools</span><span class="admin-tools-count">${window.INTRANET_TOOLS.length} Tools</span></div>
       <div class="admin-tool-groups">${toolChecks}</div>
+      <div class="admin-tools-head"><span class="admin-tools-label">Rechte im Signal Layer</span></div>
+      <div class="admin-tool-grid"><label class="admin-tool-opt"><input type="checkbox" data-uid="${u.id}" data-recht="roots_assets" ${edits.roots_assets ? 'checked' : ''}><span class="roots-check-label">ROOTS-LinkedIn-Assets</span><span class="admin-tool-icon" aria-hidden="true"><i class="fa-brands fa-linkedin"></i></span></label></div>
     </div>`;
   },
 
@@ -2900,6 +2906,13 @@ window.IntranetAccess = {
         const uid = sel.dataset.uid;
         if (!window._adminUserEdits[uid]) window._adminUserEdits[uid] = this.initialEditsFromUser(window._adminUsers?.find(x => x.id === uid) || {});
         window._adminUserEdits[uid].app_role = sel.value;
+      });
+    });
+    root.querySelectorAll('input[data-recht="roots_assets"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const uid = cb.dataset.uid;
+        if (!window._adminUserEdits[uid]) window._adminUserEdits[uid] = this.initialEditsFromUser(window._adminUsers?.find(x => x.id === uid) || {});
+        window._adminUserEdits[uid].roots_assets = cb.checked;
       });
     });
     root.querySelectorAll('input[data-tool]').forEach(cb => {
@@ -2919,6 +2932,7 @@ window.IntranetAccess = {
     if (!edits) return false;
     const init = this.initialEditsFromUser(u);
     if (edits.app_role !== init.app_role) return true;
+    if (Boolean(edits.roots_assets) !== init.roots_assets) return true;
     const a = [...edits.allowed_tools].sort().join(',');
     const b = [...init.allowed_tools].sort().join(',');
     return a !== b;
@@ -2981,7 +2995,11 @@ window.IntranetAccess = {
       // dass null fuer "alle Werkzeuge" steht.
       const vorherTools = this.toolsForUi(u);
       const storedTools = this.toolsToSave(edits.allowed_tools);
-      const app_settings = { ...(u.app_settings && typeof u.app_settings === 'object' ? u.app_settings : {}), allowed_tools: storedTools };
+      const app_settings = {
+        ...(u.app_settings && typeof u.app_settings === 'object' ? u.app_settings : {}),
+        allowed_tools: storedTools,
+        signal_layer_roots_assets: edits.roots_assets === true,
+      };
       const { error } = await window.RootsUser._sb.schema('users').from('profiles')
         .update({ app_role: edits.app_role, app_settings })
         .eq('id', u.id);

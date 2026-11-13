@@ -5102,6 +5102,9 @@ function rootsValidateImageRequest(input) {
   const imageList = (list, max) => (Array.isArray(list) ? list.slice(0, max) : [])
     .map(item => rootsValidateImageReference(item || {}, 'data', 'mimeType'))
     .filter(ref => ref.data);
+  const assetPaths = (list, max) => (Array.isArray(list) ? list.slice(0, max) : [])
+    .map(path => String(path || '').split('?')[0])
+    .filter(path => /^assets\/(master-styles\/[a-z0-9-]+|portrait-master(-hell)?)\.jpg$/.test(path));
   const legacyReference = rootsValidateImageReference(input, 'refImageData', 'refImageMimeType');
   const styleReference = rootsValidateImageReference(input, 'styleReferenceData', 'styleReferenceMimeType');
   const logoReference = rootsValidateImageReference(input, 'logoReferenceData', 'logoReferenceMimeType');
@@ -5125,6 +5128,8 @@ function rootsValidateImageRequest(input) {
     inputImages: imageList(input.inputImages, 2),
     seriesReferences: imageList(input.seriesReferences, 3),
     deferHistory: input.deferHistory === true,
+    inputImagePaths: assetPaths(input.inputImagePaths, 2),
+    seriesRefPaths: assetPaths(input.seriesRefPaths, 3),
   };
 }
 

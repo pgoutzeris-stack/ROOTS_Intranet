@@ -5051,7 +5051,7 @@ function rootsValidateImageReference(input, dataKey, mimeKey) {
 function rootsValidateImageRequest(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Ungültige Anfrage');
   const action = input.action;
-  if (!['settings_status', 'save_google_api_key', 'improve_style_prompt', 'generate_image', 'get_history', 'get_history_image', 'delete_history_item'].includes(action)) {
+  if (!['settings_status', 'save_google_api_key', 'improve_style_prompt', 'generate_image', 'finalize_image', 'get_history', 'get_history_image', 'delete_history_item'].includes(action)) {
     throw new Error('Aktion nicht erlaubt');
   }
   if (action === 'settings_status') return { action };
@@ -5074,6 +5074,22 @@ function rootsValidateImageRequest(input) {
     if (stylePrompt.length < 5 || stylePrompt.length > 6000) throw new Error('Stilidee ist ungültig oder zu lang');
     return { action, stylePrompt };
   }
+  if (action === 'finalize_image') {
+    const raw = rootsValidateImageReference(input, 'rawImageData', 'rawMimeType');
+    const fin = rootsValidateImageReference(input, 'finalImageData', 'finalMimeType');
+    if (!raw.data || !fin.data) throw new Error('Bild fehlt');
+    return {
+      action,
+      rawImageData: raw.data, rawMimeType: raw.mimeType,
+      finalImageData: fin.data, finalMimeType: fin.mimeType,
+      rootsLogo: input.rootsLogo === true,
+      promptText: String(input.promptText || '').slice(0, 6000),
+      modelId: String(input.modelId || '').slice(0, 100),
+      modelLabel: String(input.modelLabel || '').slice(0, 100),
+      aspect: String(input.aspect || '').slice(0, 10),
+      styleId: String(input.styleId || '').slice(0, 100),
+    };
+  }
   const allowedModels = new Set(['gemini-3-pro-image', 'gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview']);
   const allowedAspects = new Set(['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']);
   const allowedLogoPlacements = new Set(['top-left', 'top-right', 'bottom-left', 'bottom-right', 'bottom-center', 'center', 'integrated']);
@@ -5082,7 +5098,10 @@ function rootsValidateImageRequest(input) {
   const aspect = typeof input.aspect === 'string' ? input.aspect : '';
   if (!allowedModels.has(modelId) || !allowedAspects.has(aspect)) throw new Error('Modell oder Format nicht erlaubt');
   if (!promptText || promptText.length > 6000) throw new Error('Prompt ist ungültig oder zu lang');
-  const stylePrompt = typeof input.stylePrompt === 'string' ? input.stylePrompt.trim().slice(0, 8000) : '';
+  const stylePrompt = typeof input.stylePrompt === 'string' ? input.stylePrompt.trim().slice(0, 16000) : '';
+  const imageList = (list, max) => (Array.isArray(list) ? list.slice(0, max) : [])
+    .map(item => rootsValidateImageReference(item || {}, 'data', 'mimeType'))
+    .filter(ref => ref.data);
   const legacyReference = rootsValidateImageReference(input, 'refImageData', 'refImageMimeType');
   const styleReference = rootsValidateImageReference(input, 'styleReferenceData', 'styleReferenceMimeType');
   const logoReference = rootsValidateImageReference(input, 'logoReferenceData', 'logoReferenceMimeType');
@@ -5103,6 +5122,9 @@ function rootsValidateImageRequest(input) {
     logoReferenceData: logoReference.data,
     logoReferenceMimeType: logoReference.mimeType,
     logoPlacement,
+    inputImages: imageList(input.inputImages, 2),
+    seriesReferences: imageList(input.seriesReferences, 3),
+    deferHistory: input.deferHistory === true,
   };
 }
 

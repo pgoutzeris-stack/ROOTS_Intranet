@@ -5083,6 +5083,7 @@ function rootsValidateImageRequest(input) {
       rawImageData: raw.data, rawMimeType: raw.mimeType,
       finalImageData: fin.data, finalMimeType: fin.mimeType,
       rootsLogo: input.rootsLogo === true,
+      generationCostUsd: Math.max(0, Math.min(5, Number(input.generationCostUsd) || 0)),
       promptText: String(input.promptText || '').slice(0, 6000),
       modelId: String(input.modelId || '').slice(0, 100),
       modelLabel: String(input.modelLabel || '').slice(0, 100),
@@ -5130,6 +5131,7 @@ function rootsValidateImageRequest(input) {
     deferHistory: input.deferHistory === true,
     inputImagePaths: assetPaths(input.inputImagePaths, 2),
     seriesRefPaths: assetPaths(input.seriesRefPaths, 3),
+    priorCostUsd: Math.max(0, Math.min(5, Number(input.priorCostUsd) || 0)),
   };
 }
 

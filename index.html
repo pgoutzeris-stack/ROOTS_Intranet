@@ -1552,7 +1552,7 @@
         <iframe
           class="tool-iframe"
           title="ROOTS Rechnungen"
-          data-src="https://pgoutzeris-stack.github.io/ROOTS_Rechnungen/?authBroker=v1&v=20261117-39"
+          data-src="https://pgoutzeris-stack.github.io/ROOTS_Rechnungen/?authBroker=v1&v=20261117-40"
           sandbox="allow-scripts allow-forms allow-downloads allow-modals"
           referrerpolicy="no-referrer"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
@@ -5608,7 +5608,7 @@ async function rootsHandleRechnungenRequest(sb, payload) {
     return data;
   };
   const plain = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
-  const LIST = 'id,number,status,customer_name,issue_date,tax_case,net_cents,tax_cents,gross_cents,created_at,updated_at,finalized_at,cancelled_at,project:data->>project';
+  const LIST = 'id,number,status,customer_name,issue_date,tax_case,net_cents,tax_cents,gross_cents,created_at,updated_at,finalized_at,cancelled_at,project:data->>project,number_manual:data->>number_manual,template:data->>template';
 
   switch (op) {
     case 'context': {

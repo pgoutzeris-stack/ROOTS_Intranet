@@ -5140,6 +5140,9 @@ function rootsValidateImageRequest(input) {
     seriesRefPaths: assetPaths(input.seriesRefPaths, 3),
     clothingImage: imageList([input.clothingImage], 1)[0] || null,
     styleStrict: input.styleStrict === true,
+    styleConflicts: (Array.isArray(input.styleConflicts) ? input.styleConflicts.slice(0, 5) : [])
+      .map(c => ({ angabe: String(c?.angabe || '').slice(0, 120), stil: String(c?.stil || '').slice(0, 160) }))
+      .filter(c => c.angabe && c.stil),
     priorCostUsd: Math.max(0, Math.min(5, Number(input.priorCostUsd) || 0)),
   };
 }

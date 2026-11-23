@@ -5052,7 +5052,7 @@ function rootsValidateImageReference(input, dataKey, mimeKey) {
 function rootsValidateImageRequest(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Ungültige Anfrage');
   const action = input.action;
-  if (!['settings_status', 'save_google_api_key', 'improve_style_prompt', 'generate_image', 'finalize_image', 'get_history', 'get_history_image', 'delete_history_item'].includes(action)) {
+  if (!['settings_status', 'save_google_api_key', 'improve_style_prompt', 'check_style_conflicts', 'generate_image', 'finalize_image', 'get_history', 'get_history_image', 'delete_history_item'].includes(action)) {
     throw new Error('Aktion nicht erlaubt');
   }
   if (action === 'settings_status') return { action };
@@ -5074,6 +5074,12 @@ function rootsValidateImageRequest(input) {
     const stylePrompt = typeof input.stylePrompt === 'string' ? input.stylePrompt.trim() : '';
     if (stylePrompt.length < 5 || stylePrompt.length > 6000) throw new Error('Stilidee ist ungültig oder zu lang');
     return { action, stylePrompt };
+  }
+  if (action === 'check_style_conflicts') {
+    const promptText = typeof input.promptText === 'string' ? input.promptText.trim().slice(0, 6000) : '';
+    const stylePrompt = typeof input.stylePrompt === 'string' ? input.stylePrompt.trim().slice(0, 16000) : '';
+    if (!promptText || !stylePrompt) throw new Error('Prompt oder Stil fehlt');
+    return { action, promptText, stylePrompt, styleName: String(input.styleName || '').slice(0, 100) };
   }
   if (action === 'finalize_image') {
     const raw = rootsValidateImageReference(input, 'rawImageData', 'rawMimeType');
@@ -5133,6 +5139,7 @@ function rootsValidateImageRequest(input) {
     inputImagePaths: assetPaths(input.inputImagePaths, 2),
     seriesRefPaths: assetPaths(input.seriesRefPaths, 3),
     clothingImage: imageList([input.clothingImage], 1)[0] || null,
+    styleStrict: input.styleStrict === true,
     priorCostUsd: Math.max(0, Math.min(5, Number(input.priorCostUsd) || 0)),
   };
 }

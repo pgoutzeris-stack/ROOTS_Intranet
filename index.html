@@ -5106,7 +5106,7 @@ function rootsValidateImageRequest(input) {
     .filter(ref => ref.data);
   const assetPaths = (list, max) => (Array.isArray(list) ? list.slice(0, max) : [])
     .map(path => String(path || '').split('?')[0])
-    .filter(path => /^assets\/(master-styles\/[a-z0-9-]+|portrait-master(-hell)?)\.jpg$/.test(path));
+    .filter(path => /^assets\/(master-styles\/[a-z0-9-]+|team-dunkel\/[a-z0-9-]+|portrait-master(-hell)?)\.jpg$/.test(path));
   const legacyReference = rootsValidateImageReference(input, 'refImageData', 'refImageMimeType');
   const styleReference = rootsValidateImageReference(input, 'styleReferenceData', 'styleReferenceMimeType');
   const logoReference = rootsValidateImageReference(input, 'logoReferenceData', 'logoReferenceMimeType');
@@ -5132,6 +5132,7 @@ function rootsValidateImageRequest(input) {
     deferHistory: input.deferHistory === true,
     inputImagePaths: assetPaths(input.inputImagePaths, 2),
     seriesRefPaths: assetPaths(input.seriesRefPaths, 3),
+    clothingImage: imageList([input.clothingImage], 1)[0] || null,
     priorCostUsd: Math.max(0, Math.min(5, Number(input.priorCostUsd) || 0)),
   };
 }

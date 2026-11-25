@@ -5594,6 +5594,19 @@ async function rootsHandlePrintRequest(sb, payload) {
           p_token_hash: String(payload.tokenHash || '').trim().toLowerCase(),
         })),
       };
+    case 'label_lists':
+      return { lists: unwrap(await sb.rpc('print_label_lists')) || [] };
+    case 'label_addresses':
+      return { rows: unwrap(await sb.rpc('print_label_addresses', { p_list: String(payload.list || '').slice(0, 120) })) || [] };
+    case 'label_replace': {
+      const rows = Array.isArray(payload.rows) ? payload.rows.slice(0, 5000) : [];
+      return {
+        count: unwrap(await sb.rpc('print_label_replace', {
+          p_list: String(payload.list || '').slice(0, 120),
+          p_rows: rows,
+        })),
+      };
+    }
     default:
       throw new Error('Unbekannte Print-Anfrage');
   }

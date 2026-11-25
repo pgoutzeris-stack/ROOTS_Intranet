@@ -5607,6 +5607,23 @@ async function rootsHandlePrintRequest(sb, payload) {
         })),
       };
     }
+    case 'label_update':
+      return { row: unwrap(await sb.rpc('print_label_update', { p_id: uuid(payload.id), p_row: payload.row && typeof payload.row === 'object' ? payload.row : {} })) };
+    case 'label_mark_printed': {
+      const ids = (Array.isArray(payload.ids) ? payload.ids : []).slice(0, 5000).map(uuid);
+      return { count: unwrap(await sb.rpc('print_label_mark_printed', { p_ids: ids, p_job: payload.jobId ? uuid(payload.jobId) : null })) };
+    }
+    case 'label_stamps':
+      return { stamps: unwrap(await sb.rpc('print_label_stamps')) || [] };
+    case 'label_stamp_add': {
+      const image = String(payload.image || '');
+      if (!image.startsWith('data:image/png;base64,') || image.length > 3000000) throw new Error('Marke ungueltig');
+      return { id: unwrap(await sb.rpc('print_label_stamp_add', { p_image: image, p_w: Number(payload.w), p_h: Number(payload.h), p_info: String(payload.info || '').slice(0, 200), p_filename: String(payload.filename || '').slice(0, 200) })) };
+    }
+    case 'label_stamp_use':
+      return { ok: unwrap(await sb.rpc('print_label_stamp_use', { p_id: uuid(payload.id), p_address: payload.address ? uuid(payload.address) : null })) ?? true };
+    case 'label_stamp_delete':
+      return { ok: unwrap(await sb.rpc('print_label_stamp_delete', { p_id: uuid(payload.id) })) ?? true };
     default:
       throw new Error('Unbekannte Print-Anfrage');
   }

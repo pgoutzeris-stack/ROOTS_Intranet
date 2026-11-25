@@ -143,7 +143,7 @@
 
   const SYNC_INTERVAL_MS = 20000;
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
-  const BRIDGE_VERSION = 'tokenless-broker-v1-20260522-hover';
+  const BRIDGE_VERSION = 'tokenless-broker-v2-20261125-ack';
 
   function escapeAttr(s) {
     return escapeHtml(s).replace(/"/g, '&quot;');
@@ -1121,17 +1121,20 @@
   let _authSerial = 0;
   const _brokerPending = new Map();
 
+  // Quittung: das Intranet meldet sofort "angekommen". Bleibt sie aus, ist die
+  // Anfrage nie verarbeitet worden und darf gefahrlos erneut geschickt werden
+  // (das Intranet verwirft doppelte requestIds). Erst wenn je eine Quittung kam,
+  // wird wiederholt; ein altes Intranet ohne Quittung bekommt keine Dubletten.
+  let _ackSupported = false;
+  const ACK_TIMEOUT_MS = 6000;
+  const ACK_RESENDS = 4;
+
   function brokerRequest(action, payload = {}, timeoutMs = 180000) {
     if (!IN_IFRAME) return Promise.reject(new Error('Broker ist nur im Intranet verfügbar'));
     const requestId = globalThis.crypto?.randomUUID?.().replace(/-/g, '')
       || (Date.now().toString(36) + Math.random().toString(36).slice(2));
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        _brokerPending.delete(requestId);
-        reject(new Error('Broker-Anfrage hat zu lange gedauert'));
-      }, Math.max(1000, Math.min(Number(timeoutMs) || 180000, 300000)));
-      _brokerPending.set(requestId, { resolve, reject, timer, action });
-      window.parent.postMessage({
+      const send = () => window.parent.postMessage({
         type: 'roots-broker-request',
         requestId,
         action,
@@ -1139,6 +1142,28 @@
         userId: _boundUserId,
         authEpoch: _boundEpoch,
       }, ORIGIN);
+      const entry = { resolve, reject, action, acked: false, resends: 0, ackTimer: null };
+      entry.timer = setTimeout(() => {
+        clearTimeout(entry.ackTimer);
+        _brokerPending.delete(requestId);
+        const err = new Error(entry.acked
+          ? 'Broker-Anfrage hat zu lange gedauert'
+          : 'Broker-Anfrage ist im Intranet nicht angekommen');
+        err.code = entry.acked ? 'BROKER_TIMEOUT' : 'BROKER_NO_ACK';
+        reject(err);
+      }, Math.max(1000, Math.min(Number(timeoutMs) || 180000, 300000)));
+      const armAck = () => {
+        entry.ackTimer = setTimeout(() => {
+          if (entry.acked || !_brokerPending.has(requestId)) return;
+          if (!_ackSupported || entry.resends >= ACK_RESENDS) return;
+          entry.resends += 1;
+          send();
+          armAck();
+        }, ACK_TIMEOUT_MS * (entry.resends + 1));
+      };
+      _brokerPending.set(requestId, entry);
+      send();
+      armAck();
     });
   }
 
@@ -1243,10 +1268,18 @@
       }
       return;
     }
+    if (e.data.type === 'roots-broker-ack') {
+      _ackSupported = true;
+      const pending = _brokerPending.get(e.data.requestId);
+      if (pending) { pending.acked = true; clearTimeout(pending.ackTimer); }
+      return;
+    }
     if (e.data.type === 'roots-broker-response') {
+      _ackSupported = true;
       const pending = _brokerPending.get(e.data.requestId);
       if (!pending) return;
       clearTimeout(pending.timer);
+      clearTimeout(pending.ackTimer);
       _brokerPending.delete(e.data.requestId);
       const responseUserId = typeof e.data.userId === 'string' ? e.data.userId : '';
       const responseEpoch = Number(e.data.authEpoch) || 0;

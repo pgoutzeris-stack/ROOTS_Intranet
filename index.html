@@ -1552,7 +1552,7 @@
         <iframe
           class="tool-iframe"
           title="ROOTS Rechnungen"
-          data-src="https://pgoutzeris-stack.github.io/ROOTS_Rechnungen/?authBroker=v1&v=20261117-76"
+          data-src="https://pgoutzeris-stack.github.io/ROOTS_Rechnungen/?authBroker=v1&v=20261125-77"
           sandbox="allow-scripts allow-forms allow-downloads allow-modals"
           referrerpolicy="no-referrer"
           allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'"></iframe>
@@ -4355,7 +4355,7 @@ window.RootsAdmin = {
 };
 </script>
 
-<script src="roots-user-bridge.js?v=20261025-download-ack"></script>
+<script src="roots-user-bridge.js?v=20261125-broker-ack"></script>
 <script src="roots-signature.js?v=20261002-sig-v1"></script>
 
 <script>
@@ -5792,15 +5792,26 @@ async function rootsHandleRechnungenRequest(sb, payload) {
   }
 }
 
+async function rootsBrokerUser(sb) {
+  const remote = sb.auth.getUser().then(({ data, error }) => (error ? null : data?.user || null)).catch(() => null);
+  const timeout = new Promise((r) => setTimeout(() => r('timeout'), 12000));
+  const res = await Promise.race([remote, timeout]);
+  if (res !== 'timeout') return res;
+  const { data } = await sb.auth.getSession().catch(() => ({ data: null }));
+  const s = data?.session;
+  return s?.user && s.expires_at * 1000 > Date.now() ? s.user : null;
+}
+
 async function rootsHandleBrokerRequest(frame, message) {
   const requestId = typeof message.requestId === 'string' ? message.requestId : '';
   if (!/^[a-z0-9_-]{8,80}$/i.test(requestId)) return;
   try {
     const sb = window.__rootsSupabaseClient;
     if (!sb) throw new Error('Supabase ist nicht verfügbar');
-    const { data: userData, error: userError } = await sb.auth.getUser();
-    const user = userData?.user;
-    if (userError || !user) throw new Error('Nicht angemeldet');
+    // getUser() fragt Supabase-Auth ab und kann bei Netzaussetzern oder einer
+    // haengenden Auth-Sperre lange stehen. Nach 12 s gilt die lokale Sitzung.
+    const user = await rootsBrokerUser(sb);
+    if (!user) throw new Error('Nicht angemeldet');
     const authEpoch = window.RootsUser?._authEpoch || 0;
     if (window.RootsUser?._uid !== user.id) throw new Error('Die aktive Identität ist nicht eindeutig');
     if (frame.dataset.identityUser !== user.id || frame.dataset.identityEpoch !== String(authEpoch)) {
@@ -5871,17 +5882,39 @@ async function rootsHandleBrokerRequest(frame, message) {
   }
 }
 
+// Broker-Anfragen gelten auch aus einem Tool, das gerade nicht vorne liegt:
+// sonst bleibt eine laufende Anfrage beim Ansichtswechsel unbeantwortet und das
+// Tool wartet bis zum Zeitlimit. Jede Anfrage wird sofort quittiert; doppelt
+// geschickte requestIds (Wiederholung ohne Quittung) werden nur neu quittiert.
+const rootsBrokerSeen = new Map();
+function rootsBrokerAck(frame, requestId) {
+  const sandboxed = frame.hasAttribute('sandbox') && !frame.sandbox.contains('allow-same-origin');
+  try {
+    frame.contentWindow?.postMessage({ type: 'roots-broker-ack', requestId }, sandboxed ? '*' : ROOTS_TOOL_ORIGIN);
+  } catch (_) {}
+}
+
 window.addEventListener('message', (e) => {
   const sourceFrame = rootsMessageSourceFrame(e);
-  if (!sourceFrame || !rootsIsActiveFrame(sourceFrame)) return;
+  if (!sourceFrame) return;
+  if (e.data?.type === 'roots-broker-request') {
+    const requestId = typeof e.data.requestId === 'string' ? e.data.requestId : '';
+    if (!/^[a-z0-9_-]{8,80}$/i.test(requestId)) return;
+    rootsBrokerAck(sourceFrame, requestId);
+    if (rootsBrokerSeen.has(requestId)) return;
+    const now = Date.now();
+    rootsBrokerSeen.set(requestId, now);
+    if (rootsBrokerSeen.size > 500) {
+      for (const [id, t] of rootsBrokerSeen) if (now - t > 600000) rootsBrokerSeen.delete(id);
+    }
+    void rootsHandleBrokerRequest(sourceFrame, e.data);
+    return;
+  }
+  if (!rootsIsActiveFrame(sourceFrame)) return;
 
   const type = e.data.type;
   if (type === 'roots-auth-request') {
     window.RootsUser?._broadcastAuthSession?.();
-    return;
-  }
-  if (type === 'roots-broker-request') {
-    void rootsHandleBrokerRequest(sourceFrame, e.data);
     return;
   }
   if (type !== 'roots-download-file') {

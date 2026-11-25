@@ -5594,6 +5594,13 @@ async function rootsHandlePrintRequest(sb, payload) {
           p_token_hash: String(payload.tokenHash || '').trim().toLowerCase(),
         })),
       };
+    case 'submit_device':
+      return {
+        jobId: unwrap(await sb.rpc('print_submit_device_job', {
+          p_printer_id: uuid(payload.printerId),
+          p_settings: payload.settings && typeof payload.settings === 'object' ? payload.settings : {},
+        })),
+      };
     case 'label_lists':
       return { lists: unwrap(await sb.rpc('print_label_lists')) || [] };
     case 'label_addresses':

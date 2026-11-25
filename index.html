@@ -5622,6 +5622,18 @@ async function rootsHandlePrintRequest(sb, payload) {
     }
     case 'label_stamp_use':
       return { ok: unwrap(await sb.rpc('print_label_stamp_use', { p_id: uuid(payload.id), p_address: payload.address ? uuid(payload.address) : null })) ?? true };
+    case 'label_log_add': {
+      const entries = Array.isArray(payload.entries) ? payload.entries.slice(0, 5000) : [];
+      return { count: unwrap(await sb.rpc('print_label_log_add', { p_entries: entries })) };
+    }
+    case 'label_log':
+      return {
+        log: unwrap(await sb.rpc('print_label_log', {
+          p_address: payload.address ? uuid(payload.address) : null,
+          p_stamp: payload.stamp ? uuid(payload.stamp) : null,
+          p_limit: Math.min(2000, Number(payload.limit) || 300),
+        })) || [],
+      };
     case 'label_stamp_delete':
       return { ok: unwrap(await sb.rpc('print_label_stamp_delete', { p_id: uuid(payload.id) })) ?? true };
     default:

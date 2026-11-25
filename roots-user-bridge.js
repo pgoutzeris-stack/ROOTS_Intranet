@@ -109,6 +109,10 @@
     if (!IN_IFRAME || !notification?.id) return;
     if (toastShownIds.has(notification.id) || visibleToastIds.has(notification.id)) return;
     toastShownIds.add(notification.id);
+    // Das Tool darf die Meldung selbst zeigen (z. B. als Fortschritts-Pill) und
+    // verhindert dann den zweiten, gleichen Toast.
+    const ereignis = new CustomEvent('roots-notification-toast', { detail: notification, cancelable: true });
+    if (!window.dispatchEvent(ereignis)) return;
     const stack = ensureNotifStack();
     stack.replaceChildren();
     visibleToastIds.clear();
@@ -143,7 +147,7 @@
 
   const SYNC_INTERVAL_MS = 20000;
   const SUPABASE_REF = 'csmguwcvzreefluhahyu';
-  const BRIDGE_VERSION = 'tokenless-broker-v2-20261125-ack';
+  const BRIDGE_VERSION = 'tokenless-broker-v2-20261125-toast-event';
 
   function escapeAttr(s) {
     return escapeHtml(s).replace(/"/g, '&quot;');

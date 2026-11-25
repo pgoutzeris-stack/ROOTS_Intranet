@@ -5098,7 +5098,7 @@ function rootsValidateImageRequest(input) {
       styleId: String(input.styleId || '').slice(0, 100),
     };
   }
-  const allowedModels = new Set(['gemini-3-pro-image', 'gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview']);
+  const allowedModels = new Set(['gemini-3-pro-image', 'gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gpt-image-2.6-sunburst', 'gpt-image-2.6-flare', 'gpt-image-2']);
   const allowedAspects = new Set(['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']);
   const allowedLogoPlacements = new Set(['top-left', 'top-right', 'bottom-left', 'bottom-right', 'bottom-center', 'center', 'integrated']);
   const modelId = typeof input.modelId === 'string' ? input.modelId : '';
